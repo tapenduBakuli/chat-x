@@ -398,6 +398,8 @@ class IntimateDesiresScreen extends GetView<RegisterController> {
         expanded: () => controller.physicalExpanded,
         onToggleExpanded: controller.togglePhysicalExpanded,
       ),
+
+
       _PrefCardData(
         title: "Exploration & Kink",
         subtitle: "Fetishes, roleplay & power dynamics",
