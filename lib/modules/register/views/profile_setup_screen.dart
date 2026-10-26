@@ -353,7 +353,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
       children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,
-         // onTap: controller.onAddPhotoTap,
+          onTap: controller.onAddPhotoTap,
           child: SizedBox(
             height: ScreenConstant.defaultSizeOneTen,
             width: ScreenConstant.defaultSizeOneTen,
