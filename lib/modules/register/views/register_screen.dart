@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:chat_x/device_manager/screen_constants.dart';
 import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
@@ -64,7 +66,11 @@ class RegisterScreen extends GetView<RegisterController> {
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildTrialCard(),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                    _buildProfileName(),
+                    SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildEmailField(),
+                    SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                    _buildDob(),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildPasswordField(),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -99,6 +105,155 @@ class RegisterScreen extends GetView<RegisterController> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // (2) Discreet & protected badge
+  // ---------------------------------------------------------------------------
+  Widget _buildDiscreetBadge() {
+    return Center(
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: ScreenConstant.sizeMedium,
+          vertical: ScreenConstant.sizeExtraSmall,
+        ),
+        decoration: BoxDecoration(
+          color: CustomColor.colorFFF1F2,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: CustomColor.colorFECDD3, width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              "assets/images/100percent_discreet.png",
+              height: ScreenConstant.minimumIconSize,
+              color: CustomColor.colorBE123C,
+            ),
+            SizedBox(width: ScreenConstant.sizeExtraSmall),
+            Text(
+              "100% DISCREET & PROTECTED",
+              style: TextStyles.policiesBadgeText,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // (3) Add photo control
+  // ---------------------------------------------------------------------------
+  Widget _buildAddPhoto() {
+    return Column(
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: controller.onAddPhotoTap,
+          child: SizedBox(
+            height: ScreenConstant.defaultSizeOneTen,
+            width: ScreenConstant.defaultSizeOneTen,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  height: ScreenConstant.defaultSizeOneTwenty,
+                  width: ScreenConstant.defaultSizeOneTwenty,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        CustomColor.colorEC4899,
+                        CustomColor.colorF43F5E,
+                        CustomColor.color9333EA,
+                      ],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(5.0),
+                    child: Obx(() {
+                      final File? photo = controller.profileImage.value;
+                      return Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: CustomColor.colorWhite,
+                        ),
+                        child: photo != null
+                            ? Image.file(
+                          photo,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                        )
+                            : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              "assets/images/add_photo.png",
+                              height: ScreenConstant.texIconSize,
+                              color: CustomColor.color475569,
+                            ),
+                            SizedBox(height: ScreenConstant.sizeSmall),
+                            Text(
+                              "ADD PHOTO",
+                              style: TextStyles.policiesBadgeText.copyWith(
+                                color: CustomColor.color334155,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    height: ScreenConstant.defaultHeightThirty,
+                    width: ScreenConstant.defaultWidthThirty,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: CustomColor.color0F172A,
+                      border: Border.all(
+                        color: CustomColor.colorWhite,
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.photo_camera,
+                      size: ScreenConstant.minimumIconSize,
+                      color: CustomColor.colorWhite,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: ScreenConstant.sizeSmall),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              "assets/images/photos_can_be_blurred.png",
+              height: ScreenConstant.minimumIconSize,
+              color: CustomColor.colorF43F5E,
+            ),
+            SizedBox(width: ScreenConstant.defaultWidthTen,),
+            Text(
+              "Photos can be blurred or hidden anytime.",
+              textAlign: TextAlign.center,
+              style: TextStyles.registerFieldNote,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Header: circle icon + "Create your account" + subtitle
@@ -106,9 +261,13 @@ class RegisterScreen extends GetView<RegisterController> {
   Widget _buildHeader() {
     return Column(
       children: [
-        Container(
-            height: ScreenConstant.defaultHeightOneHundred,width: ScreenConstant.defaultWidthOneHundredFifteen,
-            child: Image.asset("assets/images/register_top_logo.png",fit: BoxFit.cover,)),
+        SizedBox(height: ScreenConstant.defaultHeightTen,),
+        _buildDiscreetBadge(),
+        SizedBox(height: ScreenConstant.defaultHeightTen,),
+        _buildAddPhoto(),
+        // Container(
+        //     height: ScreenConstant.defaultHeightOneHundred,width: ScreenConstant.defaultWidthOneHundredFifteen,
+        //     child: Image.asset("assets/images/register_top_logo.png",fit: BoxFit.cover,)),
         Text("Create your account", style: TextStyles.registerTitle),
         Text(
           "Join Belgium's discreet adult connection\n network",
@@ -283,6 +442,74 @@ class RegisterScreen extends GetView<RegisterController> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // (4) Profile name
+  // ---------------------------------------------------------------------------
+  Widget _buildProfileName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label("Profile Name", trailing: _greenPill("Pseudonym OK")),
+        SizedBox(
+          height: ScreenConstant.defaultHeightFifty,
+          child: CustomTextField(
+            borderRadius: 26,
+            controller: controller.profileNameController,
+            hintText: "e.g. Alex_BXL or VelvetMystique",
+            hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14,color: CustomColor.color94A3B8),
+            borderColor: CustomColor.colorE2E8F0,
+          ),
+        ),
+        SizedBox(height: ScreenConstant.sizeExtraSmall + 2),
+        Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: ScreenConstant.minimumIconSize - 2,
+              color: CustomColor.color94A3B8,
+            ),
+            SizedBox(width: ScreenConstant.sizeExtraSmall + 2),
+            Expanded(
+              child: Text(
+                "This is your public display name. Never use your real legal name.",
+                style: TextStyles.registerFieldNote,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _greenPill(String text) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: ScreenConstant.sizeSmall,
+        vertical: ScreenConstant.sizeExtraSmall / 1.5,
+      ),
+      decoration: BoxDecoration(
+        color: CustomColor.colorECFDF5,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: CustomColor.color10B981.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.lock_open_outlined,
+            size: ScreenConstant.minimumIconSize - 2,
+            color: CustomColor.color059669,
+          ),
+          SizedBox(width: ScreenConstant.sizeExtraSmall / 2),
+          Text(text, style: TextStyles.paymentValidFormat),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmailField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,6 +550,151 @@ class RegisterScreen extends GetView<RegisterController> {
           ],
         ),
       ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // (6) Date of birth / age verification
+  // ---------------------------------------------------------------------------
+  Widget _buildDob() {
+    final int currentYear = DateTime.now().year;
+    final List<int> days = List.generate(31, (i) => i + 1);
+    final List<int> months = List.generate(12, (i) => i + 1);
+    final List<int> years =
+    List.generate(currentYear - 18 - 1950 + 1, (i) => currentYear - 18 - i);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label("Date of Birth / Age Verification"),
+        Row(
+          children: [
+            Expanded(
+              child: Obx(
+                    () => _dropdown<int>(
+                  value: controller.selectedDobDay.value,
+                  hint: "Day",
+                  items: days
+                      .map(
+                        (d) => DropdownMenuItem<int>(
+                      value: d,
+                      child: Text(
+                        "$d",
+                        style: TextStyles.loginTopText
+                            .copyWith(fontSize: FontSize.s14),
+                      ),
+                    ),
+                  )
+                      .toList(),
+                  onChanged: controller.setDobDay,
+                ),
+              ),
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Expanded(
+              child: Obx(
+                    () => _dropdown<int>(
+                  value: controller.selectedDobMonth.value,
+                  hint: "Month",
+                  items: months
+                      .map(
+                        (m) => DropdownMenuItem<int>(
+                      value: m,
+                      child: Text(
+                        "$m",
+                        style: TextStyles.loginTopText
+                            .copyWith(fontSize: FontSize.s14),
+                      ),
+                    ),
+                  )
+                      .toList(),
+                  onChanged: controller.setDobMonth,
+                ),
+              ),
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Expanded(
+              child: Obx(
+                    () => _dropdown<int>(
+                  value: controller.selectedDobYear.value,
+                  hint: "Year",
+                  items: years
+                      .map(
+                        (y) => DropdownMenuItem<int>(
+                      value: y,
+                      child: Text(
+                        "$y",
+                        style: TextStyles.loginTopText
+                            .copyWith(fontSize: FontSize.s14),
+                      ),
+                    ),
+                  )
+                      .toList(),
+                  onChanged: controller.setDobYear,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: ScreenConstant.sizeExtraSmall + 2),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Image.asset(
+              "assets/images/dateofbirth.png",
+              height: ScreenConstant.minimumIconSize,
+            ),
+            SizedBox(width: ScreenConstant.defaultWidthTen,),
+            Expanded(
+              child: Text(
+                "Only your calculated age (e.g. 28) will be displayed. Your exact "
+                    "birth date remains completely hidden.",
+                style: TextStyles.registerFieldNote,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _dropdown<T>({
+    required T? value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+    String? hint,
+  }) {
+    return Container(
+      height: ScreenConstant.defaultHeightFifty,
+      padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+      decoration: BoxDecoration(
+        color: CustomColor.colorF8FAFC,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          isExpanded: true,
+          value: value,
+          hint: hint == null
+              ? null
+              : Text(
+            hint,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyles.loginTopText.copyWith(
+              fontSize: FontSize.s14,
+              color: CustomColor.color94A3B8,
+            ),
+          ),
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: CustomColor.color64748B,
+            size: ScreenConstant.smallIconSize,
+          ),
+          style: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 

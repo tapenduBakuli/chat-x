@@ -109,12 +109,12 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                   ],
                 ),
               ),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildProfileName(),
+              // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              // _buildProfileName(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildGender(),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildDob(),
+              // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              // _buildDob(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildOrientation(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -353,7 +353,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
       children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: controller.onAddPhotoTap,
+         // onTap: controller.onAddPhotoTap,
           child: SizedBox(
             height: ScreenConstant.defaultSizeOneTen,
             width: ScreenConstant.defaultSizeOneTen,
