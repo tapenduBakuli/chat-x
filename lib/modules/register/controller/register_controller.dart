@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:country_picker/country_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,8 +9,11 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../device_manager/screen_constants.dart';
 import '../../../routes/routes.dart';
+import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../login/model/login_response_model.dart';
+import '../services/register_services.dart';
 
 enum PaymentMethod { bancontact, sepa, creditCard }
 
@@ -111,7 +115,10 @@ class RegisterController extends GetxController {
   /// Mandate authorization toggle.
   final RxBool mandateAuthorized = true.obs;
 
-  /// Country selection.
+  /// Country selection. The [countries] list and [onCountrySelected] remain
+  /// for the payment screen's dropdown; the Create Account screen now uses the
+  /// country picker (see [onCountryPicked]). Starts EMPTY so required-field
+  /// validation on Create Account is meaningful.
   final List<String> countries = const [
     "Belgium (België / Belgique)",
     "Netherlands (Nederland)",
@@ -119,7 +126,16 @@ class RegisterController extends GetxController {
     "Germany (Deutschland)",
     "Luxembourg",
   ];
-  late final RxString selectedCountry = countries.first.obs;
+  final RxString selectedCountry = ''.obs;
+
+  /// Flag emoji of the picked country (shown alongside the name on Create
+  /// Account). Empty until a country is selected.
+  final RxString selectedCountryFlag = ''.obs;
+
+  /// Whether a register request is in flight (drives the Continue spinner).
+  final RxBool isRegistering = false.obs;
+
+  final HiveStore _store = HiveStore();
 
   void togglePasswordVisibility() {
     obscurePassword.value = !obscurePassword.value;
@@ -131,6 +147,13 @@ class RegisterController extends GetxController {
 
   void onCountrySelected(String country) {
     selectedCountry.value = country;
+  }
+
+  /// Called when a country is chosen from the country picker on Create
+  /// Account. Stores the display name and flag emoji (no dial code).
+  void onCountryPicked(Country country) {
+    selectedCountry.value = country.name;
+    selectedCountryFlag.value = country.flagEmoji;
   }
 
   void selectMethod(PaymentMethod method) {
@@ -148,6 +171,7 @@ class RegisterController extends GetxController {
       'iban: ${ibanController.text.trim()}, '
       'mandate: ${mandateAuthorized.value}',
     );
+    Get.toNamed(Routes.POLICIES_AGREEMENT);
   }
 
   void onCancel() {
@@ -342,12 +366,139 @@ class RegisterController extends GetxController {
     expandedPolicySections[index] = !expandedPolicySections[index];
   }
 
-  void onContinueTap() {
-    debugPrint(
-      'Continue tapped -> email: ${emailController.text.trim()}, '
-      'country: ${selectedCountry.value}',
-    );
-    Get.toNamed(Routes.POLICIES_AGREEMENT);
+  Future<void> onContinueTap() async {
+    if (isRegistering.value) return;
+
+    // Validate all required fields (promo code is optional).
+    final String displayName = profileNameController.text.trim();
+    final String email = emailController.text.trim();
+
+    if (displayName.isEmpty) {
+      Get.snackbar(
+        'Profile name required',
+        'Please enter your profile name.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      Get.snackbar(
+        'Invalid email',
+        'Please enter a valid email address.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (selectedDobDay.value == null ||
+        selectedDobMonth.value == null ||
+        selectedDobYear.value == null) {
+      Get.snackbar(
+        'Date of birth required',
+        'Please select your full date of birth.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (!isPasswordValid) {
+      Get.snackbar(
+        'Weak password',
+        passwordError.isNotEmpty
+            ? passwordError
+            : 'Please meet all password requirements.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (!passwordsMatch) {
+      Get.snackbar(
+        'Passwords do not match',
+        'Please make sure both passwords are identical.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (selectedCountry.value.isEmpty) {
+      Get.snackbar(
+        'Country required',
+        'Please select your country.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    // Build date_of_birth as zero-padded YYYY-MM-DD.
+    final String dateOfBirth =
+        '${selectedDobYear.value!.toString().padLeft(4, '0')}-'
+        '${selectedDobMonth.value!.toString().padLeft(2, '0')}-'
+        '${selectedDobDay.value!.toString().padLeft(2, '0')}';
+
+    isRegistering.value = true;
+    try {
+      final result = await RegisterService.instance.register(
+        displayName: displayName,
+        email: email,
+        dateOfBirth: dateOfBirth,
+        password: passwordController.text,
+        confirmPassword: confirmPasswordController.text,
+        country: selectedCountry.value,
+        promoCode: promoController.text.trim(),
+      );
+
+      if (result.isSuccess) {
+        _onRegisterSuccess(result.response!);
+        Get.toNamed(Routes.PAYMENT);
+        clearCreateAccountForm();
+      } else {
+        Get.snackbar(
+          'Registration failed',
+          result.error ?? 'Could not create your account.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      isRegistering.value = false;
+    }
+  }
+
+  /// Runs only after a successful registration. Persists the session tokens
+  /// and user id exactly like [LoginController._onLoginSuccess].
+  void _onRegisterSuccess(LoginResponse res) {
+    final tokens = res.data?.tokens;
+    final user = res.data?.user;
+
+    if (tokens != null) {
+      _store.setString(Keys.AUTHTOKEN, tokens.accessToken);
+      _store.setString(Keys.ACCESSTOKEN, tokens.accessToken);
+      _store.setString(Keys.REFRESHTOKEN, tokens.refreshToken);
+    }
+    if (user != null) {
+      _store.setString(Keys.USERID, user.id);
+    }
+    _store.setBool(Keys.LOGGEDIN, true);
+
+    debugPrint('Register succeeded -> ${user?.displayName}.');
+  }
+
+  /// Clears every Create Account field back to its initial state (called on a
+  /// successful registration and when backing out of the screen).
+  void clearCreateAccountForm() {
+    profileNameController.clear();
+    emailController.clear();
+    passwordController.clear();
+    confirmPasswordController.clear();
+    promoController.clear();
+    selectedDobDay.value = null;
+    selectedDobMonth.value = null;
+    selectedDobYear.value = null;
+    selectedCountry.value = '';
+    selectedCountryFlag.value = '';
+    password.value = '';
+    confirmPassword.value = '';
+  }
+
+  bool _isValidEmail(String email) {
+    final RegExp regex = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
+    return regex.hasMatch(email);
   }
 
   void onAgreeAndContinue() {
@@ -687,6 +838,7 @@ class RegisterController extends GetxController {
   }
 
   void onBack() {
+    clearCreateAccountForm();
     Get.back();
   }
 

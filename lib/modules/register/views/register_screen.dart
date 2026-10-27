@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:chat_x/device_manager/screen_constants.dart';
 import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
+import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -76,21 +77,16 @@ class RegisterScreen extends GetView<RegisterController> {
                     _buildPasswordField(),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildConfirmPasswordField(),
+                    // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                    // _buildBankingCard(),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                    _buildBankingCard(),
-                    SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                    _buildCountryField(),
+                    _buildCountryField(context),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildPromoField(),
                     SizedBox(height: ScreenConstant.defaultHeightThirty),
                     SizedBox(
                       height: ScreenConstant.defaultHeightFifty,
-                      child: buildLoginButton(
-                        "Continue",
-                        true,
-                        controller.onContinueTap,
-                        null,
-                      ),
+                      child: _buildContinueButton(),
                     ),
                     SizedBox(height: ScreenConstant.defaultHeightFifteen),
                     _buildLoginRow(),
@@ -1082,58 +1078,112 @@ class RegisterScreen extends GetView<RegisterController> {
   // ---------------------------------------------------------------------------
   // Country dropdown
   // ---------------------------------------------------------------------------
-  Widget _buildCountryField() {
+  Widget _buildCountryField(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label("Country"),
-        Container(
-          height: ScreenConstant.defaultHeightFifty,
-          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
-          decoration: BoxDecoration(
-            color: CustomColor.colorF8FAFC,
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
-          ),
-          child: Row(
-            children: [
-              Text("🇧🇪  ", style: TextStyles.registerCountryText),
-              Expanded(
-                child: Obx(
-                  () => DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: controller.selectedCountry.value,
-                      icon: Icon(
-                        Icons.keyboard_arrow_down,
-                        color: CustomColor.color64748B,
-                        size: ScreenConstant.smallIconSize,
-                      ),
-                      style: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14),
-                      items: controller.countries
-                          .map(
-                            (c) => DropdownMenuItem<String>(
-                              value: c,
-                              child: Text(
-                                c,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14),
-                              ),
+        InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: () => _openCountryPicker(context),
+          child: Container(
+            height: ScreenConstant.defaultHeightFifty,
+            padding:
+                EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+            decoration: BoxDecoration(
+              color: CustomColor.colorF8FAFC,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Obx(() {
+                    final bool hasCountry =
+                        controller.selectedCountry.value.isNotEmpty;
+                    return Text(
+                      hasCountry
+                          ? "${controller.selectedCountryFlag.value}  ${controller.selectedCountry.value}"
+                          : "Select your country",
+                      overflow: TextOverflow.ellipsis,
+                      style: hasCountry
+                          ? TextStyles.loginTopText
+                              .copyWith(fontSize: FontSize.s14)
+                          : TextStyles.loginTopText.copyWith(
+                              fontSize: FontSize.s14,
+                              color: CustomColor.color94A3B8,
                             ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) controller.onCountrySelected(value);
-                      },
-                    ),
-                  ),
+                    );
+                  }),
                 ),
-              ),
-            ],
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  color: CustomColor.color64748B,
+                  size: ScreenConstant.smallIconSize,
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
+  }
+
+  void _openCountryPicker(BuildContext context) {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: false,
+      countryListTheme: CountryListThemeData(
+        backgroundColor: CustomColor.colorWhite,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        inputDecoration: InputDecoration(
+          hintText: 'Search',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderSide: BorderSide(color: CustomColor.colorE2E8F0),
+          ),
+        ),
+      ),
+      onSelect: (Country c) => controller.onCountryPicked(c),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Continue button: shows a spinner inside the gradient pill while a register
+  // request is in flight (mirrors login's button loader).
+  // ---------------------------------------------------------------------------
+  Widget _buildContinueButton() {
+    return Obx(() {
+      if (controller.isRegistering.value) {
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(100),
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                CustomColor.colorBE185D,
+                CustomColor.color581C87,
+              ],
+            ),
+          ),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+            ),
+          ),
+        );
+      }
+      return buildLoginButton("Continue", true, controller.onContinueTap, null);
+    });
   }
 
   // ---------------------------------------------------------------------------

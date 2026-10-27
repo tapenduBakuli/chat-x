@@ -88,20 +88,13 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
                 prefix: Icons.person_outline,
               ),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildIbanField(),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildBicField(),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildCountryField(),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildTextField(
-                label: "Billing street address",
-                hint: "Avenue Louise 142",
-                controllerField: controller.streetController,
-                prefix: Icons.home_outlined,
-              ),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildPostalCityRow(),
+              // Method-specific fields: card details for Credit card, IBAN/BIC
+              // for Bancontact & SEPA.
+              Obx(() => controller.selectedMethod.value ==
+                      PaymentMethod.creditCard
+                  ? _buildCardFields()
+                  : _buildBankFields()),
+
               SizedBox(height: ScreenConstant.sizeSmall),
               _buildTaxNote(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -430,6 +423,71 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Bancontact / SEPA bank fields (IBAN + BIC).
+  // ---------------------------------------------------------------------------
+  Widget _buildBankFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildIbanField(),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+        _buildBicField(),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+        _buildCountryField(),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+        _buildTextField(
+          label: "Billing street address",
+          hint: "Avenue Louise 142",
+          controllerField: controller.streetController,
+          prefix: Icons.home_outlined,
+        ),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+        _buildPostalCityRow(),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Credit card fields (card number + expiry / CVV row).
+  // ---------------------------------------------------------------------------
+  Widget _buildCardFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTextField(
+          label: "Card number",
+          hint: "1234 5678 9012 3456",
+          controllerField: controller.cardNumberController,
+          prefix: Icons.credit_card,
+        ),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildTextField(
+                label: "Expiry date",
+                hint: "MM / YY",
+                controllerField: controller.expiryController,
+                prefix: Icons.calendar_today_outlined,
+              ),
+            ),
+            SizedBox(width: ScreenConstant.sizeMedium),
+            Expanded(
+              child: _buildTextField(
+                label: "CVV",
+                hint: "123",
+                controllerField: controller.cvcController,
+                prefix: Icons.lock_outline,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextField({
     required String label,
     required String hint,
@@ -561,7 +619,10 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
                   () => DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      value: controller.selectedCountry.value,
+                      value: controller.countries
+                              .contains(controller.selectedCountry.value)
+                          ? controller.selectedCountry.value
+                          : null,
                       icon: Icon(
                         Icons.keyboard_arrow_down,
                         color: CustomColor.color64748B,
