@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../device_manager/screen_constants.dart';
 import '../colors/app_colors.dart';
+import '../image_utils/image_utils.dart';
 
 class LogoCard extends StatelessWidget {
   const LogoCard();
@@ -32,7 +33,7 @@ class LogoCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
         ),
         child: Image.asset(
-          'assets/images/chatxlogo.png',
+          ImageUtils.chatxLogo,
           height: 44,
           fit: BoxFit.contain,
         ),

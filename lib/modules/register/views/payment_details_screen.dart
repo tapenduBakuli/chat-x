@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
+import '../../../utils/image_utils/image_utils.dart';
 
 class PaymentDetailsScreen extends GetView<RegisterController> {
   const PaymentDetailsScreen({super.key});
@@ -134,7 +135,7 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
       children: [
         Container(
             height: ScreenConstant.defaultHeightOneHundred,width: ScreenConstant.defaultWidthOneHundredFifteen,
-            child: Image.asset("assets/images/banking_payment.png",fit: BoxFit.cover,)),
+            child: Image.asset(ImageUtils.bankingPayment,fit: BoxFit.cover,)),
         Text("Banking & Payment", style: TextStyles.paymentTitle),
         SizedBox(height: ScreenConstant.sizeExtraSmall),
         Text(
@@ -493,7 +494,7 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
             hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14,color: CustomColor.color94A3B8),
             borderColor: CustomColor.colorE2E8F0,
             prefix: Image.asset(
-              "assets/images/hash.png",
+              ImageUtils.hash,
               height: ScreenConstant.minimumIconSize,
               color: CustomColor.color94A3B8,
             ),
@@ -735,11 +736,11 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
         runSpacing: ScreenConstant.sizeExtraSmall,
         children: [
           _footerBadge(Icons.lock_outline, "256-bit SSL Bank-Grade Encryption",
-              CustomColor.colorBE185D,true,"assets/images/256bit.png"),
+              CustomColor.colorBE185D,true,ImageUtils.sslTwoFiftySixBit),
           _footerBadge(Icons.visibility_off, "100% Discreet Billing",
               CustomColor.colorDB2777,false,""),
           _footerBadge(Icons.check_circle_outline,
-              "Belgian Privacy & GDPR Compliant", CustomColor.colorDB2777,true, "assets/images/card_verification_logo.png"),
+              "Belgian Privacy & GDPR Compliant", CustomColor.colorDB2777,true, ImageUtils.cardVerificationLogo),
         ],
       ),
     );

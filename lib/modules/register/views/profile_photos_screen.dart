@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../utils/image_utils/image_utils.dart';
 
 class ProfilePhotosScreen extends GetView<RegisterController> {
   const ProfilePhotosScreen({super.key});
@@ -155,7 +156,7 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
                   color: CustomColor.colorFFE4E6
                 ),
                 child: Image.asset(
-                  "assets/images/100percent_discreet.png",
+                  ImageUtils.hundredPercentDiscreet,
                   height: ScreenConstant.minimumIconSize,
                   color: CustomColor.colorBE123C,
                 ),

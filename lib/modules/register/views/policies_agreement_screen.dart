@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../utils/image_utils/image_utils.dart';
 
 class PoliciesAgreementScreen extends GetView<RegisterController> {
   const PoliciesAgreementScreen({super.key});
@@ -28,7 +29,7 @@ class PoliciesAgreementScreen extends GetView<RegisterController> {
         title: Row(
           children: [
             Image.asset(
-              "assets/images/policies_safety_agreement.png",
+              ImageUtils.policiesSafetyAgreement,
               height: ScreenConstant.minimumIconSize,
               color: CustomColor.colorBE123C,
             ),

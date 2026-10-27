@@ -5,12 +5,10 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
-
-/// Base path for the chip glyph assets.
-const String _assetDir = "assets/images/";
+import '../../../utils/image_utils/image_utils.dart';
 
 /// The red "selected" check asset shown on any activated chip.
-const String _selectedChipAsset = "${_assetDir}selected.png";
+const String _selectedChipAsset = ImageUtils.selectedCheck;
 
 /// Size of the small glyph rendered before a chip label.
 const double _chipGlyphSize = 18;
@@ -49,35 +47,35 @@ class IntimateDesiresScreen extends GetView<RegisterController> {
   static const Map<String, _ChipLeading> _chipLeadings = {
     // Relationship Preferences
     "One time": _ChipLeading.icon(Icons.looks_one_outlined),
-    "Multiple times": _ChipLeading.asset("${_assetDir}multipletime.png"),
-    "In-life friendship": _ChipLeading.asset("${_assetDir}inlife.png"),
-    "Serious relationship": _ChipLeading.asset("${_assetDir}serious.png"),
-    "Other - optional": _ChipLeading.asset("${_assetDir}other.png"),
+    "Multiple times": _ChipLeading.asset(ImageUtils.multipleTime),
+    "In-life friendship": _ChipLeading.asset(ImageUtils.inLife),
+    "Serious relationship": _ChipLeading.asset(ImageUtils.serious),
+    "Other - optional": _ChipLeading.asset(ImageUtils.other),
     // Core Physical & Intimate
     "Anal": _ChipLeading.icon(Icons.airline_seat_legroom_extra_outlined),
     "Oral": _ChipLeading.icon(Icons.memory_outlined),
     "Vaginal": _ChipLeading.icon(Icons.airline_seat_legroom_extra_outlined),
-    "Outdoor": _ChipLeading.asset("${_assetDir}outdoor.png"),
-    "Sensual Tantric": _ChipLeading.asset("${_assetDir}sensual.png"),
-    "Threesome (FMF/MFM)": _ChipLeading.asset("${_assetDir}3some.png"),
+    "Outdoor": _ChipLeading.asset(ImageUtils.outdoor),
+    "Sensual Tantric": _ChipLeading.asset(ImageUtils.sensual),
+    "Threesome (FMF/MFM)": _ChipLeading.asset(ImageUtils.threesome),
     // Exploration & Kink
     "Roleplay": _ChipLeading.icon(Icons.theater_comedy_outlined),
-    "Feet": _ChipLeading.asset("${_assetDir}feet.png"),
-    "BDSM / Bondage": _ChipLeading.asset("${_assetDir}bdsm.png"),
-    "Sensory Blindfold": _ChipLeading.asset("${_assetDir}sensory.png"),
-    "Exhibitionism": _ChipLeading.asset("${_assetDir}exhibi.png"),
+    "Feet": _ChipLeading.asset(ImageUtils.feet),
+    "BDSM / Bondage": _ChipLeading.asset(ImageUtils.bdsm),
+    "Sensory Blindfold": _ChipLeading.asset(ImageUtils.sensory),
+    "Exhibitionism": _ChipLeading.asset(ImageUtils.exhibitionism),
     // Interests & Passions
-    "Sports": _ChipLeading.asset("${_assetDir}sport.png"),
+    "Sports": _ChipLeading.asset(ImageUtils.sport),
     "Gaming": _ChipLeading.icon(Icons.sports_esports_outlined),
-    "Movies": _ChipLeading.asset("${_assetDir}movies.png"),
+    "Movies": _ChipLeading.asset(ImageUtils.movies),
     "Music": _ChipLeading.icon(Icons.music_note_outlined),
-    "Genres": _ChipLeading.asset("${_assetDir}genre.png"),
-    "Drawing / Painting / Art": _ChipLeading.asset("${_assetDir}drawing.png"),
-    "Other interests": _ChipLeading.asset("${_assetDir}other.png"),
+    "Genres": _ChipLeading.asset(ImageUtils.genre),
+    "Drawing / Painting / Art": _ChipLeading.asset(ImageUtils.drawing),
+    "Other interests": _ChipLeading.asset(ImageUtils.other),
     // Personal / Safety - "Able to accept"
     "Protected only (Condom required)":
         _ChipLeading.icon(Icons.shield_outlined),
-    "PrEP verified": _ChipLeading.asset("${_assetDir}card_verification_logo.png"),
+    "PrEP verified": _ChipLeading.asset(ImageUtils.cardVerificationLogo),
     "Regular testing routine": _ChipLeading.icon(Icons.calendar_today_outlined),
     "Open to discuss": _ChipLeading.icon(Icons.chat_bubble_outline),
   };

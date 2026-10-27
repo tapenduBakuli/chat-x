@@ -39,6 +39,72 @@ class RegisterController extends GetxController {
   final RxBool obscurePassword = true.obs;
   final RxBool obscureConfirmPassword = true.obs;
 
+  // --- Password strength / match state ------------------------------------
+  /// Live mirror of the password field (updated via a text listener).
+  final RxString password = ''.obs;
+
+  /// Live mirror of the confirm-password field.
+  final RxString confirmPassword = ''.obs;
+
+  /// Minimum required password length.
+  static const int kMinPasswordLength = 10;
+
+  bool get hasMinLength => password.value.length >= kMinPasswordLength;
+  bool get hasUppercase => password.value.contains(RegExp(r'[A-Z]'));
+  bool get hasLowercase => password.value.contains(RegExp(r'[a-z]'));
+  bool get hasNumber => password.value.contains(RegExp(r'[0-9]'));
+
+  /// Number of satisfied rules (0..4), used for the strength meter.
+  int get passwordScore => [
+        hasMinLength,
+        hasUppercase,
+        hasLowercase,
+        hasNumber,
+      ].where((ok) => ok).length;
+
+  /// Whether every rule is satisfied.
+  bool get isPasswordValid => passwordScore == 4;
+
+  /// Human-readable strength label for the current score.
+  String get passwordStrengthLabel {
+    if (password.value.isEmpty) return '';
+    switch (passwordScore) {
+      case 0:
+      case 1:
+        return 'Weak';
+      case 2:
+        return 'Fair';
+      case 3:
+        return 'Good';
+      default:
+        return 'Strong';
+    }
+  }
+
+  /// First unmet-requirement message shown under the field (empty when valid).
+  String get passwordError {
+    if (password.value.isEmpty) return '';
+    if (!hasMinLength) {
+      return 'Password must be at least $kMinPasswordLength characters';
+    }
+    if (!hasUppercase) return 'Add at least one uppercase letter';
+    if (!hasLowercase) return 'Add at least one lowercase letter';
+    if (!hasNumber) return 'Add at least one number';
+    return '';
+  }
+
+  /// Whether confirm-password matches password (only meaningful once the
+  /// confirm field has input).
+  bool get passwordsMatch =>
+      confirmPassword.value.isNotEmpty &&
+      confirmPassword.value == password.value;
+
+  /// Error shown under the confirm field, empty when matching or untouched.
+  String get confirmPasswordError {
+    if (confirmPassword.value.isEmpty) return '';
+    return passwordsMatch ? '' : 'Passwords do not match';
+  }
+
   /// Selected payment method/provider.
   final Rx<PaymentMethod> selectedMethod = PaymentMethod.bancontact.obs;
 
@@ -629,6 +695,14 @@ class RegisterController extends GetxController {
     super.onInit();
     aboutMeController.addListener(() {
       aboutMeLength.value = aboutMeController.text.length;
+    });
+    // Keep the reactive password mirrors in sync with the text fields so the
+    // strength meter, rule checklist, and match indicator update live.
+    passwordController.addListener(() {
+      password.value = passwordController.text;
+    });
+    confirmPasswordController.addListener(() {
+      confirmPassword.value = confirmPasswordController.text;
     });
   }
 

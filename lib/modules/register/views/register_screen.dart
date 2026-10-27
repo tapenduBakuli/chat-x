@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
+import '../../../utils/image_utils/image_utils.dart';
 
 class RegisterScreen extends GetView<RegisterController> {
   const RegisterScreen({super.key});
@@ -124,7 +125,7 @@ class RegisterScreen extends GetView<RegisterController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              "assets/images/100percent_discreet.png",
+              ImageUtils.hundredPercentDiscreet,
               height: ScreenConstant.minimumIconSize,
               color: CustomColor.colorBE123C,
             ),
@@ -192,7 +193,7 @@ class RegisterScreen extends GetView<RegisterController> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
-                              "assets/images/add_photo.png",
+                              ImageUtils.addPhoto,
                               height: ScreenConstant.texIconSize,
                               color: CustomColor.color475569,
                             ),
@@ -239,7 +240,7 @@ class RegisterScreen extends GetView<RegisterController> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              "assets/images/photos_can_be_blurred.png",
+              ImageUtils.photosCanBeBlurred,
               height: ScreenConstant.minimumIconSize,
               color: CustomColor.colorF43F5E,
             ),
@@ -352,7 +353,7 @@ class RegisterScreen extends GetView<RegisterController> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Image.asset(
-                      "assets/images/free_trial_logo.png",
+                      ImageUtils.freeTrialLogo,
                       height: ScreenConstant.defaultHeightFifteen,
                       color: CustomColor.colorBE123C,
                     ),
@@ -387,9 +388,9 @@ class RegisterScreen extends GetView<RegisterController> {
           SizedBox(height: ScreenConstant.sizeSmall),
           Row(
             children: [
-              _checkItem("assets/images/instant.png","Instant cancellation"),
+              _checkItem(ImageUtils.instant,"Instant cancellation"),
               SizedBox(width: ScreenConstant.sizeMedium),
-              _checkItem("assets/images/nutral.png","Neutral descriptor"),
+              _checkItem(ImageUtils.neutral,"Neutral descriptor"),
             ],
           ),
         ],
@@ -640,7 +641,7 @@ class RegisterScreen extends GetView<RegisterController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Image.asset(
-              "assets/images/dateofbirth.png",
+              ImageUtils.dateOfBirth,
               height: ScreenConstant.minimumIconSize,
             ),
             SizedBox(width: ScreenConstant.defaultWidthTen,),
@@ -732,7 +733,107 @@ class RegisterScreen extends GetView<RegisterController> {
             ),
           ),
         ),
+        _buildPasswordStrength(),
       ],
+    );
+  }
+
+  // Strength meter + rule checklist shown under the password field. Hidden
+  // entirely until the user starts typing.
+  Widget _buildPasswordStrength() {
+    return Obx(() {
+      if (controller.password.value.isEmpty) return const SizedBox.shrink();
+
+      final int score = controller.passwordScore;
+      final Color strengthColor = _strengthColor(score);
+
+      return Padding(
+        padding: EdgeInsets.only(top: ScreenConstant.sizeSmall),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (controller.passwordError.isNotEmpty) ...[
+              Text(
+                controller.passwordError,
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.colorE11D48,
+                ),
+              ),
+              SizedBox(height: ScreenConstant.sizeSmall),
+            ],
+            // 4-segment strength meter.
+            Row(
+              children: List.generate(4, (i) {
+                final bool filled = i < score;
+                return Expanded(
+                  child: Container(
+                    height: 5,
+                    margin: EdgeInsets.only(
+                      right: i < 3 ? ScreenConstant.sizeExtraSmall : 0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: filled ? strengthColor : CustomColor.colorE2E8F0,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            SizedBox(height: ScreenConstant.sizeExtraSmall),
+            Text(
+              controller.passwordStrengthLabel,
+              style: TextStyles.registerFieldLabel.copyWith(
+                color: strengthColor,
+              ),
+            ),
+            SizedBox(height: ScreenConstant.sizeSmall),
+            _passwordRule("At least 10 characters", controller.hasMinLength),
+            _passwordRule("One uppercase letter", controller.hasUppercase),
+            _passwordRule("One lowercase letter", controller.hasLowercase),
+            _passwordRule("One number", controller.hasNumber),
+          ],
+        ),
+      );
+    });
+  }
+
+  Color _strengthColor(int score) {
+    switch (score) {
+      case 0:
+      case 1:
+        return CustomColor.colorBE123C; // weak -> red
+      case 2:
+        return CustomColor.colorD97706; // fair -> amber
+      case 3:
+        return CustomColor.colorBE185D; // good -> rose
+      default:
+        return CustomColor.color059669; // strong -> green
+    }
+  }
+
+  Widget _passwordRule(String label, bool satisfied) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: ScreenConstant.sizeExtraSmall / 2),
+      child: Row(
+        children: [
+          Icon(
+            satisfied ? Icons.check : Icons.close,
+            size: ScreenConstant.minimumIconSize,
+            color: satisfied
+                ? CustomColor.color059669
+                : CustomColor.color94A3B8,
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          Text(
+            label,
+            style: TextStyles.registerFieldNote.copyWith(
+              color: satisfied
+                  ? CustomColor.color059669
+                  : CustomColor.color64748B,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -770,8 +871,43 @@ class RegisterScreen extends GetView<RegisterController> {
             ),
           ),
         ),
+        _buildConfirmPasswordStatus(),
       ],
     );
+  }
+
+  // Match / mismatch indicator shown under the confirm-password field. Hidden
+  // until the confirm field has input.
+  Widget _buildConfirmPasswordStatus() {
+    return Obx(() {
+      if (controller.confirmPassword.value.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final bool matches = controller.passwordsMatch;
+      return Padding(
+        padding: EdgeInsets.only(top: ScreenConstant.sizeSmall),
+        child: Row(
+          children: [
+            Icon(
+              matches ? Icons.check_circle_outline : Icons.error_outline,
+              size: ScreenConstant.minimumIconSize,
+              color: matches
+                  ? CustomColor.color059669
+                  : CustomColor.colorE11D48,
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Text(
+              matches ? "Passwords matched" : "Paswword and Confirm Password should be same.",
+              style: TextStyles.registerFieldNote.copyWith(
+                color: matches
+                    ? CustomColor.color059669
+                    : CustomColor.colorE11D48,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -875,7 +1011,7 @@ class RegisterScreen extends GetView<RegisterController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Image.asset(
-                  "assets/images/card_verification_logo.png",
+                  ImageUtils.cardVerificationLogo,
                   height: ScreenConstant.minimumIconSize,
                   color: CustomColor.colorEF4444,
                 ),
@@ -1070,9 +1206,9 @@ class RegisterScreen extends GetView<RegisterController> {
               _footerBadge(Icons.lock_outline, "End-to-End Encrypted",
                   CustomColor.colorBE185D,false,""),
               _footerBadge(Icons.verified_user_outlined,
-                  "100% Discreet Billing", CustomColor.colorBE123C,true,"assets/images/discount.png",),
+                  "100% Discreet Billing", CustomColor.colorBE123C,true,ImageUtils.discount,),
               _footerBadge(Icons.check_circle_outline, "18+ Only",
-                  CustomColor.colorDB2777,true,"assets/images/card_verification_logo.png"),
+                  CustomColor.colorDB2777,true,ImageUtils.cardVerificationLogo),
             ],
           ),
           SizedBox(height: ScreenConstant.sizeSmall),

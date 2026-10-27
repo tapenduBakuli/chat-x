@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../utils/image_utils/image_utils.dart';
 
 class ProfileSetupScreen extends GetView<RegisterController> {
   const ProfileSetupScreen({super.key});
@@ -330,7 +331,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              "assets/images/100percent_discreet.png",
+              ImageUtils.hundredPercentDiscreet,
               height: ScreenConstant.minimumIconSize,
               color: CustomColor.colorBE123C,
             ),
@@ -397,7 +398,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Image.asset(
-                                    "assets/images/add_photo.png",
+                                    ImageUtils.addPhoto,
                                     height: ScreenConstant.texIconSize,
                                     color: CustomColor.color475569,
                                   ),
@@ -444,7 +445,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              "assets/images/photos_can_be_blurred.png",
+              ImageUtils.photosCanBeBlurred,
               height: ScreenConstant.minimumIconSize,
               color: CustomColor.colorF43F5E,
             ),
@@ -713,7 +714,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Image.asset(
-                  "assets/images/card_verification_logo.png",
+                  ImageUtils.cardVerificationLogo,
                   height: ScreenConstant.minimumIconSize,
                   color: CustomColor.colorEF4444,
                 ),

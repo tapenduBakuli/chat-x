@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../utils/image_utils/image_utils.dart';
 
 /// Read-only aggregation of everything the member picked across the earlier
 /// register steps. It only READS existing [RegisterController] fields; it adds
@@ -500,7 +501,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
           children: [
             Row(
               children: [
-                Container(padding: EdgeInsets.all(ScreenConstant.sizeDefault),height:ScreenConstant.defaultHeightThirty,width:ScreenConstant.defaultWidthThirty,decoration: BoxDecoration(shape: BoxShape.circle, color: CustomColor.colorWhite),child: Image.asset("assets/images/privacy.png", height: ScreenConstant.minimumIconSize,)),
+                Container(padding: EdgeInsets.all(ScreenConstant.sizeDefault),height:ScreenConstant.defaultHeightThirty,width:ScreenConstant.defaultWidthThirty,decoration: BoxDecoration(shape: BoxShape.circle, color: CustomColor.colorWhite),child: Image.asset(ImageUtils.privacy, height: ScreenConstant.minimumIconSize,)),
                 SizedBox(width: ScreenConstant.sizeSmall),
                 Expanded(
                   child: Text(
@@ -550,7 +551,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeader(Image.asset("assets/images/aboutme.png",height: ScreenConstant.minimumIconSize-5,), "ABOUT ME",textStyle:   TextStyles.registerSectionTitle.copyWith(
+        _sectionHeader(Image.asset(ImageUtils.aboutMe,height: ScreenConstant.minimumIconSize-5,), "ABOUT ME",textStyle:   TextStyles.registerSectionTitle.copyWith(
           letterSpacing: 0.5,
           color: CustomColor.colorBE185D
         ),),
@@ -583,7 +584,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
     return Obx(() {
       final List<String> prefs = controller.relationshipPrefs.toList();
       return _buildSection(
-        imageAsset: ("assets/images/seeking.png"),
+        imageAsset: (ImageUtils.seeking),
         label: "SEEKING / DYNAMICS",
         textStyle: TextStyles.registerSectionTitle.copyWith(
          color: CustomColor.colorBE185D
