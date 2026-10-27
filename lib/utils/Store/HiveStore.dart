@@ -5,11 +5,6 @@ import '../Store/vm.dart';
 
 class Keys {
   static const String AUTHTOKEN = "authToken";
-  static const String STAFFID = "staffId";
-  static const String STAFFNAME = "staffName";
-  static const String STAFFPROFILEIMAGE = "staffProfileImage";
-  static const String STAFFPROFILEADDRESS = "staffProfileAddress";
-  static const String POSITION = "position";
   static const String LATITUDE = "latitude";
   static const String LONGITUDE = "longitude";
   static const String ADDRESS = "address";
@@ -26,6 +21,17 @@ class Keys {
   static const String ISLATESTBUILD = "isLatestBuild";
   static const String DEVICEMODEL = "DeviceModel";
   static const String DEVICEID = "DeviceID";
+
+  // Remember-me (login) credentials.
+  static const String REMEMBERME = "rememberMe";
+  static const String SAVEDEMAIL = "savedEmail";
+  static const String SAVEDPASSWORD = "savedPassword";
+
+  // Auth session.
+  static const String ACCESSTOKEN = "accessToken";
+  static const String REFRESHTOKEN = "refreshToken";
+  static const String USERID = "userId";
+  static const String LOGGEDIN = "logged_in";
 }
 
 class HiveStore {

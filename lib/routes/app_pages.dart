@@ -4,6 +4,8 @@ import 'package:chat_x/modules/home/views/member_detail_screen.dart';
 import 'package:chat_x/modules/login/binding/login_binding.dart';
 import 'package:chat_x/modules/login/views/login_screen.dart';
 import 'package:chat_x/modules/login/views/forgot_password_screen.dart';
+import 'package:chat_x/modules/login/views/otp_screen.dart';
+import 'package:chat_x/modules/login/views/reset_password_screen.dart';
 import 'package:chat_x/modules/register/binding/register_binding.dart';
 import 'package:chat_x/modules/register/views/register_screen.dart';
 import 'package:chat_x/modules/register/views/payment_details_screen.dart';
@@ -34,6 +36,16 @@ class Theme1AppPages {
     GetPage(
       name: Routes.FORGOT_PASSWORD,
       page: () => const ForgotPasswordScreen(),
+      binding: LoginBinding(),
+    ),
+    GetPage(
+      name: Routes.OTP,
+      page: () => const OtpScreen(),
+      binding: LoginBinding(),
+    ),
+    GetPage(
+      name: Routes.RESET_PASSWORD,
+      page: () => const ResetPasswordScreen(),
       binding: LoginBinding(),
     ),
     GetPage(

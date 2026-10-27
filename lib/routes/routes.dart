@@ -4,6 +4,8 @@ class Routes {
   static const ROOT = '/root';
   static const LOGIN = '/login';
   static const FORGOT_PASSWORD = '/forgot_password';
+  static const OTP = '/otp';
+  static const RESET_PASSWORD = '/reset_password';
     static const REGISTER = '/register';
     static const PAYMENT = '/payment';
     static const POLICIES_AGREEMENT = '/policies_agreement';

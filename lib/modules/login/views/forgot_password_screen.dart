@@ -73,7 +73,7 @@ class ForgotPasswordScreen extends GetView<LoginController> {
             () => buildLoginButton(
               controller.isSendingReset.value
                   ? "Sending..."
-                  : "Send reset link",
+                  : "Send Verification Code",
               false,
               controller.isSendingReset.value
                   ? () {}

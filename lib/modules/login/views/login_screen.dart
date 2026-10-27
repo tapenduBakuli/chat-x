@@ -14,6 +14,12 @@ class LoginScreen extends GetView<LoginController> {
 
   @override
   Widget build(BuildContext context) {
+    // Re-apply remembered credentials whenever the login screen is shown
+    // (e.g. after returning from the password-reset flow). Deferred to after
+    // the frame so we never mutate controllers during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.loadRememberedCredentials();
+    });
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -46,7 +52,7 @@ class LoginScreen extends GetView<LoginController> {
                     SizedBox(height: ScreenConstant.defaultHeightFifteen),
                     _buildRememberRow(),
                     SizedBox(height: ScreenConstant.defaultHeightThirty),
-                    SizedBox(height:ScreenConstant.defaultHeightFifty,child: buildLoginButton("Login", true, (){}, null)),
+                    SizedBox(height:ScreenConstant.defaultHeightFifty,child: _buildLoginButton()),
                     SizedBox(height: ScreenConstant.defaultHeightFifteen),
                     SizedBox(height:ScreenConstant.defaultHeightFifty,child: _buildBiometricButton()),
                     SizedBox(height: ScreenConstant.defaultHeightThirty),
@@ -168,7 +174,7 @@ class LoginScreen extends GetView<LoginController> {
           child: CustomTextField(
             controller: controller.emailController,
             hintText: "ve001@chatx.be",
-            hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14),
+            hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14,color: CustomColor.color94A3B8),
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             borderRadius: 26,
@@ -202,7 +208,7 @@ class LoginScreen extends GetView<LoginController> {
               controller: controller.passwordController,
               hintText: "Test@123456",
               borderRadius: 26,
-              hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14),
+              hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14,color: CustomColor.color94A3B8),
               obscureText: controller.obscurePassword.value,
               textInputAction: TextInputAction.done,
               prefix: Image.asset(
@@ -299,6 +305,40 @@ class LoginScreen extends GetView<LoginController> {
 
   // ---------------------------------------------------------------------------
 
+
+  // ---------------------------------------------------------------------------
+  // Login button: shows a spinner inside the gradient pill while a login
+  // request is in flight.
+  Widget _buildLoginButton() {
+    return Obx(() {
+      if (controller.isLoading.value) {
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(100),
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                CustomColor.colorBE185D,
+                CustomColor.color581C87,
+              ],
+            ),
+          ),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+            ),
+          ),
+        );
+      }
+      return buildLoginButton("Login", true, controller.onLoginTap, null);
+    });
+  }
 
   // ---------------------------------------------------------------------------
   Widget _buildBiometricButton() {

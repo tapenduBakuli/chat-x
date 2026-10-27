@@ -24,6 +24,29 @@ class BaseClient {
   static const int timeOutDuration = 20;
   var token = HiveStore().getString(Keys.AUTHTOKEN);
 
+  /// Lightweight reachability check (no extra package). Resolves a well-known
+  /// host; if DNS fails or times out we treat the device as offline.
+  Future<bool> hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 5));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    }
+  }
+
+  /// Throws [FetchDataException] (same type/message as a SocketException) when
+  /// there is no connectivity, so callers that already handle that case work
+  /// unchanged. Called at the start of every request method.
+  Future<void> _ensureConnected(String path) async {
+    if (!await hasInternet()) {
+      throw FetchDataException('${AppStrings.noInternetConnection}', '$path');
+    }
+  }
+
   //GET
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
    if (query != null) {
@@ -34,6 +57,7 @@ class BaseClient {
     }
 
     try {
+      await _ensureConnected(path);
       var response = await http.get(
 
         Uri.parse(path),
@@ -65,6 +89,7 @@ class BaseClient {
     print(payload);
 
     try {
+      await _ensureConnected(path);
       var response = await http.post(
        Uri.parse(path),
         body: payload,
@@ -90,6 +115,7 @@ class BaseClient {
   Future<dynamic> delete( path, dynamic payloadObj) async {
     // var token = GetStorage().read(UserData.token);
     try {
+      await _ensureConnected(path);
       final response = await http.delete(
         Uri.parse(path),
         body: jsonEncode(payloadObj),
@@ -118,6 +144,7 @@ class BaseClient {
     var payload = json.encode(payloadObj);
     debugPrint(payload);
     try {
+      await _ensureConnected(path);
       var response = await http.patch(
         Uri.parse(path),
         body: payload,
@@ -145,6 +172,7 @@ class BaseClient {
      var payload = jsonEncode(payloadObj);
     debugPrint(payload);
     try {
+      await _ensureConnected(path);
       var response = await http.put(
         Uri.parse(path),
         body: payload,

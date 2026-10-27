@@ -230,8 +230,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
   Widget _buildCityChips() {
     return SizedBox(
       height: ScreenConstant.defaultHeightForty,
-      child: Obx(
-        () => ListView.separated(
+      child: Obx(() {
+        // Read the observable inside the Obx build scope (not lazily in
+        // itemBuilder) so Obx can track it.
+        final String selected = controller.selectedCity.value;
+        return ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(
             horizontal: ScreenConstant.defaultWidthTwenty,
@@ -249,11 +252,10 @@ class BrowseMembersScreen extends GetView<HomeController> {
               );
             }
             final city = controller.cities[index - 1];
-            final active = controller.selectedCity.value == city;
-            return _cityChip(city, active);
+            return _cityChip(city, selected == city);
           },
-        ),
-      ),
+        );
+      }),
     );
   }
 
