@@ -1,3 +1,6 @@
+import 'package:chat_x/modules/home/binding/home_binding.dart';
+import 'package:chat_x/modules/home/views/browse_members_screen.dart';
+import 'package:chat_x/modules/home/views/member_detail_screen.dart';
 import 'package:chat_x/modules/login/binding/login_binding.dart';
 import 'package:chat_x/modules/login/views/login_screen.dart';
 import 'package:chat_x/modules/login/views/forgot_password_screen.dart';
@@ -67,6 +70,16 @@ class Theme1AppPages {
       name: Routes.PROFILE_PREVIEW,
       page: () => const ProfilePreviewScreen(),
       binding: RegisterBinding(),
+    ),
+    GetPage(
+      name: Routes.HOME,
+      page: () => const BrowseMembersScreen(),
+      binding: HomeBinding(),
+    ),
+    GetPage(
+      name: Routes.MEMBER_DETAIL,
+      page: () => const MemberDetailScreen(),
+      binding: HomeBinding(),
     ),
   ];
 }

@@ -11,5 +11,7 @@ class Routes {
     static const PROFILE_PHOTOS = '/profile_photos';
     static const INTIMATE_DESIRES = '/intimate_desires';
     static const PROFILE_PREVIEW = '/profile_preview';
+    static const HOME = '/home';
+    static const MEMBER_DETAIL = '/member_detail';
 
 }

@@ -409,6 +409,14 @@ class TextStyles {
     fontFamily: "Liberation",
   );
 
+  // ------------------------- browse members / home -------------------------
+  static TextStyle get browseToggleLabel => TextStyle(
+    color: CustomColor.color334155,
+    fontSize: FontSize.s12,
+    fontFamily: "Liberation",
+    fontWeight: FontWeight.w600,
+  );
+
 
 }
 
