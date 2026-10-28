@@ -29,13 +29,13 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   case 0:
                     return _buildExploreTab();
                   case 1:
-                    return _buildBlankTab("Chat", Icons.chat_bubble_outline);
+                    return _buildChatTab();
                   case 2:
-                    return _buildBlankTab("Friends", Icons.people_outline);
+                    return _buildFriendsTab();
                   case 3:
-                    return _buildBlankTab("Account", Icons.account_circle_outlined);
+                    return _buildAccountsTab();
                   case 4:
-                    return _buildBlankTab("Blocked", Icons.block);
+                    return _buildBlockedTab();
                   default:
                     return _buildExploreTab();
                 }
@@ -85,6 +85,80 @@ class BrowseMembersScreen extends GetView<HomeController> {
         const SizedBox(height: 10),
       ],
     );
+  }
+
+  Widget _buildChatTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+       Icon(Icons.chat_bubble_outline_outlined,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
+        Text("No conversation yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),
+          child: Container(height: ScreenConstant.defaultHeightForty,child: _buildContinueButton()),
+        )
+      ],
+    );
+  }
+
+
+  Widget _buildFriendsTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.people_outline_outlined,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
+        Text("No friends yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),
+          child: Container(height: ScreenConstant.defaultHeightForty,child: _buildContinueButton()),
+        )
+      ],
+    );
+  }
+
+  Widget _buildAccountsTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.people_outline_outlined,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
+        Text("No friends yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),
+          child: Container(height: ScreenConstant.defaultHeightForty,child: _buildContinueButton()),
+        )
+      ],
+    );
+  }
+
+  Widget _buildBlockedTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.block,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
+        Text("No blocked people.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),
+          child: Container(height: ScreenConstant.defaultHeightForty,child: _buildContinueButton()),
+        )
+      ],
+    );
+  }
+
+
+  Widget _buildContinueButton() {
+    return buildLoginButton("Search Member", false, (){controller.selectedNavIndex.value = 0;}, null);
   }
 
   Widget _buildBlankTab(String title, IconData icon) {
@@ -191,58 +265,59 @@ class BrowseMembersScreen extends GetView<HomeController> {
     required String label,
     required bool isSelected,
   }) {
+    final Color unselectedColor = CustomColor.color0F172A.withOpacity(0.4);
+
+    final Icon iconWidget = Icon(
+      icon,
+      size: 15,
+      // When selected, the ShaderMask paints the gradient; the base color must
+      // be white/opaque so the shader shows through fully.
+      color: isSelected ? CustomColor.colorWhite : unselectedColor,
+    );
+
+    final Text textWidget = Text(
+      label,
+      style: TextStyle(
+        color: isSelected ? CustomColor.colorWhite : unselectedColor,
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        fontFamily: "Liberation",
+      ),
+    );
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => controller.selectNavTab(index),
       child: AnimatedContainer(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(100),
-          gradient: isSelected
-              ? const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    CustomColor.colorBE185D,
-                    CustomColor.color581C87,
-                  ],
-                )
-              : null,
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: CustomColor.colorBE185D.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
+        duration: const Duration(milliseconds: 200),
+        // No background fill — selection is shown by tinting the icon + label
+        // with the rose→purple gradient instead.
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 10,
-              color: isSelected
-                  ? CustomColor.colorWhite
-                  : CustomColor.color0F172A.withOpacity(0.5),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected
-                    ? CustomColor.colorWhite
-                    : CustomColor.color0F172A.withOpacity(0.5),
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                fontFamily: "Liberation",
-              ),
-            ),
+            isSelected ? _gradientTint(iconWidget) : iconWidget,
+            isSelected ? _gradientTint(textWidget) : textWidget,
           ],
         ),
       ),
+    );
+  }
+
+  /// Paints the rose→purple gradient onto [child] (icon or text) using a
+  /// ShaderMask, so the glyph itself is gradient-colored.
+  Widget _gradientTint(Widget child) {
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (Rect bounds) => const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          CustomColor.colorBE185D,
+          CustomColor.color581C87,
+        ],
+      ).createShader(bounds),
+      child: child,
     );
   }
 
