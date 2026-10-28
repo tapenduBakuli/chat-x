@@ -576,8 +576,8 @@ class RegisterController extends GetxController {
 
   void onAgreeAndContinue() {
     if (isAllConsentAgreed) {
-      debugPrint('All consents agreed. Navigating to profile setup...');
-      Get.toNamed(Routes.PROFILE_SETUP);
+      debugPrint('All consents agreed. Navigating to Create Account...');
+      Get.toNamed(Routes.REGISTER);
     }
   }
 

@@ -509,7 +509,8 @@ class LoginController extends GetxController {
   }
 
   void onCreateAccount() {
-    Get.toNamed(Routes.REGISTER);
+    // Flow: Policies Agreement -> Register -> Payment -> Profile Setup.
+    Get.toNamed(Routes.POLICIES_AGREEMENT);
   }
 
   @override
