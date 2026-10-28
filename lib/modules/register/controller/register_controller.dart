@@ -13,6 +13,8 @@ import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../login/model/login_response_model.dart';
+import '../model/payment_method_response_model.dart';
+import '../services/payment_services.dart';
 import '../services/register_services.dart';
 
 enum PaymentMethod { bancontact, sepa, creditCard }
@@ -135,6 +137,10 @@ class RegisterController extends GetxController {
   /// Whether a register request is in flight (drives the Continue spinner).
   final RxBool isRegistering = false.obs;
 
+  /// Whether a save-payment-method request is in flight (drives the Save &
+  /// Continue spinner on the Payment Details screen).
+  final RxBool isSavingPayment = false.obs;
+
   final HiveStore _store = HiveStore();
 
   void togglePasswordVisibility() {
@@ -164,14 +170,85 @@ class RegisterController extends GetxController {
     mandateAuthorized.value = !mandateAuthorized.value;
   }
 
-  void onSaveAndContinue() {
-    debugPrint(
-      'Save & Continue -> method: ${selectedMethod.value}, '
-      'holder: ${accountHolderController.text.trim()}, '
-      'iban: ${ibanController.text.trim()}, '
-      'mandate: ${mandateAuthorized.value}',
-    );
-    Get.toNamed(Routes.POLICIES_AGREEMENT);
+  Future<void> onSaveAndContinue() async {
+    if (isSavingPayment.value) return;
+
+    // Only Credit Card is wired to the API for now; Bancontact / SEPA show a
+    // "Coming Soon" notice (no API call, no navigation).
+    if (selectedMethod.value != PaymentMethod.creditCard) {
+      Get.snackbar(
+        'Coming Soon',
+        'This payment method will be available soon.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    final String cardNumber = cardNumberController.text.trim();
+    final String cardholderName = accountHolderController.text.trim();
+    final String expiryRaw = expiryController.text.trim();
+    final String cvv = cvcController.text.trim();
+
+    if (cardNumber.isEmpty ||
+        cardholderName.isEmpty ||
+        expiryRaw.isEmpty ||
+        cvv.isEmpty) {
+      Get.snackbar(
+        'Missing details',
+        'Please fill in card number, cardholder name, expiry and CVV.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    // Parse expiry from "MM/YY" or "MM / YY": split on non-digits, first part
+    // is the month (1-2 digits), last part the two-digit year (20YY).
+    final List<String> parts = expiryRaw
+        .split(RegExp(r'[^0-9]'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.length < 2) {
+      Get.snackbar(
+        'Invalid expiry',
+        'Enter expiry as MM/YY.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    final int? month = int.tryParse(parts.first);
+    final String yearPart = parts.last;
+    final int? yy = yearPart.length == 2 ? int.tryParse(yearPart) : null;
+    if (month == null || month < 1 || month > 12 || yy == null) {
+      Get.snackbar(
+        'Invalid expiry',
+        'Enter expiry as MM/YY.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    final int expiryYear = 2000 + yy;
+
+    isSavingPayment.value = true;
+    try {
+      final res = await PaymentService.instance.saveCardPaymentMethod(
+        cardNumber: cardNumber,
+        cardholderName: cardholderName,
+        expiryMonth: month,
+        expiryYear: expiryYear,
+        cvv: cvv,
+      );
+      if (res.success) {
+        Get.toNamed(Routes.PROFILE_SETUP);
+      } else {
+        Get.snackbar(
+          'Could not save payment',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      isSavingPayment.value = false;
+    }
   }
 
   void onCancel() {
@@ -460,23 +537,19 @@ class RegisterController extends GetxController {
     }
   }
 
-  /// Runs only after a successful registration. Persists the session tokens
-  /// and user id exactly like [LoginController._onLoginSuccess].
+  /// Runs only after a successful registration. Deliberately does NOT
+  /// establish a logged-in session (no SESSIONEMAIL / SESSIONDISPLAYNAME /
+  /// LOGGEDIN / session ACCESSTOKEN / AUTHTOKEN / USERID writes) — the user
+  /// must log in before reaching Home. Only the registration token is stored
+  /// so the immediately-following payment/onboarding call can authenticate via
+  /// BaseClient's _authToken fallback to REGISTRATIONTOKEN.
   void _onRegisterSuccess(LoginResponse res) {
-    final tokens = res.data?.tokens;
-    final user = res.data?.user;
+    _store.setString(
+      Keys.REGISTRATIONTOKEN,
+      res.data?.tokens?.accessToken ?? '',
+    );
 
-    if (tokens != null) {
-      _store.setString(Keys.AUTHTOKEN, tokens.accessToken);
-      _store.setString(Keys.ACCESSTOKEN, tokens.accessToken);
-      _store.setString(Keys.REFRESHTOKEN, tokens.refreshToken);
-    }
-    if (user != null) {
-      _store.setString(Keys.USERID, user.id);
-    }
-    _store.setBool(Keys.LOGGEDIN, true);
-
-    debugPrint('Register succeeded -> ${user?.displayName}.');
+    debugPrint('Register succeeded -> ${res.data?.user?.displayName}.');
   }
 
   /// Clears every Create Account field back to its initial state (called on a
@@ -504,7 +577,7 @@ class RegisterController extends GetxController {
   void onAgreeAndContinue() {
     if (isAllConsentAgreed) {
       debugPrint('All consents agreed. Navigating to profile setup...');
-      Get.toNamed(Routes.PROFILE_SETUP);
+      Get.toNamed(Routes.REGISTER);
     }
   }
 

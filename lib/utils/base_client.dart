@@ -22,7 +22,15 @@ class BaseClient {
   static final instance = BaseClient._();
 
   static const int timeOutDuration = 20;
-  var token = HiveStore().getString(Keys.AUTHTOKEN);
+
+  /// Resolves the bearer token at call time (not once at construction) so a
+  /// token saved after app start is picked up. Falls back ACCESSTOKEN ->
+  /// REGISTRATIONTOKEN -> AUTHTOKEN, so onboarding calls right after register
+  /// authenticate via the registration token.
+  String? get _authToken =>
+      HiveStore().getString(Keys.ACCESSTOKEN) ??
+      HiveStore().getString(Keys.REGISTRATIONTOKEN) ??
+      HiveStore().getString(Keys.AUTHTOKEN);
 
   /// Lightweight reachability check (no extra package). Resolves a well-known
   /// host; if DNS fails or times out we treat the device as offline.
@@ -63,7 +71,7 @@ class BaseClient {
         Uri.parse(path),
         headers: <String, String>{
           'Content-Type': AppStrings.contentType,
-          'Authorization': "Bearer $token"
+          'Authorization': "Bearer ${_authToken ?? ''}"
         },
       );
 
@@ -95,7 +103,7 @@ class BaseClient {
         body: payload,
         headers: <String, String>{
           'Content-Type': AppStrings.contentType,
-          if (!isAuth) 'Authorization': "Bearer $token"
+          if (!isAuth) 'Authorization': "Bearer ${_authToken ?? ''}"
         },
       );
       debugPrint(DateTime.now().toString());
@@ -121,7 +129,7 @@ class BaseClient {
         body: jsonEncode(payloadObj),
         headers: <String, String>{
           'Content-Type': AppStrings.contentType,
-          'Authorization': "Bearer $token"
+          'Authorization': "Bearer ${_authToken ?? ''}"
         },
       );
       debugPrint(DateTime.now().toString());
@@ -150,7 +158,7 @@ class BaseClient {
         body: payload,
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
-          if (!isAuth) 'Authorization': "Bearer $token"
+          if (!isAuth) 'Authorization': "Bearer ${_authToken ?? ''}"
         },
       );
       debugPrint(DateTime.now().toString());
@@ -178,7 +186,7 @@ class BaseClient {
         body: payload,
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
-          if (!isAuth) 'Authorization': "Bearer $token"
+          if (!isAuth) 'Authorization': "Bearer ${_authToken ?? ''}"
         },
       );
       debugPrint(DateTime.now().toString());

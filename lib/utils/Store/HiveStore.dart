@@ -32,6 +32,14 @@ class Keys {
   static const String REFRESHTOKEN = "refreshToken";
   static const String USERID = "userId";
   static const String LOGGEDIN = "logged_in";
+
+  // Session identity (set ONLY on a real login, not on register).
+  static const String SESSIONEMAIL = "sessionEmail";
+  static const String SESSIONDISPLAYNAME = "sessionDisplayName";
+
+  // Token saved after register so onboarding calls can authenticate without
+  // establishing a logged-in session.
+  static const String REGISTRATIONTOKEN = "registrationToken";
 }
 
 class HiveStore {

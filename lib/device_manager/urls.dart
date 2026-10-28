@@ -11,4 +11,7 @@ class Urls {
   static const String sendOtp = "${apiBase}auth/forgot-password";
   static const String verifyEmail = "${apiBase}auth/verify-email";
   static const String resetPassword = "${apiBase}auth/reset-password";
+
+  // --- Users ---------------------------------------------------------------
+  static const String savePaymentMethod = "${apiBase}users/me/payment-method";
 }

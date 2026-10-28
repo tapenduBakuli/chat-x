@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../routes/routes.dart';
+import '../../../utils/Store/HiveStore.dart';
 
 class SplashController extends GetxController {
   RxBool? casual = true.obs;
@@ -23,12 +24,21 @@ class SplashController extends GetxController {
     _requestStartupPermissions();
 
     Timer(const Duration(seconds: 3), () async {
-      Get.offAllNamed(Routes.LOGIN);
-      // if(token.isNotEmpty && token != ""){
-      //   Get.offAllNamed(Routes.HOME);
-      // }else{
-      //   Get.offAllNamed(Routes.AUTH);
-      // }
+      // A logged-in session exists only when a real LOGIN stored all three of
+      // these (register never writes the session keys). Otherwise go to Login.
+      final String? email = HiveStore().getString(Keys.SESSIONEMAIL);
+      final String? name = HiveStore().getString(Keys.SESSIONDISPLAYNAME);
+      final String? token = HiveStore().getString(Keys.ACCESSTOKEN);
+
+      final bool hasSession = (email != null && email.isNotEmpty) &&
+          (name != null && name.isNotEmpty) &&
+          (token != null && token.isNotEmpty);
+
+      if (hasSession) {
+        Get.offAllNamed(Routes.HOME);
+      } else {
+        Get.offAllNamed(Routes.LOGIN);
+      }
     });
     super.onReady();
   }

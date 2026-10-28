@@ -102,12 +102,40 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
               SizedBox(height: ScreenConstant.defaultHeightThirty),
               SizedBox(
                 height: ScreenConstant.defaultHeightFifty,
-                child: buildLoginButton(
-                  "Save & Continue",
-                  true,
-                  controller.onSaveAndContinue,
-                  null,
-                ),
+                child: Obx(() {
+                  if (controller.isSavingPayment.value) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(100),
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            CustomColor.colorBE185D,
+                            CustomColor.color581C87,
+                          ],
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            CustomColor.colorWhite,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return buildLoginButton(
+                    "Save & Continue",
+                    true,
+                    controller.onSaveAndContinue,
+                    null,
+                  );
+                }),
               ),
               SizedBox(height: ScreenConstant.defaultHeightFifteen),
               _buildCancelRow(),

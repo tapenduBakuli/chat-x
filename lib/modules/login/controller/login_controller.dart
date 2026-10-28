@@ -243,6 +243,14 @@ class LoginController extends GetxController {
     }
     _store.setBool(Keys.LOGGEDIN, true);
 
+    // Session identity — a real login (not register) is what establishes a
+    // logged-in session, keyed off these fields at startup.
+    _store.setString(
+      Keys.SESSIONEMAIL,
+      (user?.email.isNotEmpty == true) ? user!.email : email,
+    );
+    _store.setString(Keys.SESSIONDISPLAYNAME, user?.displayName ?? '');
+
     if (rememberMe.value) {
       _store.setBool(Keys.REMEMBERME, true);
       _store.setString(Keys.SAVEDEMAIL, email);
@@ -501,7 +509,7 @@ class LoginController extends GetxController {
   }
 
   void onCreateAccount() {
-    Get.toNamed(Routes.REGISTER);
+    Get.toNamed(Routes.POLICIES_AGREEMENT);
   }
 
   @override
