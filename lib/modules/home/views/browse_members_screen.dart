@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import '../../../device_manager/screen_constants.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../utils/custom_text_field.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
 import '../controller/home_controller.dart';
 import '../model/member.dart';
 import 'widgets/member_network_image.dart';
+import 'widgets/reset_password_dialogs.dart';
 
 /// The authenticated home: browse member profiles in a Grid or a Tinder-style
 /// Deck, filterable by city. Light/whitish aesthetic with rose accents, reused
@@ -122,20 +124,862 @@ class BrowseMembersScreen extends GetView<HomeController> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Accounts tab — scrollable page of settings cards. Most sections are
+  // static/demo (APIs land later); only the invisible toggle, plan highlight,
+  // the show-password toggles, and the reset-password dialog flow are live.
+  // ---------------------------------------------------------------------------
   Widget _buildAccountsTab() {
-    return Column(
+    // Builder gives the dialogs a Navigator-aware context beneath the
+    // Navigator (same trick used by _buildSearchRow).
+    return Builder(
+      builder: (context) {
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            ScreenConstant.defaultWidthTwenty,
+            ScreenConstant.defaultHeightTen,
+            ScreenConstant.defaultWidthTwenty,
+            110, // clears the floating bottom nav
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Page header. // STATIC
+              Text(
+                "Accounts",
+                style: TextStyles.registerTitle.copyWith(
+                  fontSize: FontSize.s24,
+                ),
+              ),
+              SizedBox(height: ScreenConstant.sizeExtraSmall),
+              Text(
+                "Manage your verified banking credentials, subscription "
+                "passes, privacy, password, and security policy.",
+                style: TextStyles.loginWelcomeSubtitle,
+              ),
+              SizedBox(height: ScreenConstant.sizeMedium),
+              _accountsBankingCard(),
+              SizedBox(height: ScreenConstant.sizeMedium),
+              _accountsSubscriptionCard(),
+              SizedBox(height: ScreenConstant.sizeMedium),
+              _accountsEmailPrivacyCard(),
+              SizedBox(height: ScreenConstant.sizeMedium),
+              _accountsChangePasswordCard(context),
+              SizedBox(height: ScreenConstant.sizeMedium),
+              _accountsDangerZoneCard(context),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- Shared Accounts-card building blocks ----------------------------------
+
+  /// White rounded card with the standard soft shadow. [borderColor] adds an
+  /// optional tinted border (used by the Danger Zone card).
+  Widget _accountCard({required Widget child, Color? borderColor}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(ScreenConstant.sizeMedium),
+      decoration: BoxDecoration(
+        color: CustomColor.colorWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: borderColor == null
+            ? null
+            : Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: CustomColor.color717B96.withOpacity(0.12),
+            blurRadius: 16,
+            spreadRadius: -6,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  /// Section header: a small rose (or custom-colored) icon + bold title, with
+  /// an optional right-aligned trailing widget (pill or link).
+  Widget _accountSectionHeader(
+    IconData icon,
+    String title, {
+    Color iconColor = CustomColor.colorBE185D,
+    Color? titleColor,
+    Widget? trailing,
+  }) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.people_outline_outlined,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
-        Text("No friends yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
-        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
-        SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),
-          child: Container(height: ScreenConstant.defaultHeightForty,child: _buildContinueButton()),
-        )
+        Icon(icon, size: ScreenConstant.smallIconSize, color: iconColor),
+        SizedBox(width: ScreenConstant.sizeSmall),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyles.registerSectionTitle.copyWith(
+              fontSize: FontSize.s14,
+              color: titleColor,
+            ),
+          ),
+        ),
+        if (trailing != null) ...[
+          SizedBox(width: ScreenConstant.sizeSmall),
+          trailing,
+        ],
       ],
+    );
+  }
+
+  /// Light-filled inner tile (colorF8FAFC + border) used inside cards.
+  Widget _innerTile({required Widget child, Color? fill, Color? border}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(ScreenConstant.sizeSmallHighest),
+      decoration: BoxDecoration(
+        color: fill ?? CustomColor.colorF8FAFC,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border ?? CustomColor.colorE2E8F0),
+      ),
+      child: child,
+    );
+  }
+
+  /// Small rounded pill (e.g. "Verified 18+ Account").
+  Widget _pill(
+    String text, {
+    required Color bg,
+    required Color fg,
+    IconData? icon,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: ScreenConstant.sizeSmall,
+        vertical: ScreenConstant.sizeExtraSmall / 1.2,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: ScreenConstant.minimumIconSize - 1, color: fg),
+            SizedBox(width: ScreenConstant.sizeExtraSmall),
+          ],
+          Text(
+            text,
+            style: TextStyles.registerFieldNote.copyWith(
+              color: fg,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Section 1: Verified Banking Credentials (STATIC) ----------------------
+  Widget _accountsBankingCard() {
+    return _accountCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _accountSectionHeader(
+            Icons.credit_card_outlined,
+            "Verified Banking Credentials",
+            trailing: _pill(
+              "Verified 18+ Account",
+              bg: CustomColor.colorECFDF5,
+              fg: CustomColor.color059669,
+              icon: Icons.verified_user_outlined,
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Two inner tiles. // STATIC
+          _innerTile(
+            child: _bankingTileContent(
+              "PAYMENT PROVIDER",
+              "BANCONTACT (SEPA / Bancontact)",
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeSmall),
+          _innerTile(
+            child: _bankingTileContent(
+              "MASKED MANDATE IDENTIFIER",
+              "BE76 •••• •••• 7890",
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeSmall),
+          // Rose guarantee strip. // STATIC
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(ScreenConstant.sizeSmallHighest),
+            decoration: BoxDecoration(
+              color: CustomColor.colorFFF1F2,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.lock_outline,
+                  size: ScreenConstant.smallIconSize,
+                  color: CustomColor.colorBE123C,
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: TextStyles.registerFieldNote.copyWith(
+                        color: CustomColor.color334155,
+                      ),
+                      children: const [
+                        TextSpan(
+                          text: "Bank Guarantee: ",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text:
+                              "Stored securely under CX-NETWORK BV in "
+                              "compliance with Belgian financial regulations. "
+                              "Zero unauthorized recurring debits.",
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bankingTileContent(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyles.registerFieldNote.copyWith(
+            color: CustomColor.color94A3B8,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        SizedBox(height: ScreenConstant.sizeExtraSmall / 1.5),
+        Text(
+          value,
+          style: TextStyles.browseToggleLabel.copyWith(
+            color: CustomColor.color0F172A,
+            fontSize: FontSize.s14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Section 2: Manage Subscription & Passes (STATIC/DEMO) -----------------
+  Widget _accountsSubscriptionCard() {
+    return _accountCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _accountSectionHeader(
+            Icons.auto_awesome,
+            "Manage Subscription & Passes",
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // DEMO copy.
+          Text(
+            "ChatX is designed to remain extremely accessible: €9.99 per "
+            "month across all options. Pay month-by-month or choose 1, 3, or "
+            "6 months upfront with identical monthly pricing. Cancel anytime "
+            "with 1 click.",
+            style: TextStyles.registerFieldNote.copyWith(
+              color: CustomColor.color64748B,
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Active pass strip. // DEMO
+          _innerTile(
+            child: Row(
+              children: [
+                Icon(
+                  Icons.workspace_premium_outlined,
+                  size: ScreenConstant.smallIconSize,
+                  color: CustomColor.colorBE185D,
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: TextStyles.browseToggleLabel.copyWith(
+                        color: CustomColor.color334155,
+                        fontSize: FontSize.s13,
+                      ),
+                      children: [
+                        const TextSpan(text: "Active Pass: "),
+                        TextSpan(
+                          text: "1-Month Single Pass (€9.99)",
+                          style: TextStyle(
+                            color: CustomColor.colorBE185D,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Four plan cards in a horizontal scroll row. // DEMO
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _planCard(
+                  index: 0,
+                  name: "Monthly",
+                  sub: "Cancel anytime",
+                  price: "€9.99",
+                  period: "/ month",
+                  badge: _planBadge(
+                    "Popular",
+                    bg: CustomColor.colorFFF1F2,
+                    fg: CustomColor.colorBE185D,
+                  ),
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                _planCard(
+                  index: 1,
+                  name: "1 Month",
+                  sub: "One-time pass",
+                  price: "€9.99",
+                  period: "single charge",
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                _planCard(
+                  index: 2,
+                  name: "3 Months",
+                  sub: "€9.99 / month",
+                  price: "€29.97",
+                  period: "for 3 months",
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                _planCard(
+                  index: 3,
+                  name: "6 Months",
+                  sub: "€9.99 / month",
+                  price: "€59.94",
+                  period: "for 6 months",
+                  badge: _planBadge(
+                    "VIP Pass",
+                    bg: CustomColor.color9333EA.withOpacity(0.12),
+                    fg: CustomColor.color9333EA,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _planBadge(String text, {required Color bg, required Color fg}) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: ScreenConstant.sizeSmall,
+        vertical: ScreenConstant.sizeExtraSmall / 2,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        text,
+        style: TextStyles.registerFieldNote.copyWith(
+          color: fg,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _planCard({
+    required int index,
+    required String name,
+    required String sub,
+    required String price,
+    required String period,
+    Widget? badge,
+  }) {
+    return Obx(() {
+      final bool selected = controller.selectedPlanIndex.value == index;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => controller.selectPlan(index),
+        child: Container(
+          width: 160,
+          padding: EdgeInsets.all(ScreenConstant.sizeSmallHighest),
+          decoration: BoxDecoration(
+            color: selected
+                ? CustomColor.colorFFF1F2
+                : CustomColor.colorF8FAFC,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? CustomColor.colorBE185D
+                  : CustomColor.colorE2E8F0,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: TextStyles.browseToggleLabel.copyWith(
+                        color: CustomColor.color0F172A,
+                        fontSize: FontSize.s14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (badge != null) badge,
+                ],
+              ),
+              SizedBox(height: ScreenConstant.sizeExtraSmall / 1.5),
+              Text(
+                sub,
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.color64748B,
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  vertical: ScreenConstant.sizeSmall,
+                ),
+                child: Divider(
+                  height: 1,
+                  color: CustomColor.colorE2E8F0,
+                ),
+              ),
+              Text(
+                price,
+                style: TextStyles.registerTitle.copyWith(
+                  fontSize: FontSize.s18,
+                  color: CustomColor.colorBE185D,
+                ),
+              ),
+              SizedBox(height: ScreenConstant.sizeExtraSmall / 2),
+              Text(
+                period,
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.color94A3B8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  // --- Section 3: Registered Email Address & Privacy -------------------------
+  Widget _accountsEmailPrivacyCard() {
+    return _accountCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _accountSectionHeader(
+            Icons.mail_outline,
+            "Registered Email Address & Privacy",
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Email tile. // STATIC
+          _innerTile(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        "user@chatx.be",
+                        style: TextStyle(
+                          fontFamily: "monospace",
+                          fontSize: FontSize.s14,
+                          fontWeight: FontWeight.bold,
+                          color: CustomColor.color0F172A,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: ScreenConstant.sizeSmall),
+                    _pill(
+                      "Hidden from Public",
+                      bg: CustomColor.colorECFDF5,
+                      fg: CustomColor.color059669,
+                      icon: Icons.visibility_off_outlined,
+                    ),
+                  ],
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                Text(
+                  "Your email is permanently shielded from other members and "
+                  "never displayed in search or chat.",
+                  style: TextStyles.registerFieldNote.copyWith(
+                    color: CustomColor.color64748B,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Invisibility row. INTERACTIVE — leading icon swaps with state.
+          Obx(
+            () => Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  controller.isAccountInvisible.value
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: ScreenConstant.smallIconSize,
+                  color: CustomColor.colorBE185D,
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Make Account Invisible",
+                        style: TextStyles.browseToggleLabel.copyWith(
+                          color: CustomColor.color0F172A,
+                          fontSize: FontSize.s14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: ScreenConstant.sizeExtraSmall / 1.5),
+                      Text(
+                        "When invisible, your profile is completely hidden "
+                        "from Search, Discovery, and suggestions.",
+                        style: TextStyles.registerFieldNote.copyWith(
+                          color: CustomColor.color64748B,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                Switch(
+                  value: controller.isAccountInvisible.value,
+                  onChanged: controller.toggleInvisible,
+                  activeColor: CustomColor.colorWhite,
+                  activeTrackColor: CustomColor.colorBE185D,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Section 4: Change Password (design + dialog triggers) -----------------
+  Widget _accountsChangePasswordCard(BuildContext context) {
+    return _accountCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _accountSectionHeader(
+            Icons.vpn_key_outlined,
+            "Change Password",
+            trailing: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => showResetEmailDialog(context, controller),
+              child: Text(
+                "Forgot Password?",
+                style: TextStyles.loginForgotPassword.copyWith(
+                  fontSize: FontSize.s12,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          _changePwdField(
+            controller.changeCurrentPasswordController,
+            "Current Password",
+          ),
+          SizedBox(height: ScreenConstant.sizeExtraSmall),
+          Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => showResetEmailDialog(context, controller),
+              child: Text(
+                "Forgot your password?",
+                style: TextStyles.loginForgotPassword.copyWith(
+                  fontSize: FontSize.s12,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeSmall),
+          _changePwdField(
+            controller.changeNewPasswordController,
+            "New Password (minimum 8 characters)",
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          _changePwdField(
+            controller.changeConfirmPasswordController,
+            "Confirm New Password",
+          ),
+          SizedBox(height: ScreenConstant.sizeSmall),
+          // Show-passwords toggle (local state; flips all three fields).
+          Obx(
+            () => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: controller.toggleShowChangePwd,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    controller.showChangePwd.value
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: ScreenConstant.minimumIconSize + 2,
+                    color: CustomColor.color64748B,
+                  ),
+                  SizedBox(width: ScreenConstant.sizeExtraSmall),
+                  Text(
+                    "Show passwords",
+                    style: TextStyles.registerFieldLabel.copyWith(
+                      color: CustomColor.color64748B,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          buildLoginButton(
+            "Update Password",
+            true,
+            () {
+              // TODO: wire change-password API
+              Get.snackbar(
+                'Coming soon',
+                'Password change will be available soon.',
+                snackPosition: SnackPosition.BOTTOM,
+              );
+            },
+            Icons.lock_outline,
+            height: ScreenConstant.defaultHeightFifty,
+            fontSize: FontSize.s14,
+            iconSize: ScreenConstant.minimumIconSize,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _changePwdField(TextEditingController ctrl, String hint) {
+    return Obx(
+      () => SizedBox(
+        height: ScreenConstant.defaultHeightFifty + 5,
+        child: CustomTextField(
+          borderRadius: 100,
+          controller: ctrl,
+          hintText: hint,
+          hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s13),
+          obscureText: !controller.showChangePwd.value,
+          textInputAction: TextInputAction.next,
+          borderColor: CustomColor.colorE2E8F0,
+          fillColor: CustomColor.colorF8FAFC,
+          prefix: Icon(
+            Icons.lock_outline,
+            size: ScreenConstant.smallIconSize,
+            color: CustomColor.color64748B,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Section 5: Danger Zone: Delete Account --------------------------------
+  Widget _accountsDangerZoneCard(BuildContext context) {
+    return _accountCard(
+      borderColor: CustomColor.colorFECDD3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _accountSectionHeader(
+            Icons.delete_outline,
+            "Danger Zone: Delete Account",
+            iconColor: CustomColor.colorE11D48,
+            titleColor: CustomColor.colorE11D48,
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Policy tile. // STATIC
+          _innerTile(
+            fill: CustomColor.colorFFF1F2,
+            border: CustomColor.colorFECDD3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: ScreenConstant.smallIconSize,
+                      color: CustomColor.colorBE123C,
+                    ),
+                    SizedBox(width: ScreenConstant.sizeSmall),
+                    Text(
+                      "Security Archive Policy",
+                      style: TextStyles.browseToggleLabel.copyWith(
+                        color: CustomColor.color0F172A,
+                        fontSize: FontSize.s13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                Text(
+                  "If your account is deleted, your profile information and "
+                  "past chat histories are securely archived for safety, "
+                  "harassment prevention, and regulatory audit compliance.",
+                  style: TextStyles.registerFieldNote.copyWith(
+                    color: CustomColor.color334155,
+                  ),
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                RichText(
+                  text: TextSpan(
+                    style: TextStyles.registerFieldNote.copyWith(
+                      color: CustomColor.color334155,
+                    ),
+                    children: const [
+                      TextSpan(
+                        text: "Re-Registration Notice: ",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(
+                        text:
+                            "If a person registers again with the same "
+                            "banking details, a new verified account is "
+                            "created and previous records are linked as a "
+                            "verified secondary instance of the same banking "
+                            "mandate.",
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: ScreenConstant.sizeMedium),
+          // Solid RED button (not the rose gradient).
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _confirmDeleteAccount(context),
+            child: Container(
+              height: ScreenConstant.defaultHeightFifty,
+              decoration: BoxDecoration(
+                color: CustomColor.colorE11D48,
+                borderRadius: BorderRadius.circular(100),
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.delete_outline,
+                    size: ScreenConstant.smallIconSize,
+                    color: CustomColor.colorWhite,
+                  ),
+                  SizedBox(width: ScreenConstant.sizeSmall),
+                  Text(
+                    "Delete My Account",
+                    style: TextStyles.loginButtonText.copyWith(
+                      fontSize: FontSize.s14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: CustomColor.colorWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            "Delete account?",
+            style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+          ),
+          content: Text(
+            "This action cannot be undone. Your profile will be removed and "
+            "securely archived per the security policy.",
+            style: TextStyles.loginWelcomeSubtitle,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                "Cancel",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.color64748B,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                // TODO: wire delete-account API
+                Navigator.pop(dialogContext);
+                Get.snackbar(
+                  'Coming soon',
+                  'Account deletion will be available soon.',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              },
+              child: Text(
+                "Delete",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.colorE11D48,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

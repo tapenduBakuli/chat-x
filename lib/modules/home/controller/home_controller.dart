@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/lib/otp_text_field.dart';
 import '../../login/services/login_services.dart';
 import '../model/member.dart';
 
@@ -102,10 +104,141 @@ class HomeController extends GetxController {
     "Has SOA's (STI status open)",
   ];
 
+  // ===========================================================================
+  // --- Accounts tab -----------------------------------------------------------
+  // Local UI state for the Accounts tab. All visual/demo only (no APIs yet).
+  // ===========================================================================
+
+  /// Selected subscription plan card (visual highlight only). Defaults to the
+  /// "1 Month" card (index 1), which is pre-selected in the mock.
+  final RxInt selectedPlanIndex = 1.obs;
+  void selectPlan(int i) => selectedPlanIndex.value = i;
+
+  /// Whether the account is set to "invisible" (local toggle, no API). Drives
+  /// both the Switch and the leading eye/eye-off icon.
+  final RxBool isAccountInvisible = false.obs;
+  void toggleInvisible(bool v) => isAccountInvisible.value = v;
+
+  /// Whether the three Change-Password card fields are shown (not obscured).
+  final RxBool showChangePwd = false.obs;
+  void toggleShowChangePwd() => showChangePwd.value = !showChangePwd.value;
+
+  /// Local controllers for the (design-only) Change-Password card fields. The
+  /// direct change-password API is not wired yet (Coming-soon stub).
+  final TextEditingController changeCurrentPasswordController =
+      TextEditingController();
+  final TextEditingController changeNewPasswordController =
+      TextEditingController();
+  final TextEditingController changeConfirmPasswordController =
+      TextEditingController();
+
+  // ===========================================================================
+  // --- Reset-password dialog flow ---------------------------------------------
+  // Shared state for the three reset-password dialogs (email -> OTP -> new
+  // password). Reuses LoginService; disposed in onClose.
+  // ===========================================================================
+
+  final TextEditingController resetEmailController = TextEditingController();
+
+  final OtpFieldController resetOtpController = OtpFieldController();
+  final RxString resetOtpCode = ''.obs;
+  void onResetOtpChanged(String v) => resetOtpCode.value = v;
+  bool get isResetOtpComplete => resetOtpCode.value.length == 4;
+
+  final TextEditingController resetNewPasswordController =
+      TextEditingController();
+  final TextEditingController resetConfirmPasswordController =
+      TextEditingController();
+
+  /// Live mirrors of the two reset fields (drive the strength UI).
+  final RxString resetNewPassword = ''.obs;
+  final RxString resetConfirmPassword = ''.obs;
+
+  final RxBool obscureResetNew = true.obs;
+  final RxBool obscureResetConfirm = true.obs;
+  void toggleObscureResetNew() =>
+      obscureResetNew.value = !obscureResetNew.value;
+  void toggleObscureResetConfirm() =>
+      obscureResetConfirm.value = !obscureResetConfirm.value;
+
+  // In-flight flags for each dialog step.
+  final RxBool isSendingResetOtp = false.obs;
+  final RxBool isVerifyingResetOtp = false.obs;
+  final RxBool isResettingPassword = false.obs;
+  final RxBool isResendingResetOtp = false.obs;
+
+  /// Token captured from verify-email; required to set the new password.
+  final RxString resetToken = ''.obs;
+
+  // 60s resend cooldown (mirrors LoginController.startResendTimer).
+  static const int kResetResendCooldown = 60;
+  final RxInt resetResendSeconds = 0.obs;
+  Timer? _resetResendTimer;
+  bool get canResendResetOtp => resetResendSeconds.value == 0;
+
+  void startResetResendTimer() {
+    _resetResendTimer?.cancel();
+    resetResendSeconds.value = kResetResendCooldown;
+    _resetResendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (resetResendSeconds.value <= 1) {
+        resetResendSeconds.value = 0;
+        t.cancel();
+      } else {
+        resetResendSeconds.value = resetResendSeconds.value - 1;
+      }
+    });
+  }
+
+  // Password-strength rules (match the live /auth/reset-password flow: min 10,
+  // one uppercase, one lowercase, one number).
+  static const int kResetMinPasswordLength = 10;
+  bool get hasMinLength =>
+      resetNewPassword.value.length >= kResetMinPasswordLength;
+  bool get hasUppercase => resetNewPassword.value.contains(RegExp(r'[A-Z]'));
+  bool get hasLowercase => resetNewPassword.value.contains(RegExp(r'[a-z]'));
+  bool get hasNumber => resetNewPassword.value.contains(RegExp(r'[0-9]'));
+  bool get isResetPasswordValid =>
+      hasMinLength && hasUppercase && hasLowercase && hasNumber;
+  bool get resetPasswordsMatch =>
+      resetConfirmPassword.value.isNotEmpty &&
+      resetConfirmPassword.value == resetNewPassword.value;
+
+  /// Validates an email for the reset flow (same regex used across auth).
+  bool isValidResetEmail(String e) =>
+      RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(e);
+
+  /// Clears all reset-flow state (controllers, codes, token, timer). Called
+  /// after a successful reset so a re-entry starts clean.
+  void clearResetFlow() {
+    resetEmailController.clear();
+    resetOtpCode.value = '';
+    resetNewPasswordController.clear();
+    resetConfirmPasswordController.clear();
+    resetNewPassword.value = '';
+    resetConfirmPassword.value = '';
+    resetToken.value = '';
+    obscureResetNew.value = true;
+    obscureResetConfirm.value = true;
+    _resetResendTimer?.cancel();
+    resetResendSeconds.value = 0;
+    // OtpFieldController throws if the field isn't mounted — guard.
+    try {
+      resetOtpController.clear();
+    } catch (_) {}
+  }
+
   @override
   void onInit() {
     super.onInit();
     loadMembers();
+    // Mirror the reset-password fields into the reactive strings that drive
+    // the strength/match UI in the new-password dialog.
+    resetNewPasswordController.addListener(() {
+      resetNewPassword.value = resetNewPasswordController.text;
+    });
+    resetConfirmPasswordController.addListener(() {
+      resetConfirmPassword.value = resetConfirmPasswordController.text;
+    });
   }
 
   /// Reads the bundled JSON, parses it into [Member]s, and populates
@@ -346,6 +479,14 @@ class HomeController extends GetxController {
   @override
   void onClose() {
     searchController.dispose();
+    // Accounts tab + reset-password dialog flow.
+    changeCurrentPasswordController.dispose();
+    changeNewPasswordController.dispose();
+    changeConfirmPasswordController.dispose();
+    resetEmailController.dispose();
+    resetNewPasswordController.dispose();
+    resetConfirmPasswordController.dispose();
+    _resetResendTimer?.cancel();
     super.onClose();
   }
 }
