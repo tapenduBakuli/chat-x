@@ -103,6 +103,20 @@ class HiveStore {
     defBox.delete(key);
   }
 
+  /// Clears the auth session + onboarding keys on logout, but PRESERVES the
+  /// remember-me credentials (REMEMBERME / SAVEDEMAIL / SAVEDPASSWORD) so the
+  /// login screen can still prefill them next time.
+  clearSession() {
+    defBox.delete(Keys.AUTHTOKEN);
+    defBox.delete(Keys.ACCESSTOKEN);
+    defBox.delete(Keys.REFRESHTOKEN);
+    defBox.delete(Keys.USERID);
+    defBox.delete(Keys.LOGGEDIN);
+    defBox.delete(Keys.SESSIONEMAIL);
+    defBox.delete(Keys.SESSIONDISPLAYNAME);
+    defBox.delete(Keys.REGISTRATIONTOKEN);
+  }
+
   Future openBox() async {
     if (!isBrowser) {
       var dir = await getApplicationDocumentsDirectory();

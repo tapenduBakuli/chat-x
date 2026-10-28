@@ -32,6 +32,10 @@ class BrowseMembersScreen extends GetView<HomeController> {
                     return _buildBlankTab("Chat", Icons.chat_bubble_outline);
                   case 2:
                     return _buildBlankTab("Friends", Icons.people_outline);
+                  case 3:
+                    return _buildBlankTab("Account", Icons.account_circle_outlined);
+                  case 4:
+                    return _buildBlankTab("Blocked", Icons.block);
                   default:
                     return _buildExploreTab();
                 }
@@ -140,7 +144,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
             child: _navNavItem(
               index: 0,
               icon: Icons.explore_outlined,
-              label: "Explore",
+              label: "Search",
               isSelected: selectedIndex == 0,
             ),
           ),
@@ -158,6 +162,22 @@ class BrowseMembersScreen extends GetView<HomeController> {
               icon: Icons.people_outline,
               label: "Friends",
               isSelected: selectedIndex == 2,
+            ),
+          ),
+          Expanded(
+            child: _navNavItem(
+              index: 3,
+              icon: Icons.account_circle_outlined,
+              label: "Accounts",
+              isSelected: selectedIndex == 3,
+            ),
+          ),
+          Expanded(
+            child: _navNavItem(
+              index: 4,
+              icon: Icons.block,
+              label: "Blocked",
+              isSelected: selectedIndex == 4,
             ),
           ),
         ],
@@ -204,19 +224,18 @@ class BrowseMembersScreen extends GetView<HomeController> {
           children: [
             Icon(
               icon,
-              size: 20,
+              size: 10,
               color: isSelected
                   ? CustomColor.colorWhite
                   : CustomColor.color0F172A.withOpacity(0.5),
             ),
-            const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 color: isSelected
                     ? CustomColor.colorWhite
                     : CustomColor.color0F172A.withOpacity(0.5),
-                fontSize: 15,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
                 fontFamily: "Liberation",
               ),
@@ -241,6 +260,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
       onSelected: (value) {
         if (value == 'logout') {
           controller.onLogout();
+        }else if (value == 'profile') {
+          print("Profile");
         }
       },
       itemBuilder: (context) => [
@@ -410,9 +431,9 @@ class BrowseMembersScreen extends GetView<HomeController> {
   Widget _buildHeader() {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        ScreenConstant.defaultWidthTwenty,
+        ScreenConstant.defaultWidthTen,
         ScreenConstant.defaultHeightTen,
-        ScreenConstant.defaultWidthTwenty,
+        ScreenConstant.defaultWidthTen,
         ScreenConstant.sizeSmall,
       ),
       child: Column(
@@ -592,7 +613,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
       builder: (context) {
         return Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: ScreenConstant.defaultWidthTwenty,
+            horizontal: ScreenConstant.defaultWidthTen,
           ),
           child: Row(
             children: [
@@ -646,7 +667,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
               SizedBox(width: ScreenConstant.sizeSmall),
               // (b) City dropdown pill.
               _cityPill(context),
-              SizedBox(width: ScreenConstant.sizeSmall),
+              //SizedBox(width: ScreenConstant.sizeSmall),
               // (c) Filters pill.
               _filtersPill(context),
             ],
@@ -708,11 +729,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
       child: Container(
         height: ScreenConstant.defaultHeightForty,
         padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeSmall),
-        decoration: BoxDecoration(
-          color: CustomColor.colorWhite,
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(color: CustomColor.colorE2E8F0),
-        ),
+        // decoration: BoxDecoration(
+        //   color: CustomColor.colorWhite,
+        //   borderRadius: BorderRadius.circular(100),
+        //   border: Border.all(color: CustomColor.colorE2E8F0),
+        // ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -721,13 +742,13 @@ class BrowseMembersScreen extends GetView<HomeController> {
               size: ScreenConstant.minimumIconSize,
               color: CustomColor.colorBE185D,
             ),
-            SizedBox(width: ScreenConstant.sizeExtraSmall),
-            Text(
-              "Filters",
-              style: TextStyles.browseToggleLabel.copyWith(
-                color: CustomColor.colorBE123C,
-              ),
-            ),
+            // SizedBox(width: ScreenConstant.sizeExtraSmall),
+            // Text(
+            //   "Filters",
+            //   style: TextStyles.browseToggleLabel.copyWith(
+            //     color: CustomColor.colorBE123C,
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -830,6 +851,9 @@ class BrowseMembersScreen extends GetView<HomeController> {
   // Filter bottom-sheet: "Regional Search & Match Criteria"
   // ---------------------------------------------------------------------------
   void _openFilterSheet(BuildContext context) {
+    // Seed the sheet controls from the currently-applied filters so edits
+    // start from the active state and only take effect on "Apply Criteria".
+    controller.initDraftFromApplied();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -838,22 +862,28 @@ class BrowseMembersScreen extends GetView<HomeController> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
+        // Cap the sheet so it never covers the status bar / notch — leave a
+        // gap at the top and let the content scroll within.
+        final double maxSheetHeight =
+            MediaQuery.of(sheetContext).size.height * 0.9;
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
           ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                ScreenConstant.defaultWidthTwenty,
-                ScreenConstant.sizeMedium,
-                ScreenConstant.defaultWidthTwenty,
-                ScreenConstant.sizeLarge,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxSheetHeight),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  ScreenConstant.defaultWidthTwenty,
+                  ScreenConstant.sizeMedium,
+                  ScreenConstant.defaultWidthTwenty,
+                  ScreenConstant.sizeLarge,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   // Header row.
                   Row(
                     children: [
@@ -885,11 +915,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   ),
                   SizedBox(height: ScreenConstant.sizeLarge),
 
-                  // Location & Search Radius.
+                  // Location & Search Radius (draft until Apply).
                   Obx(
                     () => Text(
                       "Location & Search Radius: "
-                      "${controller.searchRadiusKm.value.round()} km",
+                      "${controller.draftSearchRadiusKm.value.round()} km",
                       style: TextStyles.registerFieldLabel,
                     ),
                   ),
@@ -897,7 +927,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   _sheetCityField(sheetContext),
                   Obx(
                     () => Slider(
-                      value: controller.searchRadiusKm.value,
+                      value: controller.draftSearchRadiusKm.value,
                       min: 1,
                       max: 100,
                       activeColor: CustomColor.colorBE185D,
@@ -922,7 +952,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
                           .map(
                             (g) => _genderFilterPill(
                               g,
-                              controller.genderFilter.value == g,
+                              controller.draftGenderFilter.value == g,
                             ),
                           )
                           .toList(),
@@ -941,8 +971,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
                           ),
                         ),
                         Text(
-                          "${controller.ageRange.value.start.round()} – "
-                          "${controller.ageRange.value.end.round()} years",
+                          "${controller.draftAgeRange.value.start.round()} – "
+                          "${controller.draftAgeRange.value.end.round()} years",
                           style: TextStyles.registerFieldLabel.copyWith(
                             color: CustomColor.colorBE123C,
                           ),
@@ -952,14 +982,14 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   ),
                   Obx(
                     () => RangeSlider(
-                      values: controller.ageRange.value,
+                      values: controller.draftAgeRange.value,
                       min: 18,
                       max: 80,
                       activeColor: CustomColor.colorBE185D,
                       inactiveColor: CustomColor.colorE2E8F0,
                       labels: RangeLabels(
-                        controller.ageRange.value.start.round().toString(),
-                        controller.ageRange.value.end.round().toString(),
+                        controller.draftAgeRange.value.start.round().toString(),
+                        controller.draftAgeRange.value.end.round().toString(),
                       ),
                       onChanged: controller.setAgeRange,
                     ),
@@ -980,7 +1010,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
                           .map(
                             (label) => _interestChip(
                               label,
-                              controller.selectedInterests.contains(label),
+                              controller.draftSelectedInterests
+                                  .contains(label),
                             ),
                           )
                           .toList(),
@@ -1001,7 +1032,6 @@ class BrowseMembersScreen extends GetView<HomeController> {
                           "Reset to Default",
                           style: TextStyles.browseToggleLabel.copyWith(
                             color: CustomColor.colorBE185D,
-                            decoration: TextDecoration.underline,
                             decorationColor: CustomColor.colorBE185D,
                           ),
                         ),
@@ -1011,13 +1041,20 @@ class BrowseMembersScreen extends GetView<HomeController> {
                         child: buildLoginButton(
                           "Apply Criteria",
                           true,
-                          () => Navigator.pop(sheetContext),
+                          () {
+                            controller.applyFilters();
+                            Navigator.pop(sheetContext);
+                          },
                           Icons.check,
+                          height: ScreenConstant.defaultHeightFifty,
+                          fontSize: FontSize.s14,
+                          iconSize: ScreenConstant.minimumIconSize,
                         ),
                       ),
                     ],
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

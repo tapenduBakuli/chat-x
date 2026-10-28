@@ -5,11 +5,28 @@ import '../../device_manager/screen_constants.dart';
 import '../TextStyles.dart';
 import '../colors/app_colors.dart';
 
-Widget buildLoginButton(String? text, bool prefixButtonEnabled, Function() onTap, IconData? prefixIcon) {
+/// Shared gradient (rose→purple) pill button.
+///
+/// Sizing is optional so the same button can be a full-size primary CTA
+/// (defaults) or a smaller/compact action. Omit the size params to keep the
+/// original look; pass [height]/[fontSize]/[horizontalPadding] to shrink it.
+Widget buildLoginButton(
+  String? text,
+  bool prefixButtonEnabled,
+  Function() onTap,
+  IconData? prefixIcon, {
+  double? height,
+  double? fontSize,
+  double? horizontalPadding,
+  double? iconSize,
+}) {
   return GestureDetector(
     onTap: onTap,
     child: Container(
-      height: ScreenConstant.defaultHeightSixty,
+      height: height ?? ScreenConstant.defaultHeightSixty,
+      padding: horizontalPadding == null
+          ? null
+          : EdgeInsets.symmetric(horizontal: horizontalPadding),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(100),
         gradient: const LinearGradient(
@@ -31,12 +48,17 @@ Widget buildLoginButton(String? text, bool prefixButtonEnabled, Function() onTap
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(text ?? "Log in", style: TextStyles.loginButtonText),
+          Text(
+            text ?? "Log in",
+            style: fontSize == null
+                ? TextStyles.loginButtonText
+                : TextStyles.loginButtonText.copyWith(fontSize: fontSize),
+          ),
           SizedBox(width: ScreenConstant.sizeSmall),
           prefixButtonEnabled? Icon(
             prefixIcon??Icons.arrow_forward,
             color: CustomColor.colorWhite,
-            size: ScreenConstant.smallIconSize,
+            size: iconSize ?? ScreenConstant.smallIconSize,
           ):const Offstage(),
         ],
       ),

@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
+import '../../../utils/Store/HiveStore.dart';
+import '../../login/services/login_services.dart';
 import '../model/member.dart';
 
 /// The two ways the browse-members home renders its list.
@@ -57,6 +59,16 @@ class HomeController extends GetxController {
   /// Selected interest chips; a member matches if ANY of its interests matches
   /// ANY selected chip (OR). Empty = no filter.
   final RxList<String> selectedInterests = <String>[].obs;
+
+  // --- DRAFT filter state (edited inside the filter sheet) -----------------
+  // The sheet controls bind to these drafts so changes do NOT affect the list
+  // until the user taps "Apply Criteria" (which copies drafts -> applied).
+  // (City + search stay live from the header; only the sheet filters are
+  // staged behind Apply.)
+  final RxString draftGenderFilter = 'All'.obs;
+  final Rx<RangeValues> draftAgeRange = const RangeValues(18, 55).obs;
+  final RxDouble draftSearchRadiusKm = 30.0.obs;
+  final RxList<String> draftSelectedInterests = <String>[].obs;
 
   /// Fixed city filter options (mirrors the web dropdown).
   final List<String> cities = const [
@@ -139,32 +151,44 @@ class HomeController extends GetxController {
     deckIndex.value = 0;
   }
 
-  /// Update the gender filter ('All'/'Female'/'Male'/'Other') and restart.
-  void setGenderFilter(String g) {
-    genderFilter.value = g;
-    deckIndex.value = 0;
+  // The sheet filters edit DRAFT state only; nothing changes the member list
+  // until [applyFilters] runs. Call [initDraftFromApplied] when opening the
+  // sheet so the controls start from the currently-applied values.
+
+  /// Seeds the draft values from the currently applied filters. Call this when
+  /// the filter sheet opens.
+  void initDraftFromApplied() {
+    draftGenderFilter.value = genderFilter.value;
+    draftAgeRange.value = ageRange.value;
+    draftSearchRadiusKm.value = searchRadiusKm.value;
+    draftSelectedInterests.assignAll(selectedInterests);
   }
 
-  /// Update the inclusive age range filter and restart the deck.
-  void setAgeRange(RangeValues r) {
-    ageRange.value = r;
-    deckIndex.value = 0;
-  }
+  /// Update the DRAFT gender filter (applied on [applyFilters]).
+  void setGenderFilter(String g) => draftGenderFilter.value = g;
 
-  /// PLACEHOLDER: update the cosmetic search radius. There is no lat/long in
-  /// the mock data, so this value never filters — it only drives its own
-  /// label + slider.
-  void setSearchRadius(double km) {
-    searchRadiusKm.value = km;
-  }
+  /// Update the DRAFT age range (applied on [applyFilters]).
+  void setAgeRange(RangeValues r) => draftAgeRange.value = r;
 
-  /// Toggle an interest chip on/off and restart the deck.
+  /// PLACEHOLDER: update the cosmetic draft search radius (no real filtering).
+  void setSearchRadius(double km) => draftSearchRadiusKm.value = km;
+
+  /// Toggle an interest chip in the DRAFT set (applied on [applyFilters]).
   void toggleInterest(String i) {
-    if (selectedInterests.contains(i)) {
-      selectedInterests.remove(i);
+    if (draftSelectedInterests.contains(i)) {
+      draftSelectedInterests.remove(i);
     } else {
-      selectedInterests.add(i);
+      draftSelectedInterests.add(i);
     }
+  }
+
+  /// Commit the draft sheet filters to the applied filters, which rebuilds the
+  /// member list. Called by the sheet's "Apply Criteria" button.
+  void applyFilters() {
+    genderFilter.value = draftGenderFilter.value;
+    ageRange.value = draftAgeRange.value;
+    searchRadiusKm.value = draftSearchRadiusKm.value;
+    selectedInterests.assignAll(draftSelectedInterests);
     deckIndex.value = 0;
   }
 
@@ -221,15 +245,24 @@ class HomeController extends GetxController {
     return false;
   }
 
-  /// Reset every filter to its default and clear the search field.
+  /// Reset every filter to its default and clear the search field. Resets both
+  /// the applied values (so the list updates) AND the draft values (so the
+  /// sheet controls visibly reset).
   void resetFilters() {
     selectedCity.value = 'All Belgium';
     searchQuery.value = '';
     searchController.clear();
+
     genderFilter.value = 'All';
     ageRange.value = const RangeValues(18, 55);
     searchRadiusKm.value = 30;
     selectedInterests.clear();
+
+    draftGenderFilter.value = 'All';
+    draftAgeRange.value = const RangeValues(18, 55);
+    draftSearchRadiusKm.value = 30;
+    draftSelectedInterests.clear();
+
     deckIndex.value = 0;
   }
 
@@ -283,10 +316,32 @@ class HomeController extends GetxController {
     selectedNavIndex.value = index;
   }
 
-  /// Log out action.
-  void onLogout() {
-    Get.offAllNamed(Routes.LOGIN);
+  /// Logs out: calls the logout API with the stored refresh token, then (on a
+  /// 2xx/204 ack) clears the auth session from storage — PRESERVING remember-me
+  /// — and returns to Login. If the API call fails we still clear locally and
+  /// route to Login so the user isn't stuck signed in.
+  Future<void> onLogout() async {
+    if (_isLoggingOut.value) return;
+    _isLoggingOut.value = true;
+    try {
+      final store = HiveStore();
+      final refreshToken = store.getString(Keys.REFRESHTOKEN) ?? '';
+
+      final bool ok = refreshToken.isNotEmpty
+          ? await LoginService.instance.logout(refreshToken: refreshToken)
+          : false;
+
+      if (!ok) {
+        debugPrint('Logout API did not confirm; clearing session locally.');
+      }
+      store.clearSession();
+      Get.offAllNamed(Routes.LOGIN);
+    } finally {
+      _isLoggingOut.value = false;
+    }
   }
+
+  final RxBool _isLoggingOut = false.obs;
 
   @override
   void onClose() {

@@ -210,6 +210,21 @@ class LoginService {
     }
   }
 
+  /// POST /auth/logout with the refresh token. Returns true when the server
+  /// acknowledges (204, or any 2xx). The body is empty on success.
+  Future<bool> logout({required String refreshToken}) async {
+    try {
+      final http.Response response = await BaseClient.instance.post(
+        Urls.logout,
+        {"refresh_token": refreshToken},
+      );
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (e) {
+      debugPrint('LoginService.logout error: $e');
+      return false;
+    }
+  }
+
   /// Maps a BaseClient [AppException] to a user-facing message.
   String _messageForAppException(AppException e) {
     if (e.message == AppStrings.noInternetConnection) {
