@@ -67,42 +67,62 @@ class BrowseMembersScreen extends GetView<HomeController> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Eyebrow pill with reactive online count.
-          Obx(
-            () => Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: ScreenConstant.sizeSmall,
-                vertical: ScreenConstant.sizeExtraSmall / 1.2,
-              ),
-              decoration: BoxDecoration(
-                color: CustomColor.colorECFDF5,
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: CustomColor.color10B981,
-                      shape: BoxShape.circle,
-                    ),
+          Row(
+            children: [
+              Obx(
+                () => Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ScreenConstant.sizeSmall,
+                    vertical: ScreenConstant.sizeExtraSmall / 1.2,
                   ),
-                  SizedBox(width: ScreenConstant.sizeExtraSmall),
-                  Text(
-                    "Active Members in Belgium",
-                    style: TextStyles.registerZeroRisk,
+                  decoration: BoxDecoration(
+                    color: CustomColor.colorECFDF5,
+                    borderRadius: BorderRadius.circular(100),
                   ),
-                  SizedBox(width: ScreenConstant.sizeExtraSmall),
-                  Text(
-                    "• ${controller.onlineCount} members online",
-                    style: TextStyles.registerZeroRisk.copyWith(
-                      color: CustomColor.color059669,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: CustomColor.color10B981,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      Text(
+                        "Active Members in Belgium",
+                        style: TextStyles.registerZeroRisk,
+                      ),
+                      SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      Text(
+                        "• ${controller.onlineCount} members online",
+                        style: TextStyles.registerZeroRisk.copyWith(
+                          color: CustomColor.color059669,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+              Spacer(),
+              Container(
+                height: ScreenConstant.defaultHeightForty,
+                width: ScreenConstant.defaultWidthForty,
+                //margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: CustomColor.colorFFF1F2,
+                  border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+                ),
+                child: Icon(
+                  Icons.person_outline,
+                  color: CustomColor.colorE11D48,
+                  size: ScreenConstant.smallIconSize - 2,
+                ),
+              ),
+            ],
           ),
           SizedBox(height: ScreenConstant.defaultHeightTen),
           // Title row with the view toggle + refresh.
@@ -208,12 +228,12 @@ class BrowseMembersScreen extends GetView<HomeController> {
       behavior: HitTestBehavior.opaque,
       onTap: controller.reload,
       child: Container(
-        height: ScreenConstant.defaultHeightForty,
-        width: ScreenConstant.defaultWidthForty,
+        height: ScreenConstant.defaultHeightThirty,
+        width: ScreenConstant.defaultWidthThirty,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: CustomColor.colorWhite,
-          border: Border.all(color: CustomColor.colorE2E8F0),
+          color: Colors.transparent,
+          //border: Border.all(color: CustomColor.colorE2E8F0),
         ),
         child: Icon(
           Icons.refresh,
