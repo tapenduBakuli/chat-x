@@ -14,20 +14,15 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
         scrolledUnderElevation: 0,
+        automaticallyImplyLeading: false,
         backgroundColor: CustomColor.colorWhite,
+        centerTitle: true,
         elevation: 0,
-        leading: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: controller.onBack,
-          child: Icon(
-            Icons.arrow_back_ios_new,
-            size: ScreenConstant.smallIconSize,
-            color: CustomColor.color0F172A,
-          ),
-        ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -145,8 +140,9 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ---------------------------------------------------------------------------
   // Header: bank circle icon + title + subtitle

@@ -523,6 +523,23 @@ class RegisterController extends GetxController {
 
       if (result.isSuccess) {
         _onRegisterSuccess(result.response!);
+
+        // If the user picked an avatar, upload it now (registration token is
+        // already stored, so the authenticated call works). A failed upload
+        // doesn't block the flow — they can add a photo later.
+        final File? avatar = profileImage.value;
+        if (avatar != null) {
+          final avatarRes =
+              await RegisterService.instance.uploadAvatar(avatar);
+          if (!avatarRes.success) {
+            Get.snackbar(
+              'Photo not uploaded',
+              avatarRes.message,
+              snackPosition: SnackPosition.BOTTOM,
+            );
+          }
+        }
+
         Get.toNamed(Routes.PAYMENT);
         clearCreateAccountForm();
       } else {

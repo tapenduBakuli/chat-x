@@ -120,6 +120,38 @@ class BaseClient {
     }
   }
 
+  // MULTIPART POST (file upload)
+  /// Uploads [file] as a multipart/form-data field named [fieldName] to [path].
+  /// Attaches the bearer token (resolved at call time) unless [isAuth] is true.
+  /// Returns the raw [http.Response] like [post].
+  Future<http.Response> postMultipart(
+    String path,
+    File file, {
+    String fieldName = 'file',
+    bool isAuth = false,
+  }) async {
+    try {
+      await _ensureConnected(path);
+      final request = http.MultipartRequest('POST', Uri.parse(path));
+      if (!isAuth) {
+        request.headers['Authorization'] = "Bearer ${_authToken ?? ''}";
+      }
+      request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
+
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+
+      debugPrint(DateTime.now().toString());
+      debugPrint(response.statusCode.toString());
+      log(response.body.toString());
+      return response;
+    } on SocketException {
+      throw FetchDataException('${AppStrings.noInternetConnection}', '$path');
+    } on TimeoutException {
+      throw ApiNotResponding('${AppStrings.apiNotRespondingAtTime}', '$path');
+    }
+  }
+
   Future<dynamic> delete( path, dynamic payloadObj) async {
     // var token = GetStorage().read(UserData.token);
     try {

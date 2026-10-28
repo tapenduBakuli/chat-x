@@ -14,4 +14,5 @@ class Urls {
 
   // --- Users ---------------------------------------------------------------
   static const String savePaymentMethod = "${apiBase}users/me/payment-method";
+  static const String uploadAvatar = "${apiBase}users/me/avatar";
 }

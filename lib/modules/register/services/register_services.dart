@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +10,7 @@ import '../../../utils/exception_handler.dart';
 import '../../../utils/text_utils/app_strings.dart';
 import '../../login/model/login_response_model.dart';
 import '../../login/services/login_services.dart';
+import '../model/avatar_upload_response_model.dart';
 
 /// Network layer for the register (sign-up) module. Mirrors [LoginService]:
 /// wraps [BaseClient] so the controller stays free of HTTP/JSON details, and
@@ -67,6 +69,51 @@ class RegisterService {
       debugPrint('RegisterService.register error: $e');
       return const LoginResult.failure(
         'Something went wrong. Please try again.',
+      );
+    }
+  }
+
+  /// POST /users/me/avatar — uploads the primary avatar as multipart/form-data
+  /// (field name "file"). Authenticated: the bearer token is attached by
+  /// BaseClient (resolved at call time, so the just-saved registration token
+  /// is used).
+  Future<AvatarUploadResponseModel> uploadAvatar(File image) async {
+    try {
+      final http.Response response = await BaseClient.instance.postMultipart(
+        Urls.uploadAvatar,
+        image,
+        fieldName: 'file',
+      );
+
+      final dynamic body = response.body.isNotEmpty
+          ? jsonDecode(utf8.decode(response.bodyBytes))
+          : <String, dynamic>{};
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          body is Map<String, dynamic>) {
+        return AvatarUploadResponseModel.fromJson(body);
+      }
+
+      return AvatarUploadResponseModel(
+        success: false,
+        message: _extractMessage(
+          body,
+          'Could not upload avatar (${response.statusCode}).',
+        ),
+        avatarUrl: '',
+      );
+    } on AppException catch (e) {
+      return AvatarUploadResponseModel(
+        success: false,
+        message: _messageForAppException(e),
+        avatarUrl: '',
+      );
+    } catch (e) {
+      debugPrint('RegisterService.uploadAvatar error: $e');
+      return const AvatarUploadResponseModel(
+        success: false,
+        message: 'Something went wrong while uploading your photo.',
+        avatarUrl: '',
       );
     }
   }
