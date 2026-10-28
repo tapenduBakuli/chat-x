@@ -57,7 +57,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(),
-        _buildCityChips(),
+        _buildSearchRow(),
         SizedBox(height: ScreenConstant.defaultHeightTen),
         Expanded(
           child: Obx(() {
@@ -583,60 +583,555 @@ class BrowseMembersScreen extends GetView<HomeController> {
   }
 
   // ---------------------------------------------------------------------------
-  // City chips
+  // Search row (search box + city dropdown + Filters button)
   // ---------------------------------------------------------------------------
-  Widget _buildCityChips() {
-    return SizedBox(
-      height: ScreenConstant.defaultHeightForty,
-      child: Obx(() {
-        // Read the observable inside the Obx build scope (not lazily in
-        // itemBuilder) so Obx can track it.
-        final String selected = controller.selectedCity.value;
-        return ListView.separated(
-          scrollDirection: Axis.horizontal,
+  Widget _buildSearchRow() {
+    // Wrapped in a Builder so the city picker / filter sheet get a context
+    // beneath the Navigator without changing the context-free tab method.
+    return Builder(
+      builder: (context) {
+        return Padding(
           padding: EdgeInsets.symmetric(
             horizontal: ScreenConstant.defaultWidthTwenty,
           ),
-          itemCount: controller.cities.length + 1,
-          separatorBuilder: (_, __) =>
-              SizedBox(width: ScreenConstant.sizeSmall),
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return Center(
-                child: Text(
-                  "CITY:",
-                  style: TextStyles.registerSupportedLabel,
+          child: Row(
+            children: [
+              // (a) Search box — grows to fill remaining width.
+              Expanded(
+                child: Container(
+                  height: ScreenConstant.defaultHeightForty,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ScreenConstant.sizeSmall,
+                  ),
+                  decoration: BoxDecoration(
+                    color: CustomColor.colorF8FAFC,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: CustomColor.colorE2E8F0),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.search,
+                        size: ScreenConstant.smallIconSize,
+                        color: CustomColor.color94A3B8,
+                      ),
+                      SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      Expanded(
+                        child: TextField(
+                          controller: controller.searchController,
+                          onChanged: controller.setSearchQuery,
+                          cursorColor: CustomColor.colorDB2777,
+                          style: TextStyles.browseToggleLabel.copyWith(
+                            color: CustomColor.color0F172A,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                            hintText:
+                                "Search verified members by name, city, interests...",
+                            hintStyle: TextStyles.browseToggleLabel.copyWith(
+                              color: CustomColor.color94A3B8,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            }
-            final city = controller.cities[index - 1];
-            return _cityChip(city, selected == city);
-          },
+              ),
+              SizedBox(width: ScreenConstant.sizeSmall),
+              // (b) City dropdown pill.
+              _cityPill(context),
+              SizedBox(width: ScreenConstant.sizeSmall),
+              // (c) Filters pill.
+              _filtersPill(context),
+            ],
+          ),
         );
-      }),
+      },
     );
   }
 
-  Widget _cityChip(String city, bool active) {
+  Widget _cityPill(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => controller.selectCity(city),
+      onTap: () => _openCityPicker(context),
       child: Container(
-        alignment: Alignment.center,
+        height: ScreenConstant.defaultHeightForty,
+        padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeSmall),
+        decoration: BoxDecoration(
+          color: CustomColor.colorWhite,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: CustomColor.colorE2E8F0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.location_on,
+              size: ScreenConstant.minimumIconSize,
+              color: CustomColor.colorBE185D,
+            ),
+            SizedBox(width: ScreenConstant.sizeExtraSmall),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 70),
+              child: Obx(
+                () => Text(
+                  controller.selectedCity.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyles.browseToggleLabel.copyWith(
+                    color: CustomColor.color334155,
+                  ),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: ScreenConstant.minimumIconSize,
+              color: CustomColor.color64748B,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filtersPill(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openFilterSheet(context),
+      child: Container(
+        height: ScreenConstant.defaultHeightForty,
+        padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeSmall),
+        decoration: BoxDecoration(
+          color: CustomColor.colorWhite,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: CustomColor.colorE2E8F0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.tune,
+              size: ScreenConstant.minimumIconSize,
+              color: CustomColor.colorBE185D,
+            ),
+            SizedBox(width: ScreenConstant.sizeExtraSmall),
+            Text(
+              "Filters",
+              style: TextStyles.browseToggleLabel.copyWith(
+                color: CustomColor.colorBE123C,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // City picker bottom-sheet (reused by the header pill and the filter sheet)
+  // ---------------------------------------------------------------------------
+  void _openCityPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: CustomColor.colorWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: ScreenConstant.sizeMedium,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ScreenConstant.defaultWidthTwenty,
+                  ),
+                  child: Text(
+                    "Select City",
+                    style: TextStyles.registerSectionTitle,
+                  ),
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                Flexible(
+                  child: Obx(() {
+                    final selected = controller.selectedCity.value;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: controller.cities.length,
+                      itemBuilder: (_, index) {
+                        final city = controller.cities[index];
+                        final active = city == selected;
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            controller.selectCity(city);
+                            Navigator.pop(sheetContext);
+                          },
+                          child: Container(
+                            color: active
+                                ? CustomColor.colorFFF1F2
+                                : Colors.transparent,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: ScreenConstant.defaultWidthTwenty,
+                              vertical: ScreenConstant.sizeMedium,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    city,
+                                    style:
+                                        TextStyles.browseToggleLabel.copyWith(
+                                      color: active
+                                          ? CustomColor.colorBE123C
+                                          : CustomColor.color334155,
+                                      fontWeight: active
+                                          ? FontWeight.bold
+                                          : FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (active)
+                                  Icon(
+                                    Icons.check,
+                                    size: ScreenConstant.minimumIconSize,
+                                    color: CustomColor.colorBE123C,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Filter bottom-sheet: "Regional Search & Match Criteria"
+  // ---------------------------------------------------------------------------
+  void _openFilterSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: CustomColor.colorWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                ScreenConstant.defaultWidthTwenty,
+                ScreenConstant.sizeMedium,
+                ScreenConstant.defaultWidthTwenty,
+                ScreenConstant.sizeLarge,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header row.
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.tune,
+                        size: ScreenConstant.smallIconSize,
+                        color: CustomColor.colorBE185D,
+                      ),
+                      SizedBox(width: ScreenConstant.sizeSmall),
+                      Expanded(
+                        child: Text(
+                          "Regional Search & Match Criteria",
+                          style: TextStyles.registerSectionTitle.copyWith(
+                            fontSize: FontSize.s16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => Navigator.pop(sheetContext),
+                        child: Icon(
+                          Icons.close,
+                          size: ScreenConstant.smallIconSize,
+                          color: CustomColor.color64748B,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: ScreenConstant.sizeLarge),
+
+                  // Location & Search Radius.
+                  Obx(
+                    () => Text(
+                      "Location & Search Radius: "
+                      "${controller.searchRadiusKm.value.round()} km",
+                      style: TextStyles.registerFieldLabel,
+                    ),
+                  ),
+                  SizedBox(height: ScreenConstant.sizeSmall),
+                  _sheetCityField(sheetContext),
+                  Obx(
+                    () => Slider(
+                      value: controller.searchRadiusKm.value,
+                      min: 1,
+                      max: 100,
+                      activeColor: CustomColor.colorBE185D,
+                      inactiveColor: CustomColor.colorE2E8F0,
+                      onChanged: controller.setSearchRadius,
+                    ),
+                  ),
+                  Text(
+                    "Radius is approximate and used for display only.",
+                    style: TextStyles.registerFieldNote,
+                  ),
+                  SizedBox(height: ScreenConstant.sizeLarge),
+
+                  // Gender.
+                  Text("Gender", style: TextStyles.registerFieldLabel),
+                  SizedBox(height: ScreenConstant.sizeSmall),
+                  Obx(
+                    () => Wrap(
+                      spacing: ScreenConstant.sizeSmall,
+                      runSpacing: ScreenConstant.sizeSmall,
+                      children: const ['All', 'Female', 'Male', 'Other']
+                          .map(
+                            (g) => _genderFilterPill(
+                              g,
+                              controller.genderFilter.value == g,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                  SizedBox(height: ScreenConstant.sizeLarge),
+
+                  // Age range.
+                  Obx(
+                    () => Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "Age Range:",
+                            style: TextStyles.registerFieldLabel,
+                          ),
+                        ),
+                        Text(
+                          "${controller.ageRange.value.start.round()} – "
+                          "${controller.ageRange.value.end.round()} years",
+                          style: TextStyles.registerFieldLabel.copyWith(
+                            color: CustomColor.colorBE123C,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Obx(
+                    () => RangeSlider(
+                      values: controller.ageRange.value,
+                      min: 18,
+                      max: 80,
+                      activeColor: CustomColor.colorBE185D,
+                      inactiveColor: CustomColor.colorE2E8F0,
+                      labels: RangeLabels(
+                        controller.ageRange.value.start.round().toString(),
+                        controller.ageRange.value.end.round().toString(),
+                      ),
+                      onChanged: controller.setAgeRange,
+                    ),
+                  ),
+                  SizedBox(height: ScreenConstant.sizeLarge),
+
+                  // Interests.
+                  Text(
+                    "Include Interests Criteria:",
+                    style: TextStyles.registerFieldLabel,
+                  ),
+                  SizedBox(height: ScreenConstant.sizeSmall),
+                  Obx(
+                    () => Wrap(
+                      spacing: ScreenConstant.sizeSmall,
+                      runSpacing: ScreenConstant.sizeSmall,
+                      children: HomeController.interestOptions
+                          .map(
+                            (label) => _interestChip(
+                              label,
+                              controller.selectedInterests.contains(label),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                  SizedBox(height: ScreenConstant.sizeLarge),
+
+                  Divider(color: CustomColor.colorE2E8F0),
+                  SizedBox(height: ScreenConstant.sizeSmall),
+
+                  // Footer: Reset link + Apply CTA.
+                  Row(
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: controller.resetFilters,
+                        child: Text(
+                          "Reset to Default",
+                          style: TextStyles.browseToggleLabel.copyWith(
+                            color: CustomColor.colorBE185D,
+                            decoration: TextDecoration.underline,
+                            decorationColor: CustomColor.colorBE185D,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: ScreenConstant.sizeMedium),
+                      Expanded(
+                        child: buildLoginButton(
+                          "Apply Criteria",
+                          true,
+                          () => Navigator.pop(sheetContext),
+                          Icons.check,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// City field inside the filter sheet; reuses the shared city picker.
+  Widget _sheetCityField(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openCityPicker(context),
+      child: Container(
+        height: ScreenConstant.defaultHeightForty,
+        padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+        decoration: BoxDecoration(
+          color: CustomColor.colorF8FAFC,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: CustomColor.colorE2E8F0),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.location_on,
+              size: ScreenConstant.minimumIconSize,
+              color: CustomColor.colorBE185D,
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Expanded(
+              child: Obx(
+                () => Text(
+                  controller.selectedCity.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyles.browseToggleLabel.copyWith(
+                    color: CustomColor.color334155,
+                  ),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: ScreenConstant.minimumIconSize,
+              color: CustomColor.color64748B,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Gender pill: selected uses the rose→purple gradient; unselected is light.
+  Widget _genderFilterPill(String label, bool selected) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => controller.setGenderFilter(label),
+      child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: ScreenConstant.sizeMedium,
+          horizontal: ScreenConstant.sizeLarge,
+          vertical: ScreenConstant.sizeSmall,
         ),
         decoration: BoxDecoration(
-          color: active ? CustomColor.colorBE185D : CustomColor.colorWhite,
+          color: selected ? null : CustomColor.colorFFF1F2,
+          gradient: selected
+              ? const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    CustomColor.colorBE185D,
+                    CustomColor.color581C87,
+                  ],
+                )
+              : null,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: active ? CustomColor.colorBE185D : CustomColor.colorE2E8F0,
+            color: selected
+                ? Colors.transparent
+                : CustomColor.colorE2E8F0,
           ),
         ),
         child: Text(
-          city,
+          label,
           style: TextStyles.browseToggleLabel.copyWith(
-            color: active ? CustomColor.colorWhite : CustomColor.color334155,
+            color: selected ? CustomColor.colorWhite : CustomColor.color334155,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Interest chip mirroring the register-flow selectable chip visual.
+  Widget _interestChip(String label, bool selected) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => controller.toggleInterest(label),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: ScreenConstant.sizeMedium,
+          vertical: ScreenConstant.sizeSmall,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? CustomColor.colorFFF1F2 : CustomColor.colorWhite,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: selected
+                ? CustomColor.colorBE123C
+                : CustomColor.colorE2E8F0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyles.browseToggleLabel.copyWith(
+            color: selected ? CustomColor.colorBE123C : CustomColor.color334155,
           ),
         ),
       ),
@@ -1125,7 +1620,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
             ),
             SizedBox(height: ScreenConstant.sizeExtraSmall),
             Text(
-              "No active members match this city right now. Try another city.",
+              "No active members match your search and filters right now. "
+              "Try adjusting the search, city, or filters.",
               textAlign: TextAlign.center,
               style: TextStyles.registerFieldNote,
             ),

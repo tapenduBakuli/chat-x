@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
@@ -33,7 +33,32 @@ class HomeController extends GetxController {
   /// Cursor into [filteredMembers] for the deck view.
   final RxInt deckIndex = 0.obs;
 
-  /// Fixed city filter options shown as chips.
+  /// Free-text search; matched (case-insensitive contains) against
+  /// [Member.displayName]. Empty means no filtering.
+  final RxString searchQuery = ''.obs;
+
+  /// Text controller bound to the search box in the header. Kept in sync with
+  /// [searchQuery] via [setSearchQuery]; cleared by [resetFilters].
+  final TextEditingController searchController = TextEditingController();
+
+  /// Gender filter: one of 'All', 'Female', 'Male', 'Other'. 'All' = no filter.
+  /// Mapped to the model's lowercase [MemberProfile.gender] when matching.
+  final RxString genderFilter = 'All'.obs;
+
+  /// Inclusive age range filter; members whose [Member.age] falls within
+  /// [start, end] (rounded to ints) pass.
+  final Rx<RangeValues> ageRange = const RangeValues(18, 55).obs;
+
+  /// Search radius in km. PLACEHOLDER: cosmetic only — the mock data has no
+  /// lat/long, so this never filters members. It drives only its own label +
+  /// slider in the filter sheet.
+  final RxDouble searchRadiusKm = 30.0.obs;
+
+  /// Selected interest chips; a member matches if ANY of its interests matches
+  /// ANY selected chip (OR). Empty = no filter.
+  final RxList<String> selectedInterests = <String>[].obs;
+
+  /// Fixed city filter options (mirrors the web dropdown).
   final List<String> cities = const [
     'All Belgium',
     'Brussels',
@@ -43,6 +68,26 @@ class HomeController extends GetxController {
     'Leuven',
     'Liège',
     'Namur',
+    'Charleroi',
+    'Mons',
+    'Hasselt',
+    'Kortrijk',
+  ];
+
+  /// Fixed interest chip labels shown in the filter sheet.
+  static const List<String> interestOptions = [
+    'Sports',
+    'Gaming',
+    'Movies',
+    'Music & genres',
+    'Drawing / Painting / Art',
+    'Specialty Coffee',
+    'Travel & Road trips',
+    'Fitness & Gym',
+    'Belgian Gastronomy',
+    'Literature & Books',
+    'Serious relationship',
+    "Has SOA's (STI status open)",
   ];
 
   @override
@@ -88,12 +133,104 @@ class HomeController extends GetxController {
     deckIndex.value = 0;
   }
 
-  /// Members matching the active city filter.
+  /// Update the free-text search query and restart the deck.
+  void setSearchQuery(String q) {
+    searchQuery.value = q;
+    deckIndex.value = 0;
+  }
+
+  /// Update the gender filter ('All'/'Female'/'Male'/'Other') and restart.
+  void setGenderFilter(String g) {
+    genderFilter.value = g;
+    deckIndex.value = 0;
+  }
+
+  /// Update the inclusive age range filter and restart the deck.
+  void setAgeRange(RangeValues r) {
+    ageRange.value = r;
+    deckIndex.value = 0;
+  }
+
+  /// PLACEHOLDER: update the cosmetic search radius. There is no lat/long in
+  /// the mock data, so this value never filters — it only drives its own
+  /// label + slider.
+  void setSearchRadius(double km) {
+    searchRadiusKm.value = km;
+  }
+
+  /// Toggle an interest chip on/off and restart the deck.
+  void toggleInterest(String i) {
+    if (selectedInterests.contains(i)) {
+      selectedInterests.remove(i);
+    } else {
+      selectedInterests.add(i);
+    }
+    deckIndex.value = 0;
+  }
+
+  /// Members matching ALL active filters combined: city, search query, gender,
+  /// age range, and interests. Pure getter over [allMembers] so every [Obx]
+  /// reading it rebuilds when any underlying observable changes.
   List<Member> get filteredMembers {
-    if (selectedCity.value == 'All Belgium') return allMembers.toList();
-    return allMembers
-        .where((m) => m.profile.city == selectedCity.value)
-        .toList();
+    final String query = searchQuery.value.trim().toLowerCase();
+    final String gender = genderFilter.value;
+    final int minAge = ageRange.value.start.round();
+    final int maxAge = ageRange.value.end.round();
+    final List<String> interests = selectedInterests;
+
+    return allMembers.where((m) {
+      // (1) City — 'All Belgium' means no filtering.
+      if (selectedCity.value != 'All Belgium' &&
+          m.profile.city != selectedCity.value) {
+        return false;
+      }
+      // (2) Search query vs displayName (case-insensitive contains).
+      if (query.isNotEmpty && !m.displayName.toLowerCase().contains(query)) {
+        return false;
+      }
+      // (3) Gender — 'All' means no filtering; model gender is lowercase.
+      if (gender != 'All' &&
+          m.profile.gender.toLowerCase() != gender.toLowerCase()) {
+        return false;
+      }
+      // (4) Age range (inclusive).
+      if (m.age < minAge || m.age > maxAge) {
+        return false;
+      }
+      // (5) Interests — OR match. A member matches a selected chip if any of
+      // its interests, lowercased, equals the chip label lowercased OR
+      // contains the chip label's first word lowercased (tolerant match).
+      if (interests.isNotEmpty && !_matchesAnyInterest(m, interests)) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  /// True when [m] has at least one interest matching any [selected] chip.
+  bool _matchesAnyInterest(Member m, List<String> selected) {
+    final memberInterests =
+        m.profile.interests.map((e) => e.toLowerCase()).toList();
+    for (final chip in selected) {
+      final label = chip.toLowerCase();
+      final firstWord = label.split(' ').first;
+      for (final mi in memberInterests) {
+        if (mi == label || mi.contains(firstWord)) return true;
+      }
+    }
+    return false;
+  }
+
+  /// Reset every filter to its default and clear the search field.
+  void resetFilters() {
+    selectedCity.value = 'All Belgium';
+    searchQuery.value = '';
+    searchController.clear();
+    genderFilter.value = 'All';
+    ageRange.value = const RangeValues(18, 55);
+    searchRadiusKm.value = 30;
+    selectedInterests.clear();
+    deckIndex.value = 0;
   }
 
   /// Count shown as "N members online" (filtered).
@@ -149,5 +286,11 @@ class HomeController extends GetxController {
   /// Log out action.
   void onLogout() {
     Get.offAllNamed(Routes.LOGIN);
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
   }
 }
