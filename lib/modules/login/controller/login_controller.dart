@@ -509,7 +509,7 @@ class LoginController extends GetxController {
   }
 
   void onCreateAccount() {
-    Get.toNamed(Routes.POLICIES_AGREEMENT);
+    Get.toNamed(Routes.REGISTER);
   }
 
   @override
