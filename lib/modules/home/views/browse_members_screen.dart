@@ -21,32 +21,384 @@ class BrowseMembersScreen extends GetView<HomeController> {
     return Scaffold(
       backgroundColor: CustomColor.colorAF5FF,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            _buildHeader(),
-            _buildCityChips(),
-            SizedBox(height: ScreenConstant.defaultHeightTen),
-            Expanded(
+            Positioned.fill(
               child: Obx(() {
-                if (controller.isLoading.value) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        CustomColor.colorBE185D,
-                      ),
-                    ),
-                  );
+                switch (controller.selectedNavIndex.value) {
+                  case 0:
+                    return _buildExploreTab();
+                  case 1:
+                    return _buildBlankTab("Chat", Icons.chat_bubble_outline);
+                  case 2:
+                    return _buildBlankTab("Friends", Icons.people_outline);
+                  default:
+                    return _buildExploreTab();
                 }
-                if (controller.filteredMembers.isEmpty) {
-                  return _emptyFiltered();
-                }
-                return controller.viewMode.value == HomeViewMode.grid
-                    ? _buildGrid()
-                    : _buildDeck();
               }),
             ),
+            Positioned(
+              left: ScreenConstant.defaultWidthTen,
+              right: ScreenConstant.defaultWidthTen,
+              bottom: 0,
+              child: Obx(() => _buildBottomNavBar()),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tab Views
+  // ---------------------------------------------------------------------------
+  Widget _buildExploreTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHeader(),
+        _buildCityChips(),
+        SizedBox(height: ScreenConstant.defaultHeightTen),
+        Expanded(
+          child: Obx(() {
+            if (controller.isLoading.value) {
+              return Center(
+                child: CircularProgressIndicator(
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    CustomColor.colorBE185D,
+                  ),
+                ),
+              );
+            }
+            if (controller.filteredMembers.isEmpty) {
+              return _emptyFiltered();
+            }
+            return controller.viewMode.value == HomeViewMode.grid
+                ? _buildGrid()
+                : _buildDeck();
+          }),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildBlankTab(String title, IconData icon) {
+    return Column(
+      children: [
+        // _buildHeader(),
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 48,
+                  color: CustomColor.color94A3B8,
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                Text(
+                  title,
+                  style: TextStyles.registerTitle.copyWith(
+                    color: CustomColor.color64748B,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 80),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Floating Bottom Navigation Bar
+  // ---------------------------------------------------------------------------
+  Widget _buildBottomNavBar() {
+    final int selectedIndex = controller.selectedNavIndex.value;
+
+    return Container(
+    //  height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F1FA),
+        borderRadius: BorderRadius.circular(80),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: CustomColor.color0F172A.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _navNavItem(
+              index: 0,
+              icon: Icons.explore_outlined,
+              label: "Explore",
+              isSelected: selectedIndex == 0,
+            ),
+          ),
+          Expanded(
+            child: _navNavItem(
+              index: 1,
+              icon: Icons.mark_chat_unread_outlined,
+              label: "Chat",
+              isSelected: selectedIndex == 1,
+            ),
+          ),
+          Expanded(
+            child: _navNavItem(
+              index: 2,
+              icon: Icons.people_outline,
+              label: "Friends",
+              isSelected: selectedIndex == 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _navNavItem({
+    required int index,
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => controller.selectNavTab(index),
+      child: AnimatedContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(100),
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    CustomColor.colorBE185D,
+                    CustomColor.color581C87,
+                  ],
+                )
+              : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: CustomColor.colorBE185D.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected
+                  ? CustomColor.colorWhite
+                  : CustomColor.color0F172A.withOpacity(0.5),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected
+                    ? CustomColor.colorWhite
+                    : CustomColor.color0F172A.withOpacity(0.5),
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                fontFamily: "Liberation",
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Profile Popup Menu
+  // ---------------------------------------------------------------------------
+  Widget _buildProfileMenu() {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 48),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      color: CustomColor.colorWhite,
+      elevation: 12,
+      onSelected: (value) {
+        if (value == 'logout') {
+          controller.onLogout();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "JerryTwo",
+                style: TextStyles.policiesItemTitle.copyWith(
+                  fontSize: 16,
+                  color: CustomColor.color0F172A,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.verified_user_outlined,
+                    size: 14,
+                    color: CustomColor.color059669,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    "Verified 18+ Member",
+                    style: TextStyle(
+                      color: CustomColor.color059669,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: "Liberation",
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(height: 1),
+        PopupMenuItem<String>(
+          value: 'profile',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.person_outline, size: 20, color: CustomColor.colorBE123C),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  "Profile",
+                  style: TextStyles.policiesConsentTitle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'banking',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.credit_card_outlined, size: 20, color: CustomColor.colorBE123C),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  "Banking and Subscription Details",
+                  style: TextStyles.policiesConsentTitle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'security',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.shield_outlined, size: 20, color: CustomColor.colorBE123C),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  "Security",
+                  style: TextStyles.policiesConsentTitle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'blocked',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.block_outlined, size: 20, color: CustomColor.color64748B),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  "Blocked Members",
+                  style: TextStyles.policiesConsentTitle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(height: 1),
+        PopupMenuItem<String>(
+          value: 'logout',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.logout_outlined, size: 20, color: CustomColor.colorE11D48),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  "Log Out",
+                  style: TextStyle(
+                    color: CustomColor.colorE11D48,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: "Liberation",
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        height: ScreenConstant.defaultHeightForty,
+        width: ScreenConstant.defaultWidthForty,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: CustomColor.colorFFF1F2,
+          border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+        ),
+        child: Icon(
+          Icons.person_outline,
+          color: CustomColor.colorE11D48,
+          size: ScreenConstant.smallIconSize - 2,
         ),
       ),
     );
@@ -107,48 +459,34 @@ class BrowseMembersScreen extends GetView<HomeController> {
                 ),
               ),
               Spacer(),
-              Container(
-                height: ScreenConstant.defaultHeightForty,
-                width: ScreenConstant.defaultWidthForty,
-                //margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: CustomColor.colorFFF1F2,
-                  border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
-                ),
-                child: Icon(
-                  Icons.person_outline,
-                  color: CustomColor.colorE11D48,
-                  size: ScreenConstant.smallIconSize - 2,
-                ),
-              ),
+              _buildProfileMenu(),
             ],
           ),
           SizedBox(height: ScreenConstant.defaultHeightTen),
           // Title row with the view toggle + refresh.
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Text(
                   "Browse Members",
                   style: TextStyles.registerTitle.copyWith(
-                    fontSize: FontSize.s26,
+                    fontSize: FontSize.s18,
                   ),
                 ),
               ),
               SizedBox(width: ScreenConstant.sizeSmall),
               Obx(() => _viewToggle()),
-              SizedBox(width: ScreenConstant.sizeSmall),
-              _refreshButton(),
+              // SizedBox(width: ScreenConstant.sizeSmall),
+              // _refreshButton(),
             ],
           ),
-          SizedBox(height: ScreenConstant.sizeExtraSmall),
-          Text(
-            "Verified active members across Belgium. For discretion, exact "
-            "locations remain hidden.",
-            style: TextStyles.registerFieldNote,
-          ),
+          // SizedBox(height: ScreenConstant.sizeExtraSmall),
+          // Text(
+          //   "Verified active members across Belgium. For discretion, exact "
+          //   "locations remain hidden.",
+          //   style: TextStyles.registerFieldNote,
+          // ),
         ],
       ),
     );
@@ -315,7 +653,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
         ScreenConstant.defaultWidthTwenty,
         ScreenConstant.sizeSmall,
         ScreenConstant.defaultWidthTwenty,
-        ScreenConstant.defaultHeightThirty,
+        90,
       ),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -494,7 +832,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
         ScreenConstant.defaultWidthTwenty,
         ScreenConstant.sizeSmall,
         ScreenConstant.defaultWidthTwenty,
-        ScreenConstant.defaultHeightTwentyThree,
+        80,
       ),
       child: Column(
         children: [

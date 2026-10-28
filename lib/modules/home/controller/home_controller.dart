@@ -24,6 +24,9 @@ class HomeController extends GetxController {
   /// Active view mode (grid by default).
   final Rx<HomeViewMode> viewMode = HomeViewMode.grid.obs;
 
+  /// Active bottom navigation bar index (0: Explore, 1: Chat, 2: Friends).
+  final RxInt selectedNavIndex = 0.obs;
+
   /// Selected city filter; 'All Belgium' means no filtering.
   final RxString selectedCity = 'All Belgium'.obs;
 
@@ -136,5 +139,15 @@ class HomeController extends GetxController {
   /// Stub connect action from the detail screen.
   void onConnect(Member m) {
     debugPrint('Connect requested: ${m.displayName} (${m.id})');
+  }
+
+  /// Switch bottom navigation bar tab.
+  void selectNavTab(int index) {
+    selectedNavIndex.value = index;
+  }
+
+  /// Log out action.
+  void onLogout() {
+    Get.offAllNamed(Routes.LOGIN);
   }
 }
