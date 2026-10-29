@@ -867,7 +867,7 @@ class RegisterController extends GetxController {
 
   void onSkipProfileSetup() {
     debugPrint('Skip profile setup');
-    Get.toNamed(Routes.PROFILE_PHOTOS);
+    Get.offAllNamed(Routes.LOGIN);
   }
 
   void onSaveCompleteSetup() {

@@ -63,21 +63,21 @@ class ProfileSetupScreen extends GetView<RegisterController> {
           ],
         ),
         actions: [
-          Container(
-            height: ScreenConstant.defaultHeightForty,
-            width: ScreenConstant.defaultWidthForty,
-            margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: CustomColor.colorFFF1F2,
-              border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
-            ),
-            child: Icon(
-              Icons.person_outline,
-              color: CustomColor.colorE11D48,
-              size: ScreenConstant.smallIconSize - 2,
-            ),
-          ),
+          // Container(
+          //   height: ScreenConstant.defaultHeightForty,
+          //   width: ScreenConstant.defaultWidthForty,
+          //   margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
+          //   decoration: BoxDecoration(
+          //     shape: BoxShape.circle,
+          //     color: CustomColor.colorFFF1F2,
+          //     border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+          //   ),
+          //   child: Icon(
+          //     Icons.person_outline,
+          //     color: CustomColor.colorE11D48,
+          //     size: ScreenConstant.smallIconSize - 2,
+          //   ),
+          // ),
         ],
       ),
       body: SafeArea(
@@ -530,6 +530,20 @@ class ProfileSetupScreen extends GetView<RegisterController> {
     final int currentYear = DateTime.now().year;
     final List<int> days = List.generate(31, (i) => i + 1);
     final List<int> months = List.generate(12, (i) => i + 1);
+    final List<String> monthNames = const [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
     final List<int> years =
         List.generate(currentYear - 18 - 1950 + 1, (i) => currentYear - 18 - i);
     return Column(
@@ -570,7 +584,8 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                         (m) => DropdownMenuItem<int>(
                           value: m,
                           child: Text(
-                            "$m",
+                            monthNames[m - 1],
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyles.loginTopText
                                 .copyWith(fontSize: FontSize.s14),
                           ),
@@ -882,7 +897,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
       behavior: HitTestBehavior.opaque,
       onTap: controller.onSkipProfileSetup,
       child: Text(
-        "Skip for now & browse members",
+        "Skip for now & Login",
         textAlign: TextAlign.center,
         style: TextStyles.paymentCancelLink,
       ),

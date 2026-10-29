@@ -1,7 +1,9 @@
+import 'package:chat_x/utils/Store/HiveStore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../device_manager/screen_constants.dart';
+import '../../../routes/routes.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_text_field.dart';
@@ -719,35 +721,37 @@ class BrowseMembersScreen extends GetView<HomeController> {
               ),
             ),
           ),
-          SizedBox(height: ScreenConstant.sizeMedium),
+          SizedBox(height: ScreenConstant.sizeSmall),
           _changePwdField(
             controller.changeCurrentPasswordController,
             "Current Password",
           ),
-          SizedBox(height: ScreenConstant.sizeExtraSmall),
-          Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => showResetEmailDialog(context, controller),
-              child: Text(
-                "Forgot your password?",
-                style: TextStyles.loginForgotPassword.copyWith(
-                  fontSize: FontSize.s12,
-                ),
-              ),
-            ),
-          ),
+          // SizedBox(height: ScreenConstant.sizeExtraSmall),
+          // Align(
+          //   alignment: Alignment.centerRight,
+          //   child: GestureDetector(
+          //     behavior: HitTestBehavior.opaque,
+          //     onTap: () => showResetEmailDialog(context, controller),
+          //     child: Text(
+          //       "Forgot your password?",
+          //       style: TextStyles.loginForgotPassword.copyWith(
+          //         fontSize: FontSize.s12,
+          //       ),
+          //     ),
+          //   ),
+          // ),
           SizedBox(height: ScreenConstant.sizeSmall),
           _changePwdField(
             controller.changeNewPasswordController,
-            "New Password (minimum 8 characters)",
+            "New Password (minimum 10 characters)",
           ),
-          SizedBox(height: ScreenConstant.sizeMedium),
+          _changePwdStrength(),
+          SizedBox(height: ScreenConstant.sizeSmall),
           _changePwdField(
             controller.changeConfirmPasswordController,
             "Confirm New Password",
           ),
+          _changePwdMatchStatus(),
           SizedBox(height: ScreenConstant.sizeSmall),
           // Show-passwords toggle (local state; flips all three fields).
           Obx(
@@ -776,21 +780,174 @@ class BrowseMembersScreen extends GetView<HomeController> {
             ),
           ),
           SizedBox(height: ScreenConstant.sizeMedium),
-          buildLoginButton(
-            "Update Password",
-            true,
-            () {
-              // TODO: wire change-password API
-              Get.snackbar(
-                'Coming soon',
-                'Password change will be available soon.',
-                snackPosition: SnackPosition.BOTTOM,
+          Obx(() {
+            if (controller.isChangingPassword.value) {
+              // Same loader as Login/Register: spinner inside the gradient pill.
+              return Container(
+                height: ScreenConstant.defaultHeightFifty,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(100),
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      CustomColor.colorBE185D,
+                      CustomColor.color581C87,
+                    ],
+                  ),
+                ),
+                child: const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+                  ),
+                ),
               );
-            },
-            Icons.lock_outline,
-            height: ScreenConstant.defaultHeightFifty,
-            fontSize: FontSize.s14,
-            iconSize: ScreenConstant.minimumIconSize,
+            }
+            return buildLoginButton(
+              "Update Password",
+              true,
+              controller.onUpdatePassword,
+              Icons.lock_outline,
+              height: ScreenConstant.defaultHeightFifty,
+              fontSize: FontSize.s14,
+              iconSize: ScreenConstant.minimumIconSize,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Strength meter + rule checklist under the New Password field — same as
+  /// the Create Account password field. Hidden until the user types.
+  Widget _changePwdStrength() {
+    return Obx(() {
+      if (controller.changeNewPassword.value.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final int score = controller.changePasswordScore;
+      final Color strengthColor = _changePwdStrengthColor(score);
+      return Padding(
+        padding: EdgeInsets.only(top: ScreenConstant.sizeSmall),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (controller.changePasswordError.isNotEmpty) ...[
+              Text(
+                controller.changePasswordError,
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.colorE11D48,
+                ),
+              ),
+              SizedBox(height: ScreenConstant.sizeSmall),
+            ],
+            Row(
+              children: List.generate(4, (i) {
+                final bool filled = i < score;
+                return Expanded(
+                  child: Container(
+                    height: 5,
+                    margin: EdgeInsets.only(
+                      right: i < 3 ? ScreenConstant.sizeExtraSmall : 0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: filled ? strengthColor : CustomColor.colorE2E8F0,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            SizedBox(height: ScreenConstant.sizeExtraSmall),
+            Text(
+              controller.changePasswordStrengthLabel,
+              style: TextStyles.registerFieldLabel.copyWith(
+                color: strengthColor,
+              ),
+            ),
+            SizedBox(height: ScreenConstant.sizeSmall),
+            _changePwdRule("At least 10 characters",
+                controller.changeHasMinLength),
+            _changePwdRule("One uppercase letter",
+                controller.changeHasUppercase),
+            _changePwdRule("One lowercase letter",
+                controller.changeHasLowercase),
+            _changePwdRule("One number", controller.changeHasNumber),
+          ],
+        ),
+      );
+    });
+  }
+
+  /// "Passwords match / do not match" under the Confirm field. Hidden until
+  /// the confirm field has input.
+  Widget _changePwdMatchStatus() {
+    return Obx(() {
+      if (controller.changeConfirmPassword.value.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final bool matches = controller.changePasswordsMatch;
+      final Color color =
+          matches ? CustomColor.color059669 : CustomColor.colorE11D48;
+      return Padding(
+        padding: EdgeInsets.only(top: ScreenConstant.sizeSmall),
+        child: Row(
+          children: [
+            Icon(
+              matches ? Icons.check_circle_outline : Icons.error_outline,
+              size: ScreenConstant.minimumIconSize,
+              color: color,
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Text(
+              matches ? "Passwords match" : "Passwords do not match",
+              style: TextStyles.registerFieldNote.copyWith(color: color),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Color _changePwdStrengthColor(int score) {
+    switch (score) {
+      case 0:
+      case 1:
+        return CustomColor.colorBE123C;
+      case 2:
+        return CustomColor.colorD97706;
+      case 3:
+        return CustomColor.colorBE185D;
+      default:
+        return CustomColor.color059669;
+    }
+  }
+
+  Widget _changePwdRule(String label, bool satisfied) {
+    return Padding(
+      padding:
+          EdgeInsets.symmetric(vertical: ScreenConstant.sizeExtraSmall / 2),
+      child: Row(
+        children: [
+          Icon(
+            satisfied ? Icons.check : Icons.close,
+            size: ScreenConstant.minimumIconSize,
+            color:
+                satisfied ? CustomColor.color059669 : CustomColor.color94A3B8,
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          Text(
+            label,
+            style: TextStyles.registerFieldNote.copyWith(
+              color: satisfied
+                  ? CustomColor.color059669
+                  : CustomColor.color64748B,
+            ),
           ),
         ],
       ),
@@ -958,25 +1115,40 @@ class BrowseMembersScreen extends GetView<HomeController> {
                 ),
               ),
             ),
-            TextButton(
-              onPressed: () {
-                // TODO: wire delete-account API
-                Navigator.pop(dialogContext);
-                Get.snackbar(
-                  'Coming soon',
-                  'Account deletion will be available soon.',
-                  snackPosition: SnackPosition.BOTTOM,
-                );
-              },
-              child: Text(
-                "Delete",
-                style: TextStyles.loginWelcome.copyWith(
-                  fontSize: FontSize.s14,
-                  color: CustomColor.colorE11D48,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            Obx(() {
+              final bool busy = controller.isDeletingAccount.value;
+              return TextButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final ok = await controller.onDeleteAccount();
+                        // On success we've already navigated to Login (which
+                        // removes this dialog). On failure, close the dialog.
+                        if (!ok && dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                      },
+                child: busy
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            CustomColor.colorE11D48,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        "Delete",
+                        style: TextStyles.loginWelcome.copyWith(
+                          fontSize: FontSize.s14,
+                          color: CustomColor.colorE11D48,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              );
+            }),
           ],
         );
       },
@@ -1169,165 +1341,180 @@ class BrowseMembersScreen extends GetView<HomeController> {
   // Profile Popup Menu
   // ---------------------------------------------------------------------------
   Widget _buildProfileMenu() {
-    return PopupMenuButton<String>(
-      offset: const Offset(0, 48),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      color: CustomColor.colorWhite,
-      elevation: 12,
-      onSelected: (value) {
-        if (value == 'logout') {
-          controller.onLogout();
-        }else if (value == 'profile') {
-          print("Profile");
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          enabled: false,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "JerryTwo",
-                style: TextStyles.policiesItemTitle.copyWith(
-                  fontSize: 16,
-                  color: CustomColor.color0F172A,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.verified_user_outlined,
-                    size: 14,
-                    color: CustomColor.color059669,
+    return Obx(() {
+      final String name = controller.userProfileName.value.isNotEmpty
+          ? controller.userProfileName.value
+          : (HiveStore().getString(Keys.SAVEDPROFILENAME) ?? "JerryTwo");
+      final String avatarUrl = controller.userAvatarUrl.value.isNotEmpty
+          ? controller.userAvatarUrl.value
+          : (HiveStore().getString(Keys.SAVEDAVATAR) ?? "");
+
+      return PopupMenuButton<String>(
+        offset: const Offset(0, 48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        color: CustomColor.colorWhite,
+        elevation: 12,
+        onSelected: (value) {
+          if (value == 'logout') {
+            controller.onLogout();
+          } else if (value == 'profile') {
+            Get.toNamed(Routes.PROFILE);
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            enabled: false,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  style: TextStyles.policiesItemTitle.copyWith(
+                    fontSize: 16,
+                    color: CustomColor.color0F172A,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    "Verified 18+ Member",
-                    style: TextStyle(
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.verified_user_outlined,
+                      size: 14,
                       color: CustomColor.color059669,
-                      fontSize: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      "Verified 18+ Member",
+                      style: TextStyle(
+                        color: CustomColor.color059669,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: "Liberation",
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(height: 1),
+          PopupMenuItem<String>(
+            value: 'profile',
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.person_outline, size: 20, color: CustomColor.colorBE123C),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    "Profile",
+                    style: TextStyles.policiesConsentTitle.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // PopupMenuItem<String>(
+          //   value: 'banking',
+          //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          //   child: Row(
+          //     children: [
+          //       Icon(Icons.credit_card_outlined, size: 20, color: CustomColor.colorBE123C),
+          //       const SizedBox(width: 12),
+          //       Flexible(
+          //         child: Text(
+          //           "Banking and Subscription Details",
+          //           style: TextStyles.policiesConsentTitle.copyWith(
+          //             fontSize: 14,
+          //             fontWeight: FontWeight.w600,
+          //           ),
+          //           overflow: TextOverflow.ellipsis,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
+          // PopupMenuItem<String>(
+          //   value: 'security',
+          //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          //   child: Row(
+          //     children: [
+          //       Icon(Icons.shield_outlined, size: 20, color: CustomColor.colorBE123C),
+          //       const SizedBox(width: 12),
+          //       Flexible(
+          //         child: Text(
+          //           "Security",
+          //           style: TextStyles.policiesConsentTitle.copyWith(
+          //             fontSize: 14,
+          //             fontWeight: FontWeight.w600,
+          //           ),
+          //           overflow: TextOverflow.ellipsis,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
+          // PopupMenuItem<String>(
+          //   value: 'blocked',
+          //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          //   child: Row(
+          //     children: [
+          //       Icon(Icons.block_outlined, size: 20, color: CustomColor.color64748B),
+          //       const SizedBox(width: 12),
+          //       Flexible(
+          //         child: Text(
+          //           "Blocked Members",
+          //           style: TextStyles.policiesConsentTitle.copyWith(
+          //             fontSize: 14,
+          //             fontWeight: FontWeight.w600,
+          //           ),
+          //           overflow: TextOverflow.ellipsis,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
+          // const PopupMenuDivider(height: 1),
+          PopupMenuItem<String>(
+            value: 'logout',
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.logout_outlined, size: 20, color: CustomColor.colorE11D48),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    "Log Out",
+                    style: TextStyle(
+                      color: CustomColor.colorE11D48,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       fontFamily: "Liberation",
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(height: 1),
-        PopupMenuItem<String>(
-          value: 'profile',
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.person_outline, size: 20, color: CustomColor.colorBE123C),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  "Profile",
-                  style: TextStyles.policiesConsentTitle.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        PopupMenuItem<String>(
-          value: 'banking',
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.credit_card_outlined, size: 20, color: CustomColor.colorBE123C),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  "Banking and Subscription Details",
-                  style: TextStyles.policiesConsentTitle.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem<String>(
-          value: 'security',
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.shield_outlined, size: 20, color: CustomColor.colorBE123C),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  "Security",
-                  style: TextStyles.policiesConsentTitle.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem<String>(
-          value: 'blocked',
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.block_outlined, size: 20, color: CustomColor.color64748B),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  "Blocked Members",
-                  style: TextStyles.policiesConsentTitle.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(height: 1),
-        PopupMenuItem<String>(
-          value: 'logout',
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.logout_outlined, size: 20, color: CustomColor.colorE11D48),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  "Log Out",
-                  style: TextStyle(
-                    color: CustomColor.colorE11D48,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: "Liberation",
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-      child: Container(
+        ],
+        child: _buildProfileAvatar(avatarUrl),
+      );
+    });
+  }
+
+  Widget _buildProfileAvatar(String avatarUrl) {
+    if (avatarUrl.isNotEmpty) {
+      return Container(
         height: ScreenConstant.defaultHeightForty,
         width: ScreenConstant.defaultWidthForty,
         decoration: BoxDecoration(
@@ -1335,11 +1522,37 @@ class BrowseMembersScreen extends GetView<HomeController> {
           color: CustomColor.colorFFF1F2,
           border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
         ),
-        child: Icon(
-          Icons.person_outline,
-          color: CustomColor.colorE11D48,
-          size: ScreenConstant.smallIconSize - 2,
+        child: ClipOval(
+          child: Image.network(
+            avatarUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) => _defaultAvatarIcon(),
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _defaultAvatarIcon();
+            },
+          ),
         ),
+      );
+    }
+    return _defaultAvatarIcon();
+  }
+
+  Widget _defaultAvatarIcon() {
+    return Container(
+      height: ScreenConstant.defaultHeightForty,
+      width: ScreenConstant.defaultWidthForty,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: CustomColor.colorFFF1F2,
+        border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+      ),
+      child: Icon(
+        Icons.person_outline,
+        color: CustomColor.colorE11D48,
+        size: ScreenConstant.smallIconSize - 2,
       ),
     );
   }

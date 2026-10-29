@@ -225,6 +225,77 @@ class LoginService {
     }
   }
 
+  /// POST /auth/change-password (authenticated). Success = 200 or 204 (the
+  /// body may be empty). Returns (success, message) so the UI can show the
+  /// backend error on failure.
+  Future<({bool success, String message})> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmNewPassword,
+  }) async {
+    try {
+      final http.Response response = await BaseClient.instance.post(
+        Urls.updatePassword,
+        {
+          "current_password": currentPassword,
+          "new_password": newPassword,
+          "confirm_new_password": confirmNewPassword,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return (success: true, message: 'Your password has been updated.');
+      }
+
+      final dynamic body = response.body.isNotEmpty
+          ? jsonDecode(utf8.decode(response.bodyBytes))
+          : <String, dynamic>{};
+      return (
+        success: false,
+        message: _extractMessage(
+          body,
+          'Could not update password (${response.statusCode}).',
+        ),
+      );
+    } on AppException catch (e) {
+      return (success: false, message: _messageForAppException(e));
+    } catch (e) {
+      debugPrint('LoginService.changePassword error: $e');
+      return (success: false, message: 'Something went wrong. Please try again.');
+    }
+  }
+
+  /// DELETE /users/me (authenticated). Success = 200 or 204 (body may be
+  /// empty). Returns (success, message) so the UI can show backend errors.
+  Future<({bool success, String message})> deleteAccount() async {
+    try {
+      final http.Response response = await BaseClient.instance.delete(
+        Urls.deleteAccount,
+        <String, dynamic>{},
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return (success: true, message: 'Your account has been deleted.');
+      }
+
+      final dynamic body = response.body.isNotEmpty
+          ? jsonDecode(utf8.decode(response.bodyBytes))
+          : <String, dynamic>{};
+      return (
+        success: false,
+        message: _extractMessage(
+          body,
+          'Could not delete account (${response.statusCode}).',
+        ),
+      );
+    } on AppException catch (e) {
+      return (success: false, message: _messageForAppException(e));
+    } catch (e) {
+      debugPrint('LoginService.deleteAccount error: $e');
+      return (success: false, message: 'Something went wrong. Please try again.');
+    }
+  }
+
   /// Maps a BaseClient [AppException] to a user-facing message.
   String _messageForAppException(AppException e) {
     if (e.message == AppStrings.noInternetConnection) {

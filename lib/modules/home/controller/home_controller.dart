@@ -28,6 +28,23 @@ class HomeController extends GetxController {
   /// Active view mode (grid by default).
   final Rx<HomeViewMode> viewMode = HomeViewMode.grid.obs;
 
+  /// User profile info loaded from HiveStore.
+  final RxString userAvatarUrl = ''.obs;
+  final RxString userProfileName = ''.obs;
+
+  void loadUserData() {
+    final String? avatar = HiveStore().getString(Keys.SAVEDAVATAR);
+    final String? name = HiveStore().getString(Keys.SAVEDPROFILENAME) ??
+        HiveStore().getString(Keys.SAVEDNAME) ??
+        HiveStore().getString(Keys.SESSIONDISPLAYNAME);
+    if (avatar != null && avatar.isNotEmpty) {
+      userAvatarUrl.value = avatar;
+    }
+    if (name != null && name.isNotEmpty) {
+      userProfileName.value = name;
+    }
+  }
+
   /// Active bottom navigation bar index (0: Explore, 1: Chat, 2: Friends).
   final RxInt selectedNavIndex = 0.obs;
 
@@ -132,6 +149,123 @@ class HomeController extends GetxController {
   final TextEditingController changeConfirmPasswordController =
       TextEditingController();
 
+  /// Whether the change-password request is in flight (drives the button
+  /// spinner, same style as Login/Register).
+  final RxBool isChangingPassword = false.obs;
+
+  // Live mirrors of the Change-Password "new" + "confirm" fields; drive the
+  // register-style strength meter / checklist and the match indicator.
+  final RxString changeNewPassword = ''.obs;
+  final RxString changeConfirmPassword = ''.obs;
+
+  /// Same rules as the Create Account password field.
+  static const int kChangeMinPasswordLength = 10;
+  bool get changeHasMinLength =>
+      changeNewPassword.value.length >= kChangeMinPasswordLength;
+  bool get changeHasUppercase =>
+      changeNewPassword.value.contains(RegExp(r'[A-Z]'));
+  bool get changeHasLowercase =>
+      changeNewPassword.value.contains(RegExp(r'[a-z]'));
+  bool get changeHasNumber =>
+      changeNewPassword.value.contains(RegExp(r'[0-9]'));
+
+  int get changePasswordScore => [
+        changeHasMinLength,
+        changeHasUppercase,
+        changeHasLowercase,
+        changeHasNumber,
+      ].where((ok) => ok).length;
+
+  bool get isChangePasswordValid => changePasswordScore == 4;
+
+  String get changePasswordStrengthLabel {
+    if (changeNewPassword.value.isEmpty) return '';
+    switch (changePasswordScore) {
+      case 0:
+      case 1:
+        return 'Weak';
+      case 2:
+        return 'Fair';
+      case 3:
+        return 'Good';
+      default:
+        return 'Strong';
+    }
+  }
+
+  String get changePasswordError {
+    if (changeNewPassword.value.isEmpty) return '';
+    if (!changeHasMinLength) {
+      return 'Password must be at least $kChangeMinPasswordLength characters';
+    }
+    if (!changeHasUppercase) return 'Add at least one uppercase letter';
+    if (!changeHasLowercase) return 'Add at least one lowercase letter';
+    if (!changeHasNumber) return 'Add at least one number';
+    return '';
+  }
+
+  bool get changePasswordsMatch =>
+      changeConfirmPassword.value.isNotEmpty &&
+      changeConfirmPassword.value == changeNewPassword.value;
+
+  /// Validates the Change-Password card and calls the API. On success (200 or
+  /// 204) shows a snackbar and clears all three fields.
+  Future<void> onUpdatePassword() async {
+    if (isChangingPassword.value) return;
+
+    final current = changeCurrentPasswordController.text;
+    final newPwd = changeNewPasswordController.text;
+    final confirm = changeConfirmPasswordController.text;
+
+    if (current.isEmpty || newPwd.isEmpty || confirm.isEmpty) {
+      Get.snackbar('Missing fields', 'Please fill in all password fields.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    if (!isChangePasswordValid) {
+      Get.snackbar(
+          'Weak password',
+          changePasswordError.isNotEmpty
+              ? changePasswordError
+              : 'Please meet all password requirements.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    if (newPwd != confirm) {
+      Get.snackbar('Passwords do not match',
+          'New password and confirmation must be identical.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    if (newPwd == current) {
+      Get.snackbar('Same password',
+          'New password must be different from the current one.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+
+    isChangingPassword.value = true;
+    try {
+      final res = await LoginService.instance.changePassword(
+        currentPassword: current,
+        newPassword: newPwd,
+        confirmNewPassword: confirm,
+      );
+      if (res.success) {
+        changeCurrentPasswordController.clear();
+        changeNewPasswordController.clear();
+        changeConfirmPasswordController.clear();
+        Get.snackbar('Password updated', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+      } else {
+        Get.snackbar('Could not update password', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+      }
+    } finally {
+      isChangingPassword.value = false;
+    }
+  }
+
   // ===========================================================================
   // --- Reset-password dialog flow ---------------------------------------------
   // Shared state for the three reset-password dialogs (email -> OTP -> new
@@ -230,7 +364,17 @@ class HomeController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    loadUserData();
     loadMembers();
+    // Mirror the Change-Password card's new/confirm fields for the live
+    // strength checklist + match indicator.
+    changeNewPasswordController.addListener(() {
+      changeNewPassword.value = changeNewPasswordController.text;
+    });
+    changeConfirmPasswordController.addListener(() {
+      changeConfirmPassword.value = changeConfirmPasswordController.text;
+    });
+
     // Mirror the reset-password fields into the reactive strings that drive
     // the strength/match UI in the new-password dialog.
     resetNewPasswordController.addListener(() {
@@ -475,6 +619,40 @@ class HomeController extends GetxController {
   }
 
   final RxBool _isLoggingOut = false.obs;
+
+  /// Whether the delete-account request is in flight (drives the dialog's
+  /// Delete button spinner).
+  final RxBool isDeletingAccount = false.obs;
+
+  /// Deletes the account via DELETE /users/me. On 200/204: clears local
+  /// storage and routes to Login (same as logout). Remember-me credentials are
+  /// ALSO cleared here because the account no longer exists. Returns true on
+  /// success so the caller can close its dialog.
+  Future<bool> onDeleteAccount() async {
+    if (isDeletingAccount.value) return false;
+    isDeletingAccount.value = true;
+    try {
+      final res = await LoginService.instance.deleteAccount();
+      if (!res.success) {
+        Get.snackbar('Could not delete account', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return false;
+      }
+
+      final store = HiveStore();
+      store.clearSession();
+      store.remove(Keys.REMEMBERME);
+      store.remove(Keys.SAVEDEMAIL);
+      store.remove(Keys.SAVEDPASSWORD);
+
+      Get.offAllNamed(Routes.LOGIN);
+      Get.snackbar('Account deleted', res.message,
+          snackPosition: SnackPosition.BOTTOM);
+      return true;
+    } finally {
+      isDeletingAccount.value = false;
+    }
+  }
 
   @override
   void onClose() {

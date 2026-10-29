@@ -242,7 +242,8 @@ class LoginController extends GetxController {
       _store.setString(Keys.USERID, user.id);
     }
     _store.setBool(Keys.LOGGEDIN, true);
-
+    _store.setString(Keys.SAVEDAVATAR, user?.avatar_url ?? "");
+    _store.setString(Keys.SAVEDPROFILENAME, user?.displayName ?? "");
     // Session identity — a real login (not register) is what establishes a
     // logged-in session, keyed off these fields at startup.
     _store.setString(

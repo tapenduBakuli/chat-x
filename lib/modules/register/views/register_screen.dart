@@ -36,21 +36,21 @@ class RegisterScreen extends GetView<RegisterController> {
           style: TextStyles.registerAppBarTitle,
         ),
         actions: [
-          Container(
-            height: ScreenConstant.defaultHeightForty,
-            width: ScreenConstant.defaultWidthForty,
-            margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: CustomColor.colorFFF1F2,
-              border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
-            ),
-            child: Icon(
-              Icons.person_outline,
-              color: CustomColor.colorE11D48,
-              size: ScreenConstant.smallIconSize - 2,
-            ),
-          ),
+          // Container(
+          //   height: ScreenConstant.defaultHeightForty,
+          //   width: ScreenConstant.defaultWidthForty,
+          //   margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
+          //   decoration: BoxDecoration(
+          //     shape: BoxShape.circle,
+          //     color: CustomColor.colorFFF1F2,
+          //     border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+          //   ),
+          //   child: Icon(
+          //     Icons.person_outline,
+          //     color: CustomColor.colorE11D48,
+          //     size: ScreenConstant.smallIconSize - 2,
+          //   ),
+          // ),
         ],
       ),
       body: SafeArea(
@@ -557,8 +557,22 @@ class RegisterScreen extends GetView<RegisterController> {
     final int currentYear = DateTime.now().year;
     final List<int> days = List.generate(31, (i) => i + 1);
     final List<int> months = List.generate(12, (i) => i + 1);
+    final List<String> monthNames = const [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
     final List<int> years =
-    List.generate(currentYear - 18 - 1950 + 1, (i) => currentYear - 18 - i);
+        List.generate(currentYear - 18 - 1950 + 1, (i) => currentYear - 18 - i);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -567,20 +581,20 @@ class RegisterScreen extends GetView<RegisterController> {
           children: [
             Expanded(
               child: Obx(
-                    () => _dropdown<int>(
+                () => _dropdown<int>(
                   value: controller.selectedDobDay.value,
                   hint: "Day",
                   items: days
                       .map(
                         (d) => DropdownMenuItem<int>(
-                      value: d,
-                      child: Text(
-                        "$d",
-                        style: TextStyles.loginTopText
-                            .copyWith(fontSize: FontSize.s14),
-                      ),
-                    ),
-                  )
+                          value: d,
+                          child: Text(
+                            "$d",
+                            style: TextStyles.loginTopText
+                                .copyWith(fontSize: FontSize.s14),
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: controller.setDobDay,
                 ),
@@ -589,20 +603,21 @@ class RegisterScreen extends GetView<RegisterController> {
             SizedBox(width: ScreenConstant.sizeSmall),
             Expanded(
               child: Obx(
-                    () => _dropdown<int>(
+                () => _dropdown<int>(
                   value: controller.selectedDobMonth.value,
                   hint: "Month",
                   items: months
                       .map(
                         (m) => DropdownMenuItem<int>(
-                      value: m,
-                      child: Text(
-                        "$m",
-                        style: TextStyles.loginTopText
-                            .copyWith(fontSize: FontSize.s14),
-                      ),
-                    ),
-                  )
+                          value: m,
+                          child: Text(
+                            monthNames[m - 1],
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyles.loginTopText
+                                .copyWith(fontSize: FontSize.s14),
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: controller.setDobMonth,
                 ),

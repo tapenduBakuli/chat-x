@@ -7,24 +7,13 @@ class Keys {
   static const String AUTHTOKEN = "authToken";
   static const String LATITUDE = "latitude";
   static const String LONGITUDE = "longitude";
-  static const String ADDRESS = "address";
-  static const String PHONE = "phone";
-  static const String ISFIRSTTIME = "false";
-  static const String INTERNETSTATUS = "internetStatus";
-  static const String DEPARTMENTCODE = "departmentCode";
-  static const String DEPARTMENTNAME = "departmentName";
-  static const String ESTATEID = "estateId";
-  static const String WEIGHBRIDGETYPE = "weighbridgeType";
-  static const String ALLAPICALLED = "allAPICalled";
-  static const String DIVISION = "division";
-  static const String CANAPPROVETASK = "canApproveTask";
-  static const String ISLATESTBUILD = "isLatestBuild";
-  static const String DEVICEMODEL = "DeviceModel";
-  static const String DEVICEID = "DeviceID";
 
   // Remember-me (login) credentials.
   static const String REMEMBERME = "rememberMe";
   static const String SAVEDEMAIL = "savedEmail";
+  static const String SAVEDNAME = "savedName";
+  static const String SAVEDPROFILENAME = "savedProfileName";
+  static const String SAVEDAVATAR = "savedAvatar";
   static const String SAVEDPASSWORD = "savedPassword";
 
   // Auth session.

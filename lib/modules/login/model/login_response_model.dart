@@ -43,6 +43,7 @@ class LoginUser {
   final String id;
   final String email;
   final String displayName;
+  final String avatar_url;
   final String? dateOfBirth;
   final String? country;
   final String? promoCode;
@@ -55,6 +56,7 @@ class LoginUser {
     required this.id,
     required this.email,
     required this.displayName,
+    required this.avatar_url,
     this.dateOfBirth,
     this.country,
     this.promoCode,
@@ -69,6 +71,7 @@ class LoginUser {
       id: (json['id'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       displayName: (json['display_name'] ?? '').toString(),
+      avatar_url: (json['avatar_url'] ?? '').toString(),
       dateOfBirth: json['date_of_birth']?.toString(),
       country: json['country']?.toString(),
       promoCode: json['promo_code']?.toString(),

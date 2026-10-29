@@ -12,8 +12,13 @@ class Urls {
   static const String verifyEmail = "${apiBase}auth/verify-email";
   static const String resetPassword = "${apiBase}auth/reset-password";
   static const String logout = "${apiBase}auth/logout";
+  // NOTE: endpoint path assumed — update if the backend uses a different one.
+  static const String changePassword = "${apiBase}auth/change-password";
 
   // --- Users ---------------------------------------------------------------
   static const String savePaymentMethod = "${apiBase}users/me/payment-method";
   static const String uploadAvatar = "${apiBase}users/me/avatar";
+  /// DELETE — deletes the current user's account.
+  static const String deleteAccount = "${apiBase}users/me";
+  static const String updatePassword = "${apiBase}users/me/password";
 }

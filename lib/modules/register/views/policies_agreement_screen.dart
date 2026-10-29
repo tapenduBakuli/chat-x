@@ -43,21 +43,21 @@ class PoliciesAgreementScreen extends GetView<RegisterController> {
           ],
         ),
         actions: [
-          Container(
-            height: ScreenConstant.defaultHeightForty,
-            width: ScreenConstant.defaultWidthForty,
-            margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: CustomColor.colorFFF1F2,
-              border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
-            ),
-            child: Icon(
-              Icons.person_outline,
-              color: CustomColor.colorE11D48,
-              size: ScreenConstant.smallIconSize - 2,
-            ),
-          ),
+          // Container(
+          //   height: ScreenConstant.defaultHeightForty,
+          //   width: ScreenConstant.defaultWidthForty,
+          //   margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
+          //   decoration: BoxDecoration(
+          //     shape: BoxShape.circle,
+          //     color: CustomColor.colorFFF1F2,
+          //     border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+          //   ),
+          //   child: Icon(
+          //     Icons.person_outline,
+          //     color: CustomColor.colorE11D48,
+          //     size: ScreenConstant.smallIconSize - 2,
+          //   ),
+          // ),
         ],
       ),
       body: SafeArea(
