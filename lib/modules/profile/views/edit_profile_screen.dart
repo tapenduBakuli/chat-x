@@ -1097,7 +1097,17 @@ class EditProfileScreen extends GetView<RegisterController> {
                   () => DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      value: controller.selectedProfileCity.value,
+                      // null when no city is picked (value must be in items).
+                      value: controller.selectedProfileCity.value.isEmpty
+                          ? null
+                          : controller.selectedProfileCity.value,
+                      hint: Text(
+                        "Select your city (optional)",
+                        style: TextStyles.loginTopText.copyWith(
+                          fontSize: FontSize.s14,
+                          color: CustomColor.color94A3B8,
+                        ),
+                      ),
                       icon: Icon(
                         Icons.keyboard_arrow_down,
                         color: CustomColor.color64748B,
@@ -1322,7 +1332,7 @@ class EditProfileScreen extends GetView<RegisterController> {
             child: buildLoginButton(
               "Save & Continue",
               true,
-              controller.onPublishProfile,
+              controller.onSaveEditProfile,
               Icons.arrow_forward,
             ),
           ),

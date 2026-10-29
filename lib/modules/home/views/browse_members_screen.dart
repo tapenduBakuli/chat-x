@@ -1338,6 +1338,63 @@ class BrowseMembersScreen extends GetView<HomeController> {
   }
 
   // ---------------------------------------------------------------------------
+  // Notification bell with unread badge
+  // ---------------------------------------------------------------------------
+  /// Bell icon with a gradient badge showing the unread count. The badge is
+  /// hidden at 0; counts above 99 show as "99+".
+  Widget _buildNotificationBell() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: controller.onNotificationsTap,
+      child: Obx(() {
+        final int count = controller.unreadNotifications.value;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(
+              count > 0
+                  ? Icons.notifications_active_outlined
+                  : Icons.notifications_none_outlined,
+              color: CustomColor.colorBE123C,
+            ),
+            if (count > 0)
+              Positioned(
+                top: -4,
+                right: -6,
+                child: Container(
+                  constraints:
+                      const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        CustomColor.colorBE185D,
+                        CustomColor.color581C87,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(100),
+                    // White ring so the badge separates from the bell.
+                    border: Border.all(color: CustomColor.colorWhite, width: 1.5),
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(
+                      color: CustomColor.colorWhite,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      }),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Profile Popup Menu
   // ---------------------------------------------------------------------------
   Widget _buildProfileMenu() {
@@ -1612,6 +1669,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
                 ),
               ),
               Spacer(),
+              _buildNotificationBell(),
+              SizedBox(width: ScreenConstant.defaultWidthTen,),
               _buildProfileMenu(),
             ],
           ),

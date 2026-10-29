@@ -6,6 +6,8 @@ import 'package:chat_x/modules/login/views/login_screen.dart';
 import 'package:chat_x/modules/login/views/forgot_password_screen.dart';
 import 'package:chat_x/modules/login/views/otp_screen.dart';
 import 'package:chat_x/modules/login/views/reset_password_screen.dart';
+import 'package:chat_x/modules/notification/binding/notification_binding.dart';
+import 'package:chat_x/modules/notification/views/notification_screen.dart';
 import 'package:chat_x/modules/register/binding/register_binding.dart';
 import 'package:chat_x/modules/register/views/register_screen.dart';
 import 'package:chat_x/modules/register/views/payment_details_screen.dart';
@@ -105,6 +107,11 @@ class Theme1AppPages {
       name: Routes.EDIT_PROFILE,
       page: () => const EditProfileScreen(),
       binding: RegisterBinding(),
+    ),
+    GetPage(
+      name: Routes.NOTIFICATION,
+      page: () => const NotificationScreen(),
+      binding: NotificationBinding(),
     ),
   ];
 }

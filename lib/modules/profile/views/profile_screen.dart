@@ -40,8 +40,35 @@ class ProfileScreen extends GetView<ProfileController> {
         bottom: false,
         child: Column(
           children: [
+            // Subtle progress bar while refreshing over existing data.
+            Obx(
+              () => controller.isLoading.value && _hasAnyData
+                  ? const LinearProgressIndicator(
+                      minHeight: 2,
+                      backgroundColor: CustomColor.colorFFF1F2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        CustomColor.colorBE185D,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             Expanded(
-              child: SingleChildScrollView(
+              child: Obx(() {
+                // First load with nothing cached: block with a spinner.
+                if (controller.isLoading.value && !_hasAnyData) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        CustomColor.colorBE185D,
+                      ),
+                    ),
+                  );
+                }
+                return RefreshIndicator(
+                color: CustomColor.colorBE185D,
+                onRefresh: controller.fetchProfile,
+                child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.symmetric(
                   horizontal: ScreenConstant.defaultWidthTwenty,
                   vertical: ScreenConstant.defaultHeightFifteen,
@@ -235,12 +262,24 @@ class ProfileScreen extends GetView<ProfileController> {
                   ],
                 ),
               ),
+                );
+              }),
             ),
           ],
         ),
       ),
     );
   }
+
+  /// Whether there is anything (API or Hive fallback) worth rendering.
+  bool get _hasAnyData =>
+      controller.hasLoaded.value ||
+      controller.displayName.value.isNotEmpty ||
+      controller.photoUrls.isNotEmpty;
+
+  /// Placeholder for empty single-value fields.
+  static String _orNotSpecified(String v) =>
+      v.trim().isEmpty ? 'Not specified' : v;
 
   // ---------------------------------------------------------------------------
   // Hero Photo Carousel Card
@@ -386,7 +425,11 @@ class ProfileScreen extends GetView<ProfileController> {
                     children: [
                       Obx(
                         () => Text(
-                          "${controller.displayName.value}, ${controller.age.value}",
+                          [
+                            controller.displayName.value,
+                            if (controller.age.value > 0)
+                              '${controller.age.value}',
+                          ].where((s) => s.isNotEmpty).join(', '),
                           style: TextStyle(
                             color: CustomColor.colorWhite,
                             fontSize: FontSize.s22,
@@ -417,22 +460,26 @@ class ProfileScreen extends GetView<ProfileController> {
                       spacing: ScreenConstant.sizeExtraSmall,
                       runSpacing: ScreenConstant.sizeExtraSmall,
                       children: [
-                        _identityOverlayPill(
-                          Icons.female,
-                          controller.gender.value,
-                        ),
-                        _identityOverlayPill(
-                          Icons.location_on_outlined,
-                          controller.city.value,
-                        ),
-                        _identityOverlayPill(
-                          Icons.favorite_border,
-                          controller.orientation.value,
-                        ),
-                        _identityOverlayPill(
-                          Icons.check,
-                          "Multiple times",
-                        ),
+                        if (controller.gender.value.isNotEmpty)
+                          _identityOverlayPill(
+                            _genderIcon(controller.gender.value),
+                            controller.gender.value,
+                          ),
+                        if (controller.city.value.isNotEmpty)
+                          _identityOverlayPill(
+                            Icons.location_on_outlined,
+                            controller.city.value,
+                          ),
+                        if (controller.orientation.value.isNotEmpty)
+                          _identityOverlayPill(
+                            Icons.favorite_border,
+                            controller.orientation.value,
+                          ),
+                        if (controller.relationshipTypes.isNotEmpty)
+                          _identityOverlayPill(
+                            Icons.check,
+                            controller.relationshipTypes.first,
+                          ),
                       ],
                     ),
                   ),
@@ -476,6 +523,13 @@ class ProfileScreen extends GetView<ProfileController> {
         ),
       ),
     );
+  }
+
+  IconData _genderIcon(String gender) {
+    final g = gender.toLowerCase();
+    if (g == 'man' || g == 'male') return Icons.male;
+    if (g == 'woman' || g == 'female') return Icons.female;
+    return Icons.person_outline;
   }
 
   Widget _identityOverlayPill(IconData icon, String label) {
@@ -556,7 +610,7 @@ class ProfileScreen extends GetView<ProfileController> {
       title: "About Me",
       child: Obx(
         () => Text(
-          controller.bio.value,
+          _orNotSpecified(controller.bio.value),
           style: TextStyles.registerFieldNote.copyWith(
             fontSize: FontSize.s13,
             color: CustomColor.color64748B,
@@ -587,12 +641,14 @@ class ProfileScreen extends GetView<ProfileController> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Obx(
-            () => Text(
-              controller.city.value,
-              style: TextStyles.policiesConsentTitle.copyWith(
-                fontSize: 14,
-                color: CustomColor.color0F172A,
+          Flexible(
+            child: Obx(
+              () => Text(
+                _orNotSpecified(controller.city.value),
+                style: TextStyles.policiesConsentTitle.copyWith(
+                  fontSize: 14,
+                  color: CustomColor.color0F172A,
+                ),
               ),
             ),
           ),
@@ -635,13 +691,14 @@ class ProfileScreen extends GetView<ProfileController> {
     return _profileCard(
       icon: Icons.shield_outlined,
       title: "Sexual Preferences",
+      // Combined list from the API; if the backend omits it, fall back to
+      // core + exploration so the user still sees what they selected.
       child: Obx(
-        () => Text(
-          controller.sexualPreference.value,
-          style: TextStyles.policiesConsentTitle.copyWith(
-            fontSize: 14,
-            color: CustomColor.color64748B,
-          ),
+        () => _chipWrap(
+          controller.sexualPreferences.isNotEmpty
+              ? controller.sexualPreferences.toList()
+              : [...controller.coreIntimate, ...controller.explorationKink],
+          rose: true,
         ),
       ),
     );
@@ -667,9 +724,24 @@ class ProfileScreen extends GetView<ProfileController> {
       child: Obx(
         () => Column(
           children: [
-            _detailRow("Has SOA's:", controller.hasSoa.value),
+            _detailRow("Has SOA's:", _orNotSpecified(controller.hasSoa.value)),
             SizedBox(height: ScreenConstant.sizeExtraSmall),
-            _detailRow("Orientation:", controller.orientation.value),
+            _detailRow(
+              "Orientation:",
+              _orNotSpecified(controller.orientation.value),
+            ),
+            SizedBox(height: ScreenConstant.sizeExtraSmall),
+            _detailRow(
+              "Personal & safety:",
+              _orNotSpecified(controller.personalSafetyInfo.value),
+            ),
+            SizedBox(height: ScreenConstant.sizeExtraSmall),
+            _detailRow(
+              "Visibility mode:",
+              _orNotSpecified(controller.visibilityMode.value),
+            ),
+            SizedBox(height: ScreenConstant.sizeExtraSmall),
+            _detailRow("Country:", _orNotSpecified(controller.country.value)),
           ],
         ),
       ),
@@ -683,7 +755,12 @@ class ProfileScreen extends GetView<ProfileController> {
       child: Obx(
         () => Column(
           children: [
-            _detailRow("Member since:", controller.memberSince.value),
+            _detailRow("Email:", _orNotSpecified(controller.email.value)),
+            SizedBox(height: ScreenConstant.sizeExtraSmall),
+            _detailRow(
+              "Member since:",
+              _orNotSpecified(controller.memberSince.value),
+            ),
             SizedBox(height: ScreenConstant.sizeExtraSmall),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -793,11 +870,16 @@ class ProfileScreen extends GetView<ProfileController> {
             color: CustomColor.color64748B,
           ),
         ),
-        Text(
-          value,
-          style: TextStyles.policiesConsentTitle.copyWith(
-            fontSize: 13,
-            color: CustomColor.color0F172A,
+        SizedBox(width: ScreenConstant.sizeSmall),
+        // Flexible so long values (email, visibility mode) wrap, not overflow.
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyles.policiesConsentTitle.copyWith(
+              fontSize: 13,
+              color: CustomColor.color0F172A,
+            ),
           ),
         ),
       ],

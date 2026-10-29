@@ -6,6 +6,7 @@ import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../device_manager/urls.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/image_utils/image_utils.dart';
@@ -254,6 +255,27 @@ class ProfileSetupScreen extends GetView<RegisterController> {
     return Row(children: children);
   }
 
+  /// "ADD PHOTO" placeholder shown in the avatar circle when no photo exists.
+  Widget _addPhotoPlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Image.asset(
+          ImageUtils.addPhoto,
+          height: ScreenConstant.texIconSize,
+          color: CustomColor.color475569,
+        ),
+        SizedBox(height: ScreenConstant.sizeSmall),
+        Text(
+          "ADD PHOTO",
+          style: TextStyles.policiesBadgeText.copyWith(
+            color: CustomColor.color334155,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _dropdown<T>({
     required T? value,
     required List<DropdownMenuItem<T>> items,
@@ -384,7 +406,10 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                   child: Padding(
                     padding: const EdgeInsets.all(5.0),
                     child: Obx(() {
+                      // Local file first, else the avatar uploaded at
+                      // register (relative URL), else the placeholder.
                       final File? photo = controller.profileImage.value;
+                      final String url = controller.avatarUrl.value;
                       return Container(
                         clipBehavior: Clip.antiAlias,
                         decoration: const BoxDecoration(
@@ -398,23 +423,16 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                                 width: double.infinity,
                                 height: double.infinity,
                               )
-                            : Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    ImageUtils.addPhoto,
-                                    height: ScreenConstant.texIconSize,
-                                    color: CustomColor.color475569,
-                                  ),
-                                  SizedBox(height: ScreenConstant.sizeSmall),
-                                  Text(
-                                    "ADD PHOTO",
-                                    style: TextStyles.policiesBadgeText.copyWith(
-                                      color: CustomColor.color334155,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            : url.isNotEmpty
+                                ? Image.network(
+                                    Urls.baseUrl + url,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    errorBuilder: (_, _, _) =>
+                                        _addPhotoPlaceholder(),
+                                  )
+                                : _addPhotoPlaceholder(),
                       );
                     }),
                   ),
@@ -702,7 +720,11 @@ class ProfileSetupScreen extends GetView<RegisterController> {
           SizedBox(height: ScreenConstant.sizeSmall),
           Obx(
             () => _dropdown<String>(
-              value: controller.selectedProfileCity.value,
+              // null when no city is picked so DropdownButton shows the hint.
+              value: controller.selectedProfileCity.value.isEmpty
+                  ? null
+                  : controller.selectedProfileCity.value,
+              hint: "Select your city (optional)",
               items: controller.belgianCities
                   .map(
                     (c) => DropdownMenuItem<String>(
@@ -897,7 +919,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
       behavior: HitTestBehavior.opaque,
       onTap: controller.onSkipProfileSetup,
       child: Text(
-        "Skip for now & Login",
+        "Skip for now",
         textAlign: TextAlign.center,
         style: TextStyles.paymentCancelLink,
       ),

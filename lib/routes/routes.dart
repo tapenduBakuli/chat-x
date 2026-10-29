@@ -17,5 +17,6 @@ class Routes {
     static const MEMBER_DETAIL = '/member_detail';
     static const PROFILE = '/profile';
     static const EDIT_PROFILE = '/edit_profile';
+    static const NOTIFICATION = '/notification';
 
 }

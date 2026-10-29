@@ -48,6 +48,24 @@ class HomeController extends GetxController {
   /// Active bottom navigation bar index (0: Explore, 1: Chat, 2: Friends).
   final RxInt selectedNavIndex = 0.obs;
 
+  /// Unread notification count shown as a badge on the header bell.
+  /// TODO: update from the notifications API / push handler when available
+  /// (call [setUnreadNotifications] or [incrementUnreadNotifications]).
+  final RxInt unreadNotifications = 0.obs;
+
+  void setUnreadNotifications(int count) =>
+      unreadNotifications.value = count < 0 ? 0 : count;
+
+  void incrementUnreadNotifications([int by = 1]) =>
+      unreadNotifications.value += by;
+
+  /// Tapping the bell. Clears the badge for now; open a notifications screen
+  /// here once one exists.
+  void onNotificationsTap() {
+    unreadNotifications.value = 0;
+    Get.toNamed(Routes.NOTIFICATION);
+  }
+
   /// Selected city filter; 'All Belgium' means no filtering.
   final RxString selectedCity = 'All Belgium'.obs;
 

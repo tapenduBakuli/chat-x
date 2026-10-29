@@ -20,5 +20,9 @@ class Urls {
   static const String uploadAvatar = "${apiBase}users/me/avatar";
   /// DELETE — deletes the current user's account.
   static const String deleteAccount = "${apiBase}users/me";
+  /// PUT — updates the current user's profile (post-payment onboarding).
+  static const String updateProfile = "${apiBase}users/me";
+  /// GET — fetches the current user's account + profile.
+  static const String getMyProfile = "${apiBase}users/me";
   static const String updatePassword = "${apiBase}users/me/password";
 }

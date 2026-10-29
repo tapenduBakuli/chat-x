@@ -320,10 +320,10 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
                 children: [
                   // Name (+ age when DOB year is set) with a verified check.
                   Obx(() {
+                    // Profile Setup name, else the name captured at register.
+                    final String display = controller.previewDisplayName;
                     final String name =
-                        controller.profileNameController.text.trim().isEmpty
-                            ? "Your Name"
-                            : controller.profileNameController.text.trim();
+                        display.isEmpty ? "Your Name" : display;
                     final int? age = controller.previewAge;
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -371,7 +371,8 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
                       spacing: ScreenConstant.sizeSmall,
                       runSpacing: ScreenConstant.sizeExtraSmall,
                       children: [
-                        _identityPill(Icons.female, gender),
+                        if (gender.isNotEmpty)
+                          _identityPill(Icons.female, gender),
                         if (orientation.isNotEmpty)
                           _identityPill(Icons.favorite_border, orientation),
                       ],
@@ -706,13 +707,13 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
           SizedBox(height: ScreenConstant.sizeMedium),
           // Personal & safety information (Intimate Desires "Able to accept").
           Obx(() {
-            final List<String> accept = controller.ableToAccept.toList();
+            final String safety = controller.personalSafetyInfo.value;
             return _safetyCard(
               icon: Icons.health_and_safety_outlined,
               iconBg: CustomColor.colorFFF1F2,
               iconColor: CustomColor.colorBE123C,
               title: "Personal & Safety",
-              subtitle: accept.isEmpty ? "None selected" : accept.join(", "),
+              subtitle: safety.isEmpty ? "None selected" : safety,
             );
           }),
           SizedBox(height: ScreenConstant.sizeSmall),
@@ -750,11 +751,14 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
               iconColor: CustomColor.colorBE123C,
               title: "Preference Visibility",
               subtitle: mode.isEmpty ? "Not set" : mode,
-              pill: _simplePill(
-                mutualOnly ? "Private" : "ID-Verified",
-                bg: CustomColor.colorFFF1F2,
-                fg: CustomColor.colorBE123C,
-              ),
+              // No pill until a mode is chosen.
+              pill: mode.isEmpty
+                  ? null
+                  : _simplePill(
+                      mutualOnly ? "Private" : "ID-Verified",
+                      bg: CustomColor.colorFFF1F2,
+                      fg: CustomColor.colorBE123C,
+                    ),
             );
           }),
         ],
@@ -840,6 +844,12 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
   /// Maps the stored STI status to its display pill.
   Widget _stiPill(String status) {
     switch (status) {
+      case '':
+        return _simplePill(
+          "Not set",
+          bg: CustomColor.colorF1F5F9,
+          fg: CustomColor.color64748B,
+        );
       case 'No':
         return _simplePill(
           "Negative / Up-to-date",
@@ -919,51 +929,80 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
           ),
         ),
         SizedBox(width: ScreenConstant.sizeSmall),
-        // Primary: Publish Profile -> payment (clones sibling gradient button).
+        // Primary: Publish Profile -> PUT /users/me then Login. Shows the
+        // login-style spinner pill while the request is in flight.
         Expanded(
           flex: 3,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: controller.onPublishProfile,
-            child: Container(
-              height: ScreenConstant.defaultHeightFifty,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(100),
-                gradient: const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    CustomColor.colorBE185D,
-                    CustomColor.color581C87,
+          child: Obx(() {
+            if (controller.isUpdatingProfile.value) {
+              return Container(
+                height: ScreenConstant.defaultHeightFifty,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(100),
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      CustomColor.colorBE185D,
+                      CustomColor.color581C87,
+                    ],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+                  ),
+                ),
+              );
+            }
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: controller.onPublishProfile,
+              child: Container(
+                height: ScreenConstant.defaultHeightFifty,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(100),
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      CustomColor.colorBE185D,
+                      CustomColor.color581C87,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CustomColor.colorDB2777.withOpacity(0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
                   ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: CustomColor.colorDB2777.withOpacity(0.35),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Publish Profile",
-                    style: TextStyles.loginButtonText.copyWith(
-                      color: CustomColor.colorWhite,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Publish Profile",
+                      style: TextStyles.loginButtonText.copyWith(
+                        color: CustomColor.colorWhite,
+                      ),
                     ),
-                  ),
-                  SizedBox(width: ScreenConstant.sizeSmall),
-                  Icon(
-                    Icons.arrow_forward,
-                    color: CustomColor.colorWhite,
-                    size: ScreenConstant.smallIconSize,
-                  ),
-                ],
+                    SizedBox(width: ScreenConstant.sizeSmall),
+                    Icon(
+                      Icons.arrow_forward,
+                      color: CustomColor.colorWhite,
+                      size: ScreenConstant.smallIconSize,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          }),
         ),
       ],
     );

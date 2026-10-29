@@ -15,6 +15,7 @@ import '../../../utils/colors/app_colors.dart';
 import '../../login/model/login_response_model.dart';
 import '../model/payment_method_response_model.dart';
 import '../services/payment_services.dart';
+import '../services/profile_services.dart';
 import '../services/register_services.dart';
 
 enum PaymentMethod { bancontact, sepa, creditCard }
@@ -140,6 +141,31 @@ class RegisterController extends GetxController {
   /// Whether a save-payment-method request is in flight (drives the Save &
   /// Continue spinner on the Payment Details screen).
   final RxBool isSavingPayment = false.obs;
+
+  /// Whether the update-profile (PUT /users/me) request is in flight (drives
+  /// the Publish Profile spinner on Profile Preview).
+  final RxBool isUpdatingProfile = false.obs;
+
+  /// Relative avatar path (e.g. "/uploads/avatars/x.jpg") returned by the
+  /// avatar upload during register. Survives [clearCreateAccountForm].
+  final RxString avatarUrl = ''.obs;
+
+  /// Display name captured at register success. Survives
+  /// [clearCreateAccountForm] (which wipes [profileNameController]).
+  final RxString registeredDisplayName = ''.obs;
+
+  /// Date of birth (YYYY-MM-DD) captured at register success. Survives
+  /// [clearCreateAccountForm].
+  String registeredDateOfBirth = '';
+
+  /// Country captured at register success. Survives [clearCreateAccountForm].
+  String registeredCountry = '';
+
+  /// DOB parts captured at register success (used for the preview age).
+  /// Survive [clearCreateAccountForm].
+  int? registeredDobYear;
+  int? registeredDobMonth;
+  int? registeredDobDay;
 
   final HiveStore _store = HiveStore();
 
@@ -282,10 +308,23 @@ class RegisterController extends GetxController {
     'Bruges / Brugge (8000)',
     'Namur (5000)',
   ];
-  final RxString selectedProfileCity = 'Brussels / Bruxelles (1000)'.obs;
+  /// Optional city ('' = none selected).
+  final RxString selectedProfileCity = ''.obs;
+
+  // Approximate city-centre coordinates (the app has no GPS), keyed by the
+  // exact [belgianCities] entry, with the clean city name sent to the API.
+  static const Map<String, ({String city, double lat, double lng})>
+      _cityCoordinates = {
+    'Brussels / Bruxelles (1000)': (city: 'Brussels', lat: 50.8503, lng: 4.3517),
+    'Antwerp / Antwerpen (2000)': (city: 'Antwerp', lat: 51.2194, lng: 4.4025),
+    'Ghent / Gent (9000)': (city: 'Ghent', lat: 51.0543, lng: 3.7174),
+    'Liège (4000)': (city: 'Liège', lat: 50.6326, lng: 5.5797),
+    'Bruges / Brugge (8000)': (city: 'Bruges', lat: 51.2093, lng: 3.2247),
+    'Namur (5000)': (city: 'Namur', lat: 50.4674, lng: 4.8718),
+  };
 
   final RxList<String> selectedLookingFor =
-      <String>['Intimate connection', 'Discreet exploration'].obs;
+      <String>[].obs;
 
   final RxInt aboutMeLength = 0.obs;
 
@@ -296,18 +335,18 @@ class RegisterController extends GetxController {
   final RxBool interestsExpanded = true.obs;
   final RxBool safetyExpanded = true.obs;
 
-  /// Intimate desires multi-select groups with defaults.
-  final RxList<String> relationshipPrefs = <String>['One time'].obs;
-  final RxList<String> physicalPrefs =
-      <String>['Anal', 'Oral', 'Vaginal'].obs;
-  final RxList<String> kinkPrefs = <String>['Roleplay'].obs;
-  final RxList<String> interests = <String>['Gaming', 'Music'].obs;
-  final RxList<String> ableToAccept =
-      <String>['Protected only (Condom required)'].obs;
+  /// Intimate desires multi-select groups (start unselected).
+  final RxList<String> relationshipPrefs = <String>[].obs;
+  final RxList<String> physicalPrefs = <String>[].obs;
+  final RxList<String> kinkPrefs = <String>[].obs;
+  final RxList<String> interests = <String>[].obs;
 
-  /// Intimate desires single-selects.
-  final RxString stiStatus = 'No'.obs;
-  final RxString visibilityMode = 'Mutual Matches Only'.obs;
+  /// Personal & safety information — single select ('' = none selected).
+  final RxString personalSafetyInfo = ''.obs;
+
+  /// Intimate desires single-selects ('' = none selected).
+  final RxString stiStatus = ''.obs;
+  final RxString visibilityMode = ''.obs;
 
   /// The profile photo selected from the camera or gallery (null until picked).
   final Rx<File?> profileImage = Rx<File?>(null);
@@ -408,10 +447,9 @@ class RegisterController extends GetxController {
         : interests.add(value);
   }
 
-  void toggleAbleToAccept(String value) {
-    ableToAccept.contains(value)
-        ? ableToAccept.remove(value)
-        : ableToAccept.add(value);
+  /// Single choice: selecting an option replaces the previous one.
+  void selectPersonalSafetyInfo(String value) {
+    personalSafetyInfo.value = value;
   }
 
   void setStiStatus(String value) {
@@ -523,6 +561,15 @@ class RegisterController extends GetxController {
       if (result.isSuccess) {
         _onRegisterSuccess(result.response!);
 
+        // Capture the register values used later by PUT /users/me, since
+        // clearCreateAccountForm() wipes the form right after navigation.
+        registeredDisplayName.value = displayName;
+        registeredDateOfBirth = dateOfBirth;
+        registeredCountry = selectedCountry.value;
+        registeredDobYear = selectedDobYear.value;
+        registeredDobMonth = selectedDobMonth.value;
+        registeredDobDay = selectedDobDay.value;
+
         // If the user picked an avatar, upload it now (registration token is
         // already stored, so the authenticated call works). A failed upload
         // doesn't block the flow — they can add a photo later.
@@ -530,7 +577,9 @@ class RegisterController extends GetxController {
         if (avatar != null) {
           final avatarRes =
               await RegisterService.instance.uploadAvatar(avatar);
-          if (!avatarRes.success) {
+          if (avatarRes.success) {
+            avatarUrl.value = avatarRes.avatarUrl;
+          } else {
             Get.snackbar(
               'Photo not uploaded',
               avatarRes.message,
@@ -570,6 +619,10 @@ class RegisterController extends GetxController {
 
   /// Clears every Create Account field back to its initial state (called on a
   /// successful registration and when backing out of the screen).
+  ///
+  /// Deliberately does NOT clear [profileImage], [avatarUrl] or the captured
+  /// registered* fields — onboarding (Profile Setup → Preview → PUT
+  /// /users/me) still needs them after register.
   void clearCreateAccountForm() {
     profileNameController.clear();
     emailController.clear();
@@ -850,7 +903,22 @@ class RegisterController extends GetxController {
     );
   }
 
+  /// Gender and orientation are required on Profile Setup. Shows a snackbar
+  /// and returns false when either is missing.
+  bool _ensureGenderAndOrientation() {
+    if (selectedGender.value.isEmpty || selectedOrientation.value.isEmpty) {
+      Get.snackbar(
+        'Required',
+        'Please select your gender and orientation.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+    return true;
+  }
+
   void onCompleteProfile() {
+    if (!_ensureGenderAndOrientation()) return;
     debugPrint(
       'Complete profile -> name: ${profileNameController.text.trim()}, '
       'gender: ${selectedGender.value}, '
@@ -864,9 +932,12 @@ class RegisterController extends GetxController {
     Get.toNamed(Routes.PROFILE_PHOTOS);
   }
 
+  /// Skips the optional Profile Setup fields. Gender and orientation are
+  /// still required, so the same check as [onCompleteProfile] applies.
   void onSkipProfileSetup() {
+    if (!_ensureGenderAndOrientation()) return;
     debugPrint('Skip profile setup');
-    Get.offAllNamed(Routes.LOGIN);
+    Get.toNamed(Routes.PROFILE_PHOTOS);
   }
 
   void onSaveCompleteSetup() {
@@ -875,7 +946,7 @@ class RegisterController extends GetxController {
       'physical: ${physicalPrefs.toList()}, '
       'kink: ${kinkPrefs.toList()}, '
       'interests: ${interests.toList()}, '
-      'ableToAccept: ${ableToAccept.toList()}, '
+      'personalSafety: ${personalSafetyInfo.value}, '
       'sti: ${stiStatus.value}, '
       'visibility: ${visibilityMode.value}',
     );
@@ -892,11 +963,16 @@ class RegisterController extends GetxController {
   /// Whole-years age computed from the selected date of birth. Returns null
   /// when the year has not been chosen (callers omit the age in that case).
   int? get previewAge {
-    final int? year = selectedDobYear.value;
+    // Falls back to the DOB captured at register (the form is wiped after).
+    final bool useSelected = selectedDobYear.value != null;
+    final int? year =
+        useSelected ? selectedDobYear.value : registeredDobYear;
     if (year == null) return null;
     // Month/day default to 1 so a partially-filled DOB still yields an age.
-    final int month = selectedDobMonth.value ?? 1;
-    final int day = selectedDobDay.value ?? 1;
+    final int month =
+        (useSelected ? selectedDobMonth.value : registeredDobMonth) ?? 1;
+    final int day =
+        (useSelected ? selectedDobDay.value : registeredDobDay) ?? 1;
     final DateTime now = DateTime.now();
     int age = now.year - year;
     if (now.month < month || (now.month == month && now.day < day)) {
@@ -905,8 +981,94 @@ class RegisterController extends GetxController {
     return age < 0 ? 0 : age;
   }
 
-  /// Publishes the previewed profile and continues to payment.
-  void onPublishProfile() {
+  /// Name shown on Profile Preview / sent as display_name: the Profile Setup
+  /// name if entered, else the name captured at register.
+  String get previewDisplayName {
+    final String typed = profileNameController.text.trim();
+    return typed.isNotEmpty ? typed : registeredDisplayName.value;
+  }
+
+  /// Builds the PUT /users/me payload from the onboarding state.
+  Map<String, dynamic> _buildUpdateProfilePayload() {
+    String? dateOfBirth;
+    if (selectedDobYear.value != null &&
+        selectedDobMonth.value != null &&
+        selectedDobDay.value != null) {
+      dateOfBirth = '${selectedDobYear.value!.toString().padLeft(4, '0')}-'
+          '${selectedDobMonth.value!.toString().padLeft(2, '0')}-'
+          '${selectedDobDay.value!.toString().padLeft(2, '0')}';
+    } else if (registeredDateOfBirth.isNotEmpty) {
+      dateOfBirth = registeredDateOfBirth;
+    }
+
+    final String country = selectedCountry.value.isNotEmpty
+        ? selectedCountry.value
+        : registeredCountry;
+    final String aboutMe = aboutMeController.text.trim();
+    final city = _cityCoordinates[selectedProfileCity.value];
+
+    return <String, dynamic>{
+      'display_name': previewDisplayName,
+      'is_invisible': false,
+      'date_of_birth': ?dateOfBirth, // omitted when null
+      if (country.isNotEmpty) 'country': country,
+      'gender': selectedGender.value,
+      'orientation': <String>[selectedOrientation.value],
+      if (aboutMe.isNotEmpty) 'about_me': aboutMe,
+      // Only sent when the user picked a city (approximate coordinates).
+      if (city != null)
+        'location': <String, dynamic>{
+          'latitude': city.lat,
+          'longitude': city.lng,
+          'city': city.city,
+          'region': 'Belgium',
+        },
+      'looking_for': selectedLookingFor.toList(),
+      'relationship_preferences': relationshipPrefs.toList(),
+      'core_physical_intimate': physicalPrefs.toList(),
+      'exploration_kink': kinkPrefs.toList(),
+      'interest_and_passion': interests.toList(),
+      'personal_and_safety_information': personalSafetyInfo.value,
+      'has_std_or_sti': stiStatus.value,
+      'preference_visibility_mode': visibilityMode.value,
+      // TODO: upload gallery photos and send their URLs here once a
+      // gallery-upload API exists (galleryPhotos are local Files only).
+      'photos': <String>[],
+    };
+  }
+
+  /// Publishes the previewed profile via PUT /users/me, then routes to Login
+  /// (onboarding is done; the user must log in).
+  Future<void> onPublishProfile() async {
+    if (isUpdatingProfile.value) return;
+    isUpdatingProfile.value = true;
+    try {
+      final res = await ProfileService.instance
+          .updateProfile(_buildUpdateProfilePayload());
+      if (res.success) {
+        Get.snackbar(
+          'Profile saved',
+          res.message.isNotEmpty ? res.message : 'Profile updated',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        // Registration-only token is no longer needed.
+        await _store.remove(Keys.REGISTRATIONTOKEN);
+        Get.offAllNamed(Routes.LOGIN);
+      } else {
+        Get.snackbar(
+          'Could not save profile',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      isUpdatingProfile.value = false;
+    }
+  }
+
+  /// Edit Profile "Save & Continue" — keeps the legacy behavior that
+  /// onPublishProfile had before it called the API.
+  void onSaveEditProfile() {
     debugPrint(
       'Publish profile -> name: ${profileNameController.text.trim()}, '
       'age: ${previewAge ?? '-'}, '

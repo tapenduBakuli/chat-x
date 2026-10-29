@@ -634,8 +634,9 @@ class IntimateDesiresScreen extends GetView<RegisterController> {
                           ),
                           child: _selectableChip(
                             chip,
-                            controller.ableToAccept.contains(chip),
-                            () => controller.toggleAbleToAccept(chip),
+                            // Single select.
+                            controller.personalSafetyInfo.value == chip,
+                            () => controller.selectPersonalSafetyInfo(chip),
                             leading: _chipLeadings[chip],
                           ),
                         ),
