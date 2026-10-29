@@ -2,7 +2,10 @@ import 'package:chat_x/device_manager/screen_constants.dart';
 import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+
+import '../../../utils/expiry_date_formatter.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
@@ -492,9 +495,11 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
             Expanded(
               child: _buildTextField(
                 label: "Expiry date",
-                hint: "MM / YY",
+                hint: "MM/YY",
                 controllerField: controller.expiryController,
                 prefix: Icons.calendar_today_outlined,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ExpiryDateInputFormatter()],
               ),
             ),
             SizedBox(width: ScreenConstant.sizeMedium),
@@ -519,6 +524,8 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
     IconData? prefix,
     bool required = true,
     Widget? labelTrailing,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,6 +537,8 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
             borderRadius: 26,
             controller: controllerField,
             hintText: hint,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
             hintStyle: TextStyles.loginTopText.copyWith(fontSize: FontSize.s14,color: CustomColor.color94A3B8),
             borderColor: CustomColor.colorE2E8F0,
             prefix: prefix == null

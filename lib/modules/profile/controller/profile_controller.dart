@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 
 class ProfileController extends GetxController {
@@ -65,7 +66,7 @@ class ProfileController extends GetxController {
   }
 
   void onEditProfile() {
-    debugPrint('Edit Profile tapped');
+    Get.toNamed(Routes.EDIT_PROFILE);
   }
 
   void onBack() {

@@ -100,7 +100,7 @@ class IntimateDesiresScreen extends GetView<RegisterController> {
         title: Column(
           children: [
             Text(
-              "STEP 4 OF 4",
+              "STEP 5 OF 5",
               textAlign: TextAlign.center,
               style: TextStyles.policiesBadgeText,
             ),
@@ -112,27 +112,27 @@ class IntimateDesiresScreen extends GetView<RegisterController> {
           ],
         ),
         actions: [
-          Icon(
-            Icons.lock_outline,
-            size: ScreenConstant.smallIconSize,
-            color: CustomColor.color94A3B8,
-          ),
-          SizedBox(width: ScreenConstant.defaultWidthTen,),
-          Container(
-            height: ScreenConstant.defaultHeightForty,
-            width: ScreenConstant.defaultWidthForty,
-            margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: CustomColor.colorFFF1F2,
-              border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
-            ),
-            child: Icon(
-              Icons.person_outline,
-              color: CustomColor.colorE11D48,
-              size: ScreenConstant.smallIconSize - 2,
-            ),
-          ),
+          // Icon(
+          //   Icons.lock_outline,
+          //   size: ScreenConstant.smallIconSize,
+          //   color: CustomColor.color94A3B8,
+          // ),
+          // SizedBox(width: ScreenConstant.defaultWidthTen,),
+          // Container(
+          //   height: ScreenConstant.defaultHeightForty,
+          //   width: ScreenConstant.defaultWidthForty,
+          //   margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
+          //   decoration: BoxDecoration(
+          //     shape: BoxShape.circle,
+          //     color: CustomColor.colorFFF1F2,
+          //     border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+          //   ),
+          //   child: Icon(
+          //     Icons.person_outline,
+          //     color: CustomColor.colorE11D48,
+          //     size: ScreenConstant.smallIconSize - 2,
+          //   ),
+          // ),
         ],
       ),
       body: SafeArea(

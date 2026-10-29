@@ -16,6 +16,7 @@ import 'package:chat_x/modules/register/views/intimate_desires_screen.dart';
 import 'package:chat_x/modules/register/views/profile_preview_screen.dart';
 import 'package:chat_x/modules/profile/binding/profile_binding.dart';
 import 'package:chat_x/modules/profile/views/profile_screen.dart';
+import 'package:chat_x/modules/profile/views/edit_profile_screen.dart';
 import 'package:chat_x/routes/routes.dart';
 import 'package:get/get.dart';
 import '../modules/splash/binding/splash_binding.dart';
@@ -99,6 +100,11 @@ class Theme1AppPages {
       name: Routes.PROFILE,
       page: () => const ProfileScreen(),
       binding: ProfileBinding(),
+    ),
+    GetPage(
+      name: Routes.EDIT_PROFILE,
+      page: () => const EditProfileScreen(),
+      binding: RegisterBinding(),
     ),
   ];
 }

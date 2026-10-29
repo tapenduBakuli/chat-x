@@ -265,14 +265,14 @@ class RegisterController extends GetxController {
   final RxList<bool> expandedPolicySections = List.generate(7, (_) => false).obs;
 
   /// Profile setup state
-  final RxString selectedGender = 'Woman'.obs;
+  final RxString selectedGender = ''.obs;
 
   final RxnInt selectedDobDay = RxnInt();
   final RxnInt selectedDobMonth = RxnInt();
   final RxnInt selectedDobYear = RxnInt();
 
-  final RxList<String> selectedOrientations =
-      <String>['Straight', 'Open-minded'].obs;
+  /// Single-choice orientation ('' = none selected yet).
+  final RxString selectedOrientation = ''.obs;
 
   final List<String> belgianCities = const [
     'Brussels / Bruxelles (1000)',
@@ -349,10 +349,9 @@ class RegisterController extends GetxController {
     selectedDobYear.value = year;
   }
 
-  void toggleOrientation(String orientation) {
-    selectedOrientations.contains(orientation)
-        ? selectedOrientations.remove(orientation)
-        : selectedOrientations.add(orientation);
+  /// Single choice: selecting an option replaces the previous one.
+  void selectOrientation(String orientation) {
+    selectedOrientation.value = orientation;
   }
 
   void onProfileCitySelected(String city) {
@@ -857,7 +856,7 @@ class RegisterController extends GetxController {
       'gender: ${selectedGender.value}, '
       'dob: ${selectedDobDay.value}/${selectedDobMonth.value}/'
       '${selectedDobYear.value}, '
-      'orientations: ${selectedOrientations.toList()}, '
+      'orientation: ${selectedOrientation.value}, '
       'city: ${selectedProfileCity.value}, '
       'lookingFor: ${selectedLookingFor.toList()}, '
       'aboutMe length: ${aboutMeLength.value}',

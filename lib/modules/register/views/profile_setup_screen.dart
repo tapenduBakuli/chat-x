@@ -51,7 +51,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
         title: Column(
           children: [
             Text(
-              "STEP 3 OF 4",
+              "STEP 3 OF 5",
               textAlign: TextAlign.center,
               style: TextStyles.policiesBadgeText,
             ),
@@ -646,8 +646,8 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                 .map(
                   (o) => _selectableChip(
                     o,
-                    controller.selectedOrientations.contains(o),
-                    () => controller.toggleOrientation(o),
+                    controller.selectedOrientation.value == o,
+                    () => controller.selectOrientation(o),
                   ),
                 )
                 .toList(),

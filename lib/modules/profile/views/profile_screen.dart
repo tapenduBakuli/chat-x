@@ -559,7 +559,7 @@ class ProfileScreen extends GetView<ProfileController> {
           controller.bio.value,
           style: TextStyles.registerFieldNote.copyWith(
             fontSize: FontSize.s13,
-            color: CustomColor.color334155,
+            color: CustomColor.color64748B,
             height: 1.5,
           ),
         ),
@@ -640,7 +640,7 @@ class ProfileScreen extends GetView<ProfileController> {
           controller.sexualPreference.value,
           style: TextStyles.policiesConsentTitle.copyWith(
             fontSize: 14,
-            color: CustomColor.color0F172A,
+            color: CustomColor.color64748B,
           ),
         ),
       ),

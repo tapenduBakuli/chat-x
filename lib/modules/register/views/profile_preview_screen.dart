@@ -51,27 +51,27 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
           ],
         ),
         actions: [
-          Icon(
-            Icons.lock_outline,
-            size: ScreenConstant.smallIconSize,
-            color: CustomColor.color94A3B8,
-          ),
-          SizedBox(width: ScreenConstant.defaultWidthTen),
-          Container(
-            height: ScreenConstant.defaultHeightForty,
-            width: ScreenConstant.defaultWidthForty,
-            margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: CustomColor.colorFFF1F2,
-              border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
-            ),
-            child: Icon(
-              Icons.person_outline,
-              color: CustomColor.colorE11D48,
-              size: ScreenConstant.smallIconSize - 2,
-            ),
-          ),
+          // Icon(
+          //   Icons.lock_outline,
+          //   size: ScreenConstant.smallIconSize,
+          //   color: CustomColor.color94A3B8,
+          // ),
+          // SizedBox(width: ScreenConstant.defaultWidthTen),
+          // Container(
+          //   height: ScreenConstant.defaultHeightForty,
+          //   width: ScreenConstant.defaultWidthForty,
+          //   margin: EdgeInsets.only(right: ScreenConstant.sizeMedium),
+          //   decoration: BoxDecoration(
+          //     shape: BoxShape.circle,
+          //     color: CustomColor.colorFFF1F2,
+          //     border: Border.all(color: CustomColor.colorFFE4E6, width: 2),
+          //   ),
+          //   child: Icon(
+          //     Icons.person_outline,
+          //     color: CustomColor.colorE11D48,
+          //     size: ScreenConstant.smallIconSize - 2,
+          //   ),
+          // ),
         ],
       ),
       body: SafeArea(
@@ -93,9 +93,13 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Container(padding:EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium,horizontal: ScreenConstant.sizeMedium,),decoration: BoxDecoration(color: CustomColor.colorWhite,borderRadius: BorderRadius.circular(15)), child: _buildAboutMe()),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              _previewCard(_buildLookingFor()),
+              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Container(padding:EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium,horizontal: ScreenConstant.sizeMedium,),decoration: BoxDecoration(color: CustomColor.colorWhite,borderRadius: BorderRadius.circular(15)), child: _buildSeekingDynamics()),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Container(padding:EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium,horizontal: ScreenConstant.sizeMedium,),decoration: BoxDecoration(color: CustomColor.colorWhite,borderRadius: BorderRadius.circular(15)), child: _buildIntimateChemistry()),
+              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              _previewCard(_buildExplorationKink()),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Container(padding:EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium,horizontal: ScreenConstant.sizeMedium,),decoration: BoxDecoration(color: CustomColor.colorWhite,borderRadius: BorderRadius.circular(15)), child:  _buildPassionsLifestyle(),),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -362,9 +366,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
                   Obx(() {
                     final String gender = controller.selectedGender.value;
                     final String orientation =
-                        controller.selectedOrientations.isEmpty
-                            ? ""
-                            : controller.selectedOrientations.first;
+                        controller.selectedOrientation.value;
                     return Wrap(
                       spacing: ScreenConstant.sizeSmall,
                       runSpacing: ScreenConstant.sizeExtraSmall,
@@ -585,7 +587,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
       final List<String> prefs = controller.relationshipPrefs.toList();
       return _buildSection(
         imageAsset: (ImageUtils.seeking),
-        label: "SEEKING / DYNAMICS",
+        label: "RELATIONSHIP PREFERENCES",
         textStyle: TextStyles.registerSectionTitle.copyWith(
          color: CustomColor.colorBE185D
         ),
@@ -595,29 +597,68 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
     });
   }
 
+  /// White rounded wrapper matching the other preview section cards.
+  Widget _previewCard(Widget child) {
+    return Container(
+      padding: EdgeInsets.all(ScreenConstant.sizeMedium),
+      decoration: BoxDecoration(
+        color: CustomColor.colorWhite,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: child,
+    );
+  }
+
   // ---------------------------------------------------------------------------
-  // (7) Intimate Desires & Chemistry
+  // Looking for (Profile Setup, multi-select)
   // ---------------------------------------------------------------------------
-  Widget _buildIntimateChemistry() {
+  Widget _buildLookingFor() {
     return Obx(() {
-      // Combine physical + kink preferences into a single read-only chip set.
-      final List<String> combined = <String>[
-        ...controller.physicalPrefs,
-        ...controller.kinkPrefs,
-      ];
+      final List<String> items = controller.selectedLookingFor.toList();
       return _buildSection(
-        icon: Icons.auto_awesome_outlined,
-        label: "INTIMATE DESIRES & CHEMISTRY",
-        textStyle: TextStyles.registerSectionTitle.copyWith(
-          letterSpacing: 0.5,
-            color: CustomColor.colorBE185D
-        ),
-        // PLACEHOLDER: "Match Filter" badge is static copy.
-        rightPillText: "Match Filter",
-        child: _readonlyChips(combined),
+        icon: Icons.favorite_border,
+        label: "LOOKING FOR",
+        textStyle: _previewSectionStyle,
+        rightPillText: "${items.length} selected",
+        child: _readonlyChips(items),
       );
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // (7) Core Physical & Intimate (multi-select)
+  // ---------------------------------------------------------------------------
+  Widget _buildIntimateChemistry() {
+    return Obx(() {
+      final List<String> items = controller.physicalPrefs.toList();
+      return _buildSection(
+        icon: Icons.auto_awesome_outlined,
+        label: "CORE PHYSICAL & INTIMATE",
+        textStyle: _previewSectionStyle,
+        rightPillText: "${items.length} selected",
+        child: _readonlyChips(items),
+      );
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Exploration & Kink (multi-select)
+  // ---------------------------------------------------------------------------
+  Widget _buildExplorationKink() {
+    return Obx(() {
+      final List<String> items = controller.kinkPrefs.toList();
+      return _buildSection(
+        icon: Icons.local_fire_department_outlined,
+        label: "EXPLORATION & KINK",
+        textStyle: _previewSectionStyle,
+        rightPillText: "${items.length} selected",
+        child: _readonlyChips(items),
+      );
+    });
+  }
+
+  TextStyle get _previewSectionStyle => TextStyles.registerSectionTitle
+      .copyWith(letterSpacing: 0.5, color: CustomColor.colorBE185D);
 
   // ---------------------------------------------------------------------------
   // (8) Passions & Lifestyle
@@ -627,7 +668,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
       final List<String> items = controller.interests.toList();
       return _buildSection(
         icon: Icons.interests_outlined,
-        label: "PASSIONS & LIFESTYLE",
+        label: "INTERESTS & PASSIONS",
         textStyle: TextStyles.registerSectionTitle.copyWith(
             letterSpacing: 0.5,
             color: CustomColor.colorBE185D
@@ -663,6 +704,18 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
         children: [
           _sectionHeader(Icons.verified_user_outlined, "SAFETY & STANDARDS"),
           SizedBox(height: ScreenConstant.sizeMedium),
+          // Personal & safety information (Intimate Desires "Able to accept").
+          Obx(() {
+            final List<String> accept = controller.ableToAccept.toList();
+            return _safetyCard(
+              icon: Icons.health_and_safety_outlined,
+              iconBg: CustomColor.colorFFF1F2,
+              iconColor: CustomColor.colorBE123C,
+              title: "Personal & Safety",
+              subtitle: accept.isEmpty ? "None selected" : accept.join(", "),
+            );
+          }),
+          SizedBox(height: ScreenConstant.sizeSmall),
           // Sexual health routine, reactive on stiStatus.
           Obx(() => _safetyCard(
                 icon: Icons.medical_services_outlined,
@@ -673,33 +726,37 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
                 subtitle: "Tested every 3 months",
                 pill: _stiPill(controller.stiStatus.value),
               )),
+          // SizedBox(height: ScreenConstant.sizeSmall),
+          // // Languages. PLACEHOLDER: no language field in the controller; both
+          // // value and subtitle are static copy.
+          // _safetyCard(
+          //   icon: Icons.translate_outlined,
+          //   iconBg: CustomColor.colorAF5FF,
+          //   iconColor: CustomColor.color9333EA,
+          //   title: "Languages",
+          //   subtitle: "Brussels tri-lingual",
+          //   trailingText: "English, Francais, Nederlands",
+          // ),
           SizedBox(height: ScreenConstant.sizeSmall),
-          // Languages. PLACEHOLDER: no language field in the controller; both
-          // value and subtitle are static copy.
-          _safetyCard(
-            icon: Icons.translate_outlined,
-            iconBg: CustomColor.colorAF5FF,
-            iconColor: CustomColor.color9333EA,
-            title: "Languages",
-            subtitle: "Brussels tri-lingual",
-            trailingText: "English, Francais, Nederlands",
-          ),
-          SizedBox(height: ScreenConstant.sizeSmall),
-          // Discretion level. Subtitle reflects the chosen visibilityMode;
-          // the "Ultra High" pill mirrors the mock's fixed discretion grade.
-          // PLACEHOLDER: the "Ultra High" label is static copy.
-          Obx(() => _safetyCard(
-                icon: Icons.lock_outline,
-                iconBg: CustomColor.colorFFF1F2,
-                iconColor: CustomColor.colorBE123C,
-                title: "Discretion Level",
-                subtitle: controller.visibilityMode.value,
-                pill: _simplePill(
-                  "Ultra High",
-                  bg: CustomColor.colorFFF1F2,
-                  fg: CustomColor.colorBE123C,
-                ),
-              )),
+          // Preference visibility mode (single choice from Intimate Desires).
+          Obx(() {
+            final String mode = controller.visibilityMode.value;
+            final bool mutualOnly = mode == 'Mutual Matches Only';
+            return _safetyCard(
+              icon: mutualOnly
+                  ? Icons.lock_outline
+                  : Icons.verified_user_outlined,
+              iconBg: CustomColor.colorFFF1F2,
+              iconColor: CustomColor.colorBE123C,
+              title: "Preference Visibility",
+              subtitle: mode.isEmpty ? "Not set" : mode,
+              pill: _simplePill(
+                mutualOnly ? "Private" : "ID-Verified",
+                bg: CustomColor.colorFFF1F2,
+                fg: CustomColor.colorBE123C,
+              ),
+            );
+          }),
         ],
       ),
     );

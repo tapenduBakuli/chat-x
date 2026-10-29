@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../device_manager/screen_constants.dart';
 import 'TextStyles.dart';
@@ -21,6 +22,9 @@ class CustomTextField extends StatelessWidget {
 
   final bool obscureText;
   final TextInputType keyboardType;
+
+  /// Optional input formatters (e.g. digits-only, expiry MM/YY auto-slash).
+  final List<TextInputFormatter>? inputFormatters;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onChanged;
   final FormFieldValidator<String>? validator;
@@ -49,6 +53,7 @@ class CustomTextField extends StatelessWidget {
     this.suffix,
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
+    this.inputFormatters,
     this.textInputAction,
     this.onChanged,
     this.validator,
@@ -81,6 +86,7 @@ class CustomTextField extends StatelessWidget {
       focusNode: focusNode,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       textInputAction: textInputAction,
       onChanged: onChanged,
       validator: validator,
