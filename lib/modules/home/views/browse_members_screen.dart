@@ -10,6 +10,7 @@ import '../../../utils/custom_text_field.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
 import '../controller/home_controller.dart';
 import '../model/member.dart';
+import 'widgets/friends_tab.dart';
 import 'widgets/member_network_image.dart';
 import 'widgets/reset_password_dialogs.dart';
 
@@ -110,6 +111,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
 
 
   Widget _buildFriendsTab() {
+    return FriendsTab(emptyState: _buildFriendsEmptyState());
+  }
+
+  /// Shown by [FriendsTab] when there are no requests and no friends.
+  Widget _buildFriendsEmptyState() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -491,6 +497,16 @@ class BrowseMembersScreen extends GetView<HomeController> {
               ],
             ),
           ),
+      SizedBox(height: ScreenConstant.defaultHeightTen,),
+      buildLoginButton(
+        "Continue",
+        true,
+        controller.onUpdatePassword,
+        Icons.arrow_forward,
+        height: ScreenConstant.defaultHeightFifty,
+        fontSize: FontSize.s14,
+        iconSize: ScreenConstant.minimumIconSize,
+      )
         ],
       ),
     );
@@ -2371,21 +2387,87 @@ class BrowseMembersScreen extends GetView<HomeController> {
   // ---------------------------------------------------------------------------
   Widget _buildGrid() {
     final members = controller.filteredMembers;
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(
-        ScreenConstant.defaultWidthTwenty,
-        ScreenConstant.sizeSmall,
-        ScreenConstant.defaultWidthTwenty,
-        90,
+    // CustomScrollView = same grid look + a full-width footer row for the
+    // next-page spinner. Always scrollable so pull-to-refresh works on short
+    // lists; the controller's listener loads the next page near the bottom.
+    return RefreshIndicator(
+      color: CustomColor.colorBE185D,
+      onRefresh: controller.onRefresh,
+      child: CustomScrollView(
+        controller: controller.membersScrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              ScreenConstant.defaultWidthTwenty,
+              ScreenConstant.sizeSmall,
+              ScreenConstant.defaultWidthTwenty,
+              0,
+            ),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.66,
+                crossAxisSpacing: ScreenConstant.sizeMedium,
+                mainAxisSpacing: ScreenConstant.sizeMedium,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _gridCard(members[index]),
+                childCount: members.length,
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Obx(
+              () => controller.isLoadingMore.value
+                  ? _loadingMoreSpinner()
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          // Clears the floating bottom nav (was the grid's bottom padding).
+          const SliverToBoxAdapter(child: SizedBox(height: 90)),
+        ],
       ),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.66,
-        crossAxisSpacing: ScreenConstant.sizeMedium,
-        mainAxisSpacing: ScreenConstant.sizeMedium,
+    );
+  }
+
+  /// Small rose spinner shown while the next page loads.
+  Widget _loadingMoreSpinner() {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium),
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(CustomColor.colorBE185D),
+          ),
+        ),
       ),
-      itemCount: members.length,
-      itemBuilder: (context, index) => _gridCard(members[index]),
+    );
+  }
+
+  /// Puts [child] inside an always-scrollable view sized to the available
+  /// height so a RefreshIndicator can pull-to-refresh it. [fill] gives the
+  /// child exactly the viewport height (needed by the deck's Expanded);
+  /// otherwise it gets at least that height and may grow (empty states).
+  Widget _pullToRefresh(Widget child, {bool fill = false}) {
+    return RefreshIndicator(
+      color: CustomColor.colorBE185D,
+      onRefresh: controller.onRefresh,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: fill
+              ? SizedBox(height: constraints.maxHeight, child: child)
+              : ConstrainedBox(
+                  constraints:
+                      BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(child: child),
+                ),
+        ),
+      ),
     );
   }
 
@@ -2548,8 +2630,16 @@ class BrowseMembersScreen extends GetView<HomeController> {
   Widget _buildDeck() {
     final member = controller.currentDeckMember;
     if (member == null) {
-      return _deckExhausted();
+      // Out of loaded cards but the next page is on its way.
+      if (controller.isLoadingMore.value) return _loadingMoreSpinner();
+      return _pullToRefresh(_deckExhausted());
     }
+    // Pull-to-refresh on the deck: vertical drags go to the scroll view,
+    // horizontal swipes still reach the Dismissible (different axes).
+    return _pullToRefresh(_deckBody(member), fill: true);
+  }
+
+  Widget _deckBody(Member member) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         ScreenConstant.defaultWidthTwenty,
@@ -2633,7 +2723,10 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   ),
                   SizedBox(width: ScreenConstant.sizeExtraSmall),
                   Text(
-                    "Active • ${member.profile.city}",
+                    // The users API has no city yet → plain "Active".
+                    member.profile.city.isEmpty
+                        ? "Active"
+                        : "Active • ${member.profile.city}",
                     style: TextStyles.policiesBadgeText.copyWith(
                       color: CustomColor.colorWhite,
                     ),
@@ -2747,16 +2840,22 @@ class BrowseMembersScreen extends GetView<HomeController> {
           ),
         ),
         SizedBox(width: ScreenConstant.sizeLarge),
-        _circleAction(
-          icon: Icons.favorite,
-          gradient: const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [CustomColor.colorBE185D, CustomColor.color581C87],
-          ),
-          iconColor: CustomColor.colorWhite,
-          onTap: controller.likeCurrent,
-        ),
+        // Sends a friend request; shows a white spinner + ignores taps while
+        // the request for this member is in flight.
+        Obx(() {
+          final busy = controller.isSendingRequest(member.id);
+          return _circleAction(
+            icon: Icons.favorite,
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [CustomColor.colorBE185D, CustomColor.color581C87],
+            ),
+            iconColor: CustomColor.colorWhite,
+            onTap: busy ? null : controller.likeCurrent,
+            isLoading: busy,
+          );
+        }),
       ],
     );
   }
@@ -2764,10 +2863,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
   Widget _circleAction({
     required IconData icon,
     required Color iconColor,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     Color? bg,
     Color? border,
     Gradient? gradient,
+    bool isLoading = false,
   }) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -2781,11 +2881,21 @@ class BrowseMembersScreen extends GetView<HomeController> {
           gradient: gradient,
           border: border == null ? null : Border.all(color: border),
         ),
-        child: Icon(
-          icon,
-          size: ScreenConstant.smallIconSize,
-          color: iconColor,
-        ),
+        alignment: Alignment.center,
+        child: isLoading
+            ? SizedBox(
+                height: ScreenConstant.smallIconSize,
+                width: ScreenConstant.smallIconSize,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                ),
+              )
+            : Icon(
+                icon,
+                size: ScreenConstant.smallIconSize,
+                color: iconColor,
+              ),
       ),
     );
   }
@@ -2829,30 +2939,51 @@ class BrowseMembersScreen extends GetView<HomeController> {
   // ---------------------------------------------------------------------------
   // Empty filtered state
   // ---------------------------------------------------------------------------
+  // Inside a scrollable so pull-to-refresh works when empty. When the first
+  // load failed (nothing loaded) it shows the error with a Retry instead.
   Widget _emptyFiltered() {
-    return Center(
-      child: Padding(
+    final bool hasError = controller.errorMessage.value.isNotEmpty &&
+        controller.allMembers.isEmpty;
+    return _pullToRefresh(
+      Padding(
         padding: EdgeInsets.all(ScreenConstant.defaultWidthTwenty),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.search_off,
+              hasError ? Icons.cloud_off_outlined : Icons.search_off,
               size: ScreenConstant.defaultIconSize,
               color: CustomColor.color94A3B8,
             ),
             SizedBox(height: ScreenConstant.sizeMedium),
             Text(
-              "No members found",
+              hasError ? "Couldn't load members" : "No members found",
               style: TextStyles.registerTitle.copyWith(fontSize: FontSize.s20),
             ),
             SizedBox(height: ScreenConstant.sizeExtraSmall),
             Text(
-              "No active members match your search and filters right now. "
-              "Try adjusting the search, city, or filters.",
+              hasError
+                  ? controller.errorMessage.value
+                  : "No active members match your search and filters right now. "
+                      "Try adjusting the search, city, or filters.",
               textAlign: TextAlign.center,
               style: TextStyles.registerFieldNote,
             ),
+            if (hasError) ...[
+              SizedBox(height: ScreenConstant.sizeMedium),
+              TextButton(
+                onPressed: controller.fetchFirstPage,
+                child: Text(
+                  "Retry",
+                  style: TextStyles.loginForgotPassword
+                      .copyWith(fontSize: FontSize.s14),
+                ),
+              ),
+            ],
+            // Still paging through the server results (client-side filters
+            // hid everything loaded so far).
+            if (!hasError && controller.isLoadingMore.value)
+              _loadingMoreSpinner(),
           ],
         ),
       ),

@@ -260,6 +260,11 @@ class LoginController extends GetxController {
       _store.remove(Keys.REMEMBERME);
       _store.remove(Keys.SAVEDEMAIL);
       _store.remove(Keys.SAVEDPASSWORD);
+      // LoginController is permanent, so the typed values would otherwise
+      // still be in the fields after logout. Clear them when not remembered.
+      emailController.clear();
+      passwordController.clear();
+      obscurePassword.value = true;
     }
 
     debugPrint('Login succeeded -> ${user?.displayName}. Navigating home.');

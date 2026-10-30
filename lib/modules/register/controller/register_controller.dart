@@ -150,6 +150,12 @@ class RegisterController extends GetxController {
   /// avatar upload during register. Survives [clearCreateAccountForm].
   final RxString avatarUrl = ''.obs;
 
+  /// The local file last uploaded successfully via POST /users/me/avatar.
+  /// If the main photo (profileImage) is later a different file — swapped by
+  /// dragging a gallery photo onto it, or re-picked — the avatar has to be
+  /// uploaded again before the profile update. See [_syncAvatarIfChanged].
+  String? _uploadedAvatarPath;
+
   /// Display name captured at register success. Survives
   /// [clearCreateAccountForm] (which wipes [profileNameController]).
   final RxString registeredDisplayName = ''.obs;
@@ -579,6 +585,7 @@ class RegisterController extends GetxController {
               await RegisterService.instance.uploadAvatar(avatar);
           if (avatarRes.success) {
             avatarUrl.value = avatarRes.avatarUrl;
+            _uploadedAvatarPath = avatar.path;
           } else {
             Get.snackbar(
               'Photo not uploaded',
@@ -1037,12 +1044,42 @@ class RegisterController extends GetxController {
     };
   }
 
-  /// Publishes the previewed profile via PUT /users/me, then routes to Login
-  /// (onboarding is done; the user must log in).
+  /// Re-uploads the main photo as the avatar if it differs from the file last
+  /// uploaded (e.g. the user dragged a gallery photo onto the main slot on
+  /// Profile Photos, or picked a new one). Also retries a register-time upload
+  /// that failed. Returns false if an upload was needed and failed.
+  Future<bool> _syncAvatarIfChanged() async {
+    final File? current = profileImage.value;
+    if (current == null || current.path == _uploadedAvatarPath) {
+      return true; // nothing to upload
+    }
+    final res = await RegisterService.instance.uploadAvatar(current);
+    if (!res.success) {
+      Get.snackbar(
+        'Photo not uploaded',
+        res.message.isNotEmpty
+            ? res.message
+            : 'Could not update your main photo. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+    avatarUrl.value = res.avatarUrl;
+    _uploadedAvatarPath = current.path;
+    return true;
+  }
+
+  /// Publishes the previewed profile: first syncs the avatar if the main photo
+  /// changed, then PUT /users/me, then routes to Login (onboarding is done;
+  /// the user must log in).
   Future<void> onPublishProfile() async {
     if (isUpdatingProfile.value) return;
     isUpdatingProfile.value = true;
     try {
+      // Stop here if the new main photo couldn't be uploaded, so the user can
+      // retry instead of being sent to Login with the old avatar.
+      if (!await _syncAvatarIfChanged()) return;
+
       final res = await ProfileService.instance
           .updateProfile(_buildUpdateProfilePayload());
       if (res.success) {

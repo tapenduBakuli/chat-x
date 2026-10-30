@@ -61,29 +61,96 @@ class MemberDetailScreen extends GetView<HomeController> {
                               ),
                             ),
                           ),
-                          SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                          SizedBox(
+                            height: ScreenConstant.defaultHeightTwentyThree,
+                          ),
                           _sectionCard(
                             "Looking for",
+                            _chipWrap(member.profile.lookingFor, rose: true),
+                          ),
+                          SizedBox(
+                            height: ScreenConstant.defaultHeightTwentyThree,
+                          ),
+                          _sectionCard(
+                            "Orientation",
+                            _chipWrap(member.profile.orientations, rose: true),
+                          ),
+                          SizedBox(
+                            height: ScreenConstant.defaultHeightTwentyThree,
+                          ),
+                          _sectionCard(
+                            "Interests",
+                            _chipWrap(member.profile.interests, rose: false),
+                          ),
+                          SizedBox(
+                            height: ScreenConstant.defaultHeightTwentyThree,
+                          ),
+                          _sectionCard(
+                            "Intimate preferences",
+                            // API `relationship_preferences`.
                             _chipWrap(
                               member.profile.relationshipIntents,
                               rose: true,
                             ),
                           ),
-                          SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                          _sectionCard(
-                            "Interests",
-                            _chipWrap(member.profile.interests, rose: false),
+                          SizedBox(
+                            height: ScreenConstant.defaultHeightTwentyThree,
                           ),
-                          SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                          _sectionCard(
-                            "Intimate preferences",
-                            _chipWrap(
-                              member.profile.sexualPreferences,
-                              rose: true,
+                          _locationCard(member),
+                          Container(
+                            padding: EdgeInsets.fromLTRB(
+                              ScreenConstant.defaultWidthTen,
+                              ScreenConstant.sizeSmall,
+                              ScreenConstant.defaultWidthTen,
+                              ScreenConstant.sizeSmall,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color: CustomColor.colorWhite,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: CustomColor.color717B96.withOpacity(0.12),
+                                  blurRadius: 16,
+                                  spreadRadius: -4,
+                                  offset: const Offset(0, -4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () =>
+                                      controller.onPassFromDetail(member),
+                                  child: Container(
+                                    height: ScreenConstant.defaultHeightSixty,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: ScreenConstant.sizeLarge,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(100),
+                                      border: Border.all(color: CustomColor.colorE2E8F0),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.close,
+                                          size: ScreenConstant.smallIconSize,
+                                          color: CustomColor.color64748B,
+                                        ),
+                                        SizedBox(width: ScreenConstant.sizeExtraSmall),
+                                        Text("Pass", style: TextStyles.browseToggleLabel),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: ScreenConstant.sizeMedium),
+                                Expanded(
+                                  child: _connectButton(member),
+                                ),
+                              ],
                             ),
                           ),
-                          SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                          _locationCard(member),
                         ],
                       ),
                     ),
@@ -91,7 +158,8 @@ class MemberDetailScreen extends GetView<HomeController> {
                 ),
               ),
             ),
-            _actionBar(member),
+            // _actionBar(member),
+
           ],
         ),
       ),
@@ -130,10 +198,7 @@ class MemberDetailScreen extends GetView<HomeController> {
 
   Widget _chipWrap(List<String> items, {required bool rose}) {
     if (items.isEmpty) {
-      return Text(
-        "Nothing shared yet.",
-        style: TextStyles.registerFieldNote,
-      );
+      return Text("Nothing shared yet.", style: TextStyles.registerFieldNote);
     }
     return Wrap(
       spacing: ScreenConstant.sizeSmall,
@@ -164,6 +229,12 @@ class MemberDetailScreen extends GetView<HomeController> {
     );
   }
 
+  /// "City, Region" from whichever parts are non-empty ('' when neither).
+  String _cityRegion(Member member) => [
+    member.profile.city,
+    member.profile.region,
+  ].where((s) => s.isNotEmpty).join(', ');
+
   Widget _locationCard(Member member) {
     return Container(
       width: double.infinity,
@@ -192,15 +263,19 @@ class MemberDetailScreen extends GetView<HomeController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "${member.profile.city}, ${member.profile.region}",
-                  style: TextStyles.registerFieldLabel.copyWith(
-                    color: CustomColor.color0F172A,
+                // city/region aren't in the users API yet; the title only
+                // shows when there is something to show.
+                if (_cityRegion(member).isNotEmpty) ...[
+                  Text(
+                    _cityRegion(member),
+                    style: TextStyles.registerFieldLabel.copyWith(
+                      color: CustomColor.color0F172A,
+                    ),
                   ),
-                ),
-                SizedBox(height: 2),
+                  SizedBox(height: 2),
+                ],
                 Text(
-                  "Location: Remains Hidden",
+                  "Location: ${member.profile.location.isNotEmpty ? member.profile.location : 'Remains Hidden'}",
                   style: TextStyles.registerFieldNote.copyWith(
                     color: CustomColor.color64748B,
                   ),
@@ -241,7 +316,7 @@ class MemberDetailScreen extends GetView<HomeController> {
           children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => Get.back(),
+              onTap: () => controller.onPassFromDetail(member),
               child: Container(
                 height: ScreenConstant.defaultHeightSixty,
                 padding: EdgeInsets.symmetric(
@@ -259,27 +334,57 @@ class MemberDetailScreen extends GetView<HomeController> {
                       color: CustomColor.color64748B,
                     ),
                     SizedBox(width: ScreenConstant.sizeExtraSmall),
-                    Text(
-                      "Pass",
-                      style: TextStyles.browseToggleLabel,
-                    ),
+                    Text("Pass", style: TextStyles.browseToggleLabel),
                   ],
                 ),
               ),
             ),
             SizedBox(width: ScreenConstant.sizeMedium),
             Expanded(
-              child: buildLoginButton(
-                "Connect",
-                true,
-                () => controller.onConnect(member),
-                Icons.favorite,
-              ),
+              child: _connectButton(member),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// Connect CTA: sends a friend request. While it's in flight the pill shows
+  /// a white spinner (same style as the Login button) and ignores taps.
+  Widget _connectButton(Member member) {
+    return Obx(() {
+      if (controller.isSendingRequest(member.id)) {
+        return Container(
+          height: ScreenConstant.defaultHeightSixty,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(100),
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                CustomColor.colorBE185D,
+                CustomColor.color581C87,
+              ],
+            ),
+          ),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+            ),
+          ),
+        );
+      }
+      return buildLoginButton(
+        "Connect",
+        true,
+        () => controller.onConnect(member),
+        Icons.favorite,
+      );
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -301,8 +406,9 @@ class MemberDetailScreen extends GetView<HomeController> {
               SizedBox(height: ScreenConstant.sizeMedium),
               Text(
                 "Member not found",
-                style:
-                    TextStyles.registerTitle.copyWith(fontSize: FontSize.s20),
+                style: TextStyles.registerTitle.copyWith(
+                  fontSize: FontSize.s20,
+                ),
               ),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               GestureDetector(
@@ -448,7 +554,8 @@ class _HeroCarouselState extends State<_HeroCarousel> {
           // Page dashes.
           if (total > 1)
             Positioned(
-              top: ScreenConstant.sizeMedium + ScreenConstant.defaultHeightForty,
+              top:
+                  ScreenConstant.sizeMedium + ScreenConstant.defaultHeightForty,
               left: 0,
               right: 0,
               child: Row(
@@ -502,16 +609,32 @@ class _HeroCarouselState extends State<_HeroCarousel> {
                       _overlayPill(Icons.person_outline, member.genderLabel),
                     _overlayPill(
                       Icons.circle,
-                      "Active • ${member.profile.city}",
+                      // The users API has no city yet → plain "Active".
+                      member.profile.city.isEmpty
+                          ? "Active"
+                          : "Active • ${member.profile.city}",
                       iconColor: CustomColor.color10B981,
                     ),
                   ],
                 ),
                 SizedBox(height: ScreenConstant.sizeExtraSmall),
-                _overlayPill(
-                  Icons.location_off_outlined,
-                  "Location: Remains Hidden",
-                  iconColor: CustomColor.colorFBCFE8,
+                Row(
+                  children: [
+                    _overlayPill(
+                      Icons.location_off_outlined,
+                      "Location: Remains Hidden",
+                      iconColor: CustomColor.colorFBCFE8,
+                    ),
+                    Spacer(),
+                    GestureDetector(
+                      onTap: (){print("Block the user");},
+                      child: _overlayPill(
+                        Icons.app_blocking_outlined,
+                        "Block",
+                        iconColor: CustomColor.colorBE123C,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
