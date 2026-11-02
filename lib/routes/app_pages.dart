@@ -1,4 +1,6 @@
+import 'package:chat_x/modules/chat/binding/chat_binding.dart';
 import 'package:chat_x/modules/home/binding/home_binding.dart';
+import 'package:chat_x/modules/chat/views/chat_screen.dart';
 import 'package:chat_x/modules/home/views/browse_members_screen.dart';
 import 'package:chat_x/modules/home/views/member_detail_screen.dart';
 import 'package:chat_x/modules/login/binding/login_binding.dart';
@@ -112,6 +114,11 @@ class Theme1AppPages {
       name: Routes.NOTIFICATION,
       page: () => const NotificationScreen(),
       binding: NotificationBinding(),
+    ),
+    GetPage(
+      name: Routes.CHAT,
+      page: () => const ChatScreen(),
+      binding: ChatBinding(),
     ),
   ];
 }

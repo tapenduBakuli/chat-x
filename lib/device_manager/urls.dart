@@ -41,10 +41,53 @@ class Urls {
   /// GET — lists browsable members (limit/offset + optional gender/age).
   static const String users = "${apiBase}users";
 
+  /// POST blocks / DELETE unblocks a member: users/{user_id}/block
+  /// (the member's USER id).
+  static String blockUser(String userId) => "$users/$userId/block";
+
+  /// GET — paginated list of users I blocked; query: limit, offset.
+  static const String blockedUsers = "$users/blocked";
+
   // --- Friends -------------------------------------------------------------
   /// Base path for friend requests.
   static const String friendRequests = "${apiBase}friends/requests/";
 
   /// POST — sends a friend request to a member: friends/requests/{user_id}
   static String sendFriendRequest(String userId) => "$friendRequests$userId";
+
+  /// GET — paginated list of requests I sent; query: limit, offset.
+  static const String sentFriendRequests = "${friendRequests}sent";
+
+  /// DELETE — cancels a sent request: friends/requests/sent/{request_id}
+  /// (the REQUEST id, not the addressee's user id).
+  static String cancelSentRequest(String requestId) =>
+      "$sentFriendRequests/$requestId";
+
+  /// GET — paginated list of requests I received; query: limit, offset.
+  /// No trailing slash (unlike [friendRequests]) so BaseClient.get builds
+  /// friends/requests?limit=..&offset=..
+  static const String incomingFriendRequests = "${apiBase}friends/requests";
+
+  /// POST — accepts a received request: friends/requests/{request_id}/accept
+  /// (the REQUEST id `items[].id`, not the requester's user id).
+  static String acceptFriendRequest(String requestId) =>
+      "$friendRequests$requestId/accept";
+
+  /// POST — rejects a received request: friends/requests/{request_id}/reject
+  /// (the REQUEST id `items[].id`, not the requester's user id).
+  static String rejectFriendRequest(String requestId) =>
+      "$friendRequests$requestId/reject";
+
+  /// DELETE — deletes a received request without accepting or rejecting it:
+  /// friends/requests/{request_id} (the REQUEST id `items[].id`, not the
+  /// requester's user id).
+  static String deleteFriendRequest(String requestId) =>
+      "$friendRequests$requestId";
+
+  /// GET — paginated list of my friends; query: limit, offset.
+  static const String friends = "${apiBase}friends";
+
+  /// DELETE — removes a friend: friends/{user_id}
+  /// (the FRIEND'S USER id `items[].user.id`, not the friendship id).
+  static String removeFriend(String userId) => "$friends/$userId";
 }

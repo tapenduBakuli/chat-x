@@ -378,11 +378,24 @@ class MemberDetailScreen extends GetView<HomeController> {
           ),
         );
       }
-      return buildLoginButton(
-        "Connect",
-        true,
-        () => controller.onConnect(member),
-        Icons.favorite,
+      // Blocked members can't be connected with: dimmed and non-interactive.
+      final bool blocked = controller.isBlocked(member);
+      return Semantics(
+        button: true,
+        enabled: !blocked,
+        label: blocked ? "Connect unavailable, member is blocked" : null,
+        child: IgnorePointer(
+          ignoring: blocked,
+          child: Opacity(
+            opacity: blocked ? 0.4 : 1,
+            child: buildLoginButton(
+              "Connect",
+              true,
+              () => controller.onConnect(member),
+              Icons.favorite,
+            ),
+          ),
+        ),
       );
     });
   }
@@ -450,6 +463,8 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   final PageController _pageController = PageController();
   int _index = 0;
 
+  HomeController get _home => Get.find<HomeController>();
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -497,6 +512,9 @@ class _HeroCarouselState extends State<_HeroCarousel> {
               ),
             ),
           ),
+          // Blocked indicator over the hero (covers both the placeholder and
+          // the photo PageView). Renders nothing when not blocked.
+          Positioned.fill(child: _blockedOverlay(member)),
           // Back arrow.
           Positioned(
             top: ScreenConstant.sizeSmall,
@@ -626,14 +644,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
                       iconColor: CustomColor.colorFBCFE8,
                     ),
                     Spacer(),
-                    GestureDetector(
-                      onTap: (){print("Block the user");},
-                      child: _overlayPill(
-                        Icons.app_blocking_outlined,
-                        "Block",
-                        iconColor: CustomColor.colorBE123C,
-                      ),
-                    ),
+                    _blockPill(member),
                   ],
                 ),
               ],
@@ -644,7 +655,215 @@ class _HeroCarouselState extends State<_HeroCarousel> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Block / unblock
+  // ---------------------------------------------------------------------------
+
+  /// "Block" / "Blocked" pill. Shows a small spinner and ignores taps while a
+  /// block/unblock call is in flight.
+  Widget _blockPill(Member member) {
+    return Obx(() {
+      final bool busy = _home.isBlockBusy(member.id);
+      final bool blocked = _home.isBlocked(member);
+      final String label = blocked ? "Blocked" : "Block";
+      return Semantics(
+        button: true,
+        enabled: !busy,
+        label: blocked
+            ? "Blocked. Tap to unblock ${member.displayName}"
+            : "Block ${member.displayName}",
+        excludeSemantics: true,
+        child: Tooltip(
+          message: blocked ? "Unblock" : "Block",
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: busy
+                ? null
+                : () => blocked
+                    ? _confirmUnblock(member)
+                    : _confirmBlock(member),
+            child: busy
+                ? _overlayPillWithLeading(
+                    SizedBox(
+                      height: ScreenConstant.minimumIconSize,
+                      width: ScreenConstant.minimumIconSize,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          CustomColor.colorWhite,
+                        ),
+                      ),
+                    ),
+                    label,
+                  )
+                : _overlayPill(
+                    blocked ? Icons.block : Icons.app_blocking_outlined,
+                    label,
+                    iconColor: CustomColor.colorBE123C,
+                  ),
+          ),
+        ),
+      );
+    });
+  }
+
+  /// Dark scrim + centered block icon shown while [member] is blocked. Only
+  /// the center indicator is tappable (→ unblock flow); the scrim ignores
+  /// pointers so photos stay swipeable.
+  Widget _blockedOverlay(Member member) {
+    return Obx(() {
+      if (!_home.isBlocked(member)) return const SizedBox.shrink();
+      final bool busy = _home.isBlockBusy(member.id);
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          IgnorePointer(
+            child: ColoredBox(
+              color: CustomColor.color0F172A.withOpacity(0.55),
+            ),
+          ),
+          Center(
+            child: Semantics(
+              button: true,
+              enabled: !busy,
+              label: "${member.displayName} is blocked. Tap to unblock",
+              excludeSemantics: true,
+              child: Tooltip(
+                message: "Unblock",
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: busy ? null : () => _confirmUnblock(member),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(ScreenConstant.sizeMedium),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: CustomColor.colorWhite.withOpacity(0.9),
+                        ),
+                        child: busy
+                            ? SizedBox(
+                                height: ScreenConstant.miniIconSize,
+                                width: ScreenConstant.miniIconSize,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    CustomColor.colorBE123C,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.block,
+                                size: ScreenConstant.miniIconSize,
+                                color: CustomColor.colorBE123C,
+                              ),
+                      ),
+                      SizedBox(height: ScreenConstant.sizeSmall),
+                      Text(
+                        "Blocked",
+                        style: TextStyles.loginWelcome.copyWith(
+                          fontSize: FontSize.s18,
+                          color: CustomColor.colorWhite,
+                        ),
+                      ),
+                      SizedBox(height: ScreenConstant.sizeExtraSmall / 2),
+                      Text(
+                        "Tap to unblock",
+                        style: TextStyles.loginWelcomeSubtitle.copyWith(
+                          fontSize: FontSize.s12,
+                          color: CustomColor.colorWhite,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  void _confirmBlock(Member member) => _confirmBlockAction(
+        title: "Block ${member.displayName}?",
+        body: "Are you sure you want to block ${member.displayName}?",
+        actionLabel: "Block",
+        onConfirm: () => _home.blockMember(member),
+      );
+
+  void _confirmUnblock(Member member) => _confirmBlockAction(
+        title: "Unblock ${member.displayName}?",
+        body: "Are you sure you want to unblock ${member.displayName}?",
+        actionLabel: "Unblock",
+        onConfirm: () => _home.unblockMember(member),
+      );
+
+  /// Same dialog look as the Friends "Remove friend?" confirm.
+  void _confirmBlockAction({
+    required String title,
+    required String body,
+    required String actionLabel,
+    required VoidCallback onConfirm,
+  }) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: CustomColor.colorWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            title,
+            style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+          ),
+          content: Text(body, style: TextStyles.loginWelcomeSubtitle),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                "Cancel",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.color64748B,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                // Async; the pill/overlay show a spinner via blockingUserIds.
+                onConfirm();
+              },
+              child: Text(
+                actionLabel,
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.colorBE123C,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _overlayPill(IconData icon, String label, {Color? iconColor}) {
+    return _overlayPillWithLeading(
+      Icon(
+        icon,
+        size: ScreenConstant.minimumIconSize,
+        color: iconColor ?? CustomColor.colorWhite,
+      ),
+      label,
+    );
+  }
+
+  Widget _overlayPillWithLeading(Widget leading, String label) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: ScreenConstant.sizeSmall,
@@ -657,11 +876,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: ScreenConstant.minimumIconSize,
-            color: iconColor ?? CustomColor.colorWhite,
-          ),
+          leading,
           SizedBox(width: ScreenConstant.sizeExtraSmall),
           Text(
             label,

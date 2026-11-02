@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -9,10 +11,11 @@ import '../../model/friend.dart';
 import 'member_network_image.dart';
 
 /// Friends tab (bottom nav index 2): "Friend Requests" first, then
-/// "My Friends". Each section is hidden when its list is empty; when both are
-/// empty the caller-supplied [emptyState] is shown (still pull-to-refresh).
+/// "My Friends", then "Sent Requests". Each section is collapsible (expanded
+/// by default) and hidden when its list is empty; when all three are empty
+/// the caller-supplied [emptyState] is shown (still pull-to-refresh).
 class FriendsTab extends StatelessWidget {
-  /// Shown when there are no requests and no friends.
+  /// Shown when there are no requests, no friends and no sent requests.
   final Widget emptyState;
 
   const FriendsTab({super.key, required this.emptyState});
@@ -26,11 +29,21 @@ class FriendsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final bool loading = controller.isLoading.value;
-      final List<FriendUser> requests = controller.friendRequests.toList();
-      final List<FriendUser> friends = controller.friends.toList();
+      final List<IncomingFriendRequest> requests =
+          controller.friendRequests.toList();
+      final List<Friendship> friends = controller.friends.toList();
+      final List<SentFriendRequest> sent =
+          controller.sentRequests.toList();
+      final int requestCount =
+          math.max(controller.incomingTotal.value, requests.length);
+      final int friendCount =
+          math.max(controller.friendsTotal.value, friends.length);
+      final int sentCount = math.max(controller.sentTotal.value, sent.length);
+      final bool allEmpty =
+          requests.isEmpty && friends.isEmpty && sent.isEmpty;
 
       // First load: same spinner as the Explore tab.
-      if (loading && requests.isEmpty && friends.isEmpty) {
+      if (loading && allEmpty) {
         return Center(
           child: CircularProgressIndicator(
             valueColor: const AlwaysStoppedAnimation<Color>(
@@ -40,7 +53,7 @@ class FriendsTab extends StatelessWidget {
         );
       }
 
-      if (requests.isEmpty && friends.isEmpty) {
+      if (allEmpty) {
         return _buildEmpty();
       }
 
@@ -71,34 +84,53 @@ class FriendsTab extends StatelessWidget {
               ),
               SizedBox(height: ScreenConstant.sizeMedium),
               if (requests.isNotEmpty) ...[
-                _sectionHeader(
-                  Icons.person_add_alt_1_outlined,
-                  "Friend Requests",
-                  requests.length,
-                ),
-                SizedBox(height: ScreenConstant.sizeSmall),
-                ...requests.map(
-                  (r) => Padding(
-                    padding: EdgeInsets.only(bottom: ScreenConstant.sizeSmall),
-                    child: _requestCard(r),
+                _section(
+                  icon: Icons.person_add_alt_1_outlined,
+                  title: "Friend Requests",
+                  count: requestCount,
+                  expanded: controller.requestsExpanded,
+                  cards: requests
+                      .map((r) => _requestCard(context, r))
+                      .toList(),
+                  footer: _loadMoreFooter(
+                    loading: controller.isLoadingMoreIncoming,
+                    hasMore: () => controller.hasMoreIncoming,
+                    onLoadMore: controller.loadMoreIncoming,
+                    semanticsLabel: "Load more friend requests",
                   ),
                 ),
                 SizedBox(height: ScreenConstant.sizeMedium),
               ],
               if (friends.isNotEmpty) ...[
-                _sectionHeader(
-                  Icons.people_outline,
-                  "My Friends",
-                  friends.length,
-                ),
-                SizedBox(height: ScreenConstant.sizeSmall),
-                ...friends.map(
-                  (f) => Padding(
-                    padding: EdgeInsets.only(bottom: ScreenConstant.sizeSmall),
-                    child: _friendCard(context, f),
+                _section(
+                  icon: Icons.people_outline,
+                  title: "My Friends",
+                  count: friendCount,
+                  expanded: controller.friendsExpanded,
+                  cards: friends.map((f) => _friendCard(context, f)).toList(),
+                  footer: _loadMoreFooter(
+                    loading: controller.isLoadingMoreFriends,
+                    hasMore: () => controller.hasMoreFriends,
+                    onLoadMore: controller.loadMoreFriends,
+                    semanticsLabel: "Load more friends",
                   ),
                 ),
+                SizedBox(height: ScreenConstant.sizeMedium),
               ],
+              if (sent.isNotEmpty)
+                _section(
+                  icon: Icons.send_outlined,
+                  title: "Sent Requests",
+                  count: sentCount,
+                  expanded: controller.sentExpanded,
+                  cards: sent.map((s) => _sentCard(context, s)).toList(),
+                  footer: _loadMoreFooter(
+                    loading: controller.isLoadingMoreSent,
+                    hasMore: () => controller.hasMoreSent,
+                    onLoadMore: controller.loadMoreSent,
+                    semanticsLabel: "Load more sent requests",
+                  ),
+                ),
             ],
           ),
         ),
@@ -155,18 +187,119 @@ class FriendsTab extends StatelessWidget {
     );
   }
 
-  /// Rose icon + bold title + gradient count pill.
-  Widget _sectionHeader(IconData icon, String title, int count) {
+  /// Collapsible section: tappable header (count pill stays visible) and an
+  /// animated list of [cards]. [expanded] lives on the controller so the
+  /// state survives tab switches.
+  Widget _section({
+    required IconData icon,
+    required String title,
+    required int count,
+    required RxBool expanded,
+    required List<Widget> cards,
+    Widget? footer,
+  }) {
+    return Obx(() {
+      final bool isExpanded = expanded.value;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(
+            icon,
+            title,
+            count,
+            expanded: isExpanded,
+            onToggle: expanded.toggle,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: ScreenConstant.sizeSmall),
+                      ...cards.map(
+                        (c) => Padding(
+                          padding: EdgeInsets.only(
+                            bottom: ScreenConstant.sizeSmall,
+                          ),
+                          child: c,
+                        ),
+                      ),
+                      ?footer,
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      );
+    });
+  }
+
+  /// Rose icon + bold title + gradient count pill + expand/collapse chevron.
+  /// The whole row is tappable.
+  Widget _sectionHeader(
+    IconData icon,
+    String title,
+    int count, {
+    required bool expanded,
+    required VoidCallback onToggle,
+  }) {
+    final String action = expanded ? "Collapse" : "Expand";
+    return Semantics(
+      button: true,
+      expanded: expanded,
+      label: "$title, $count. $action",
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: ScreenConstant.sizeExtraSmall,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _sectionTitleRow(icon, title, count)),
+                Tooltip(
+                  message: action,
+                  child: AnimatedRotation(
+                    turns: expanded ? 0 : -0.25,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      size: ScreenConstant.smallIconSize,
+                      color: CustomColor.color64748B,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitleRow(IconData icon, String title, int count) {
     return Row(
       children: [
         Icon(icon, size: ScreenConstant.smallIconSize,
             color: CustomColor.colorBE185D),
         SizedBox(width: ScreenConstant.sizeSmall),
-        Text(
-          title,
-          style: TextStyles.registerSectionTitle.copyWith(
-            fontSize: FontSize.s16,
-            color: CustomColor.color0F172A,
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyles.registerSectionTitle.copyWith(
+              fontSize: FontSize.s16,
+              color: CustomColor.color0F172A,
+            ),
           ),
         ),
         SizedBox(width: ScreenConstant.sizeSmall),
@@ -297,7 +430,8 @@ class FriendsTab extends StatelessWidget {
   // ---------------------------------------------------------------------------
   // Friend Requests
   // ---------------------------------------------------------------------------
-  Widget _requestCard(FriendUser user) {
+  Widget _requestCard(BuildContext context, IncomingFriendRequest req) {
+    final FriendUser user = req.user;
     return _card(
       child: Column(
         children: [
@@ -312,16 +446,32 @@ class FriendsTab extends StatelessWidget {
                       user.since == null ? null : _timeAgo(user.since!),
                 ),
               ),
+              Obx(() {
+                final bool busy =
+                    controller.busyRequestIds.contains(req.requestId);
+                final bool deleting =
+                    controller.deletingRequestIds.contains(req.requestId);
+                return _deleteRequestButton(context, req, busy, deleting);
+              }),
             ],
           ),
           SizedBox(height: ScreenConstant.sizeSmallHighest),
           Obx(() {
-            final bool busy = controller.busyRequestIds.contains(user.id);
+            final bool busy =
+                controller.busyRequestIds.contains(req.requestId);
+            // Spinner on whichever button was pressed; all disabled.
+            final bool declining =
+                controller.decliningRequestIds.contains(req.requestId);
+            final bool deleting =
+                controller.deletingRequestIds.contains(req.requestId);
             return Row(
               children: [
-                Expanded(child: _acceptButton(user, busy)),
+                Expanded(
+                    child: _acceptButton(req, busy,
+                        showSpinner: busy && !declining && !deleting)),
                 SizedBox(width: ScreenConstant.sizeSmall),
-                Expanded(child: _declineButton(user, busy)),
+                Expanded(
+                    child: _declineButton(req, busy, showSpinner: declining)),
               ],
             );
           }),
@@ -330,64 +480,175 @@ class FriendsTab extends StatelessWidget {
     );
   }
 
-  Widget _acceptButton(FriendUser user, bool busy) {
-    return GestureDetector(
-      onTap: busy ? null : () => controller.acceptRequest(user),
-      child: Container(
-        height: ScreenConstant.defaultHeightForty,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(100),
-          gradient: const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              CustomColor.colorBE185D,
-              CustomColor.color581C87,
-            ],
-          ),
-        ),
-        // Same loader as Login: white spinner inside the gradient pill.
-        child: busy
+  /// Trash icon: deletes the request without accepting or rejecting it
+  /// (confirm dialog first). Disabled while any action on the row is in
+  /// flight; rose spinner while the delete itself is running.
+  Widget _deleteRequestButton(BuildContext context, IncomingFriendRequest req,
+      bool busy, bool deleting) {
+    return Semantics(
+      button: true,
+      enabled: !busy,
+      label: deleting
+          ? "Deleting request from ${req.user.displayName}"
+          : "Delete request from ${req.user.displayName}",
+      excludeSemantics: true,
+      child: IconButton(
+        tooltip: "Delete request",
+        onPressed: busy ? null : () => _confirmDeleteRequest(context, req),
+        icon: deleting
             ? const SizedBox(
                 height: 18,
                 width: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.2,
                   valueColor:
-                      AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+                      AlwaysStoppedAnimation<Color>(CustomColor.colorE11D48),
                 ),
               )
-            : Text(
-                "Accept",
-                style: TextStyles.loginButtonText.copyWith(
-                  fontSize: FontSize.s14,
-                  color: CustomColor.colorWhite,
-                ),
+            : Icon(
+                Icons.delete_outline_outlined,
+                color: CustomColor.colorE11D48,
               ),
       ),
     );
   }
 
-  Widget _declineButton(FriendUser user, bool busy) {
-    return GestureDetector(
-      onTap: busy ? null : () => controller.declineRequest(user),
-      child: Opacity(
-        opacity: busy ? 0.5 : 1,
+  /// Same dialog look as the "Cancel request?" confirm.
+  void _confirmDeleteRequest(
+      BuildContext context, IncomingFriendRequest req) {
+    final FriendUser user = req.user;
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: CustomColor.colorWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            "Delete request?",
+            style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+          ),
+          content: Text(
+            "Delete the friend request from ${user.displayName}?",
+            style: TextStyles.loginWelcomeSubtitle,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                "Keep",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.color64748B,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                // Async; the trash icon shows a spinner via deletingRequestIds.
+                controller.deleteRequest(req);
+              },
+              child: Text(
+                "Delete",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.colorE11D48,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _acceptButton(IncomingFriendRequest req, bool busy,
+      {required bool showSpinner}) {
+    return Semantics(
+      button: true,
+      enabled: !busy,
+      label: "Accept request from ${req.user.displayName}",
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: busy ? null : () => controller.acceptRequest(req),
         child: Container(
           height: ScreenConstant.defaultHeightForty,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: CustomColor.colorWhite,
             borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: CustomColor.colorE2E8F0, width: 1.5),
-          ),
-          child: Text(
-            "Decline",
-            style: TextStyles.loginButtonText.copyWith(
-              fontSize: FontSize.s14,
-              color: CustomColor.color475569,
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                CustomColor.colorBE185D,
+                CustomColor.color581C87,
+              ],
             ),
+          ),
+          // Same loader as Login: white spinner inside the gradient pill.
+          child: showSpinner
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(CustomColor.colorWhite),
+                  ),
+                )
+              : Text(
+                  "Accept",
+                  style: TextStyles.loginButtonText.copyWith(
+                    fontSize: FontSize.s14,
+                    color: CustomColor.colorWhite,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// Grey spinner while declining (same as the Sent "Cancel" pill).
+  Widget _declineButton(IncomingFriendRequest req, bool busy,
+      {required bool showSpinner}) {
+    return Semantics(
+      button: true,
+      enabled: !busy,
+      label: "Decline request from ${req.user.displayName}",
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: busy ? null : () => controller.declineRequest(req),
+        child: Opacity(
+          opacity: busy ? 0.5 : 1,
+          child: Container(
+            height: ScreenConstant.defaultHeightForty,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: CustomColor.colorWhite,
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: CustomColor.colorE2E8F0, width: 1.5),
+            ),
+            child: showSpinner
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        CustomColor.color475569,
+                      ),
+                    ),
+                  )
+                : Text(
+                    "Decline",
+                    style: TextStyles.loginButtonText.copyWith(
+                      fontSize: FontSize.s14,
+                      color: CustomColor.color475569,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -397,7 +658,8 @@ class FriendsTab extends StatelessWidget {
   // ---------------------------------------------------------------------------
   // My Friends
   // ---------------------------------------------------------------------------
-  Widget _friendCard(BuildContext context, FriendUser user) {
+  Widget _friendCard(BuildContext context, Friendship f) {
+    final FriendUser user = f.user;
     return _card(
       child: Row(
         children: [
@@ -405,63 +667,108 @@ class FriendsTab extends StatelessWidget {
           SizedBox(width: ScreenConstant.sizeSmallHighest),
           Expanded(child: _nameBlock(user)),
           SizedBox(width: ScreenConstant.sizeExtraSmall),
-          Material(
-            color: CustomColor.colorFDF2F8,
-            shape: const CircleBorder(),
-            child: IconButton(
-              tooltip: "Chat",
-              onPressed: () => controller.openChat(user),
-              icon: Icon(
-                Icons.chat_bubble_outline,
-                size: ScreenConstant.smallIconSize,
-                color: CustomColor.colorBE185D,
-              ),
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: "More",
-            icon: Icon(
-              Icons.more_vert,
-              size: ScreenConstant.smallIconSize,
-              color: CustomColor.color64748B,
-            ),
-            color: CustomColor.colorWhite,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            onSelected: (value) {
-              if (value == 'remove') _confirmRemove(context, user);
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem<String>(
-                value: 'remove',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.person_remove_outlined,
-                      size: ScreenConstant.smallIconSize,
-                      color: CustomColor.colorE11D48,
-                    ),
-                    SizedBox(width: ScreenConstant.sizeSmall),
-                    Text(
-                      "Remove friend",
-                      style: TextStyles.loginWelcome.copyWith(
-                        fontSize: FontSize.s14,
-                        color: CustomColor.colorE11D48,
+          Obx(() {
+            // Removing (keyed by the friend's user id): chat disabled and a
+            // spinner replaces the "More" menu.
+            final bool busy = controller.busyFriendIds.contains(user.id);
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Opacity(
+                  opacity: busy ? 0.5 : 1,
+                  child: Material(
+                    color: CustomColor.colorFDF2F8,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: "Chat",
+                      onPressed:
+                          busy ? null : () => controller.openChat(user),
+                      icon: Icon(
+                        Icons.chat_bubble_outline,
+                        size: ScreenConstant.smallIconSize,
+                        color: CustomColor.colorBE185D,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+                busy ? _removingSpinner(user) : _friendMenu(context, f),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
+  /// Grey spinner (same as the Sent "Cancel" pill) sized like the "More"
+  /// button while the friend is being removed.
+  Widget _removingSpinner(FriendUser user) {
+    return Semantics(
+      label: "Removing ${user.displayName}",
+      excludeSemantics: true,
+      child: SizedBox(
+        width: ScreenConstant.defaultHeightForty,
+        height: ScreenConstant.defaultHeightForty,
+        child: const Center(
+          child: SizedBox(
+            height: 18,
+            width: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                CustomColor.color475569,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "More" menu with the "Remove friend" action (confirm dialog first).
+  Widget _friendMenu(BuildContext context, Friendship f) {
+    return PopupMenuButton<String>(
+      tooltip: "More",
+      icon: Icon(
+        Icons.more_vert,
+        size: ScreenConstant.smallIconSize,
+        color: CustomColor.color64748B,
+      ),
+      color: CustomColor.colorWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      onSelected: (value) {
+        if (value == 'remove') _confirmRemove(context, f);
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'remove',
+          child: Row(
+            children: [
+              Icon(
+                Icons.person_remove_outlined,
+                size: ScreenConstant.smallIconSize,
+                color: CustomColor.colorE11D48,
+              ),
+              SizedBox(width: ScreenConstant.sizeSmall),
+              Text(
+                "Remove friend",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.colorE11D48,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Same dialog look as the Accounts "Delete account?" confirm.
-  void _confirmRemove(BuildContext context, FriendUser user) {
+  void _confirmRemove(BuildContext context, Friendship f) {
+    final FriendUser user = f.user;
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -492,7 +799,8 @@ class FriendsTab extends StatelessWidget {
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext);
-                controller.removeFriend(user);
+                // Async; the row shows a spinner via busyFriendIds.
+                controller.removeFriend(f);
               },
               child: Text(
                 "Remove",
@@ -507,6 +815,179 @@ class FriendsTab extends StatelessWidget {
         );
       },
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sent Requests
+  // ---------------------------------------------------------------------------
+  Widget _sentCard(BuildContext context, SentFriendRequest req) {
+    final FriendUser user = req.user;
+    return _card(
+      child: Row(
+        children: [
+          _avatar(user),
+          SizedBox(width: ScreenConstant.sizeSmallHighest),
+          Expanded(
+            child: _nameBlock(
+              user,
+              trailingNote:
+                  user.since == null ? null : "Sent ${_timeAgo(user.since!)}",
+            ),
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          Obx(() {
+            final bool busy = controller.busySentIds.contains(req.requestId);
+            return SizedBox(
+              width: ScreenConstant.defaultWidthEighty,
+              child: _cancelButton(context, req, busy),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Outlined pill matching "Decline"; grey spinner while cancelling.
+  Widget _cancelButton(
+      BuildContext context, SentFriendRequest req, bool busy) {
+    final FriendUser user = req.user;
+    return Semantics(
+      button: true,
+      enabled: !busy,
+      label: "Cancel request to ${user.displayName}",
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: busy ? null : () => _confirmCancel(context, req),
+        child: Opacity(
+          opacity: busy ? 0.5 : 1,
+          child: Container(
+            height: ScreenConstant.defaultHeightForty,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: CustomColor.colorWhite,
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: CustomColor.colorE2E8F0, width: 1.5),
+            ),
+            child: busy
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        CustomColor.color475569,
+                      ),
+                    ),
+                  )
+                : Text(
+                    "Cancel",
+                    style: TextStyles.loginButtonText.copyWith(
+                      fontSize: FontSize.s14,
+                      color: CustomColor.color475569,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Same dialog look as the "Remove friend?" confirm.
+  void _confirmCancel(BuildContext context, SentFriendRequest req) {
+    final FriendUser user = req.user;
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: CustomColor.colorWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            "Cancel request to ${user.displayName}?",
+            style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+          ),
+          content: Text(
+            "${user.displayName} will no longer see your friend request.",
+            style: TextStyles.loginWelcomeSubtitle,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                "Keep",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.color64748B,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                controller.cancelSentRequest(req);
+              },
+              child: Text(
+                "Cancel request",
+                style: TextStyles.loginWelcome.copyWith(
+                  fontSize: FontSize.s14,
+                  color: CustomColor.colorE11D48,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// End of a paged section: spinner while the next page loads, "Load more"
+  /// while the server has more rows, otherwise nothing. [hasMore] is called
+  /// inside the Obx so its Rx reads are tracked.
+  Widget _loadMoreFooter({
+    required RxBool loading,
+    required bool Function() hasMore,
+    required VoidCallback onLoadMore,
+    required String semanticsLabel,
+  }) {
+    return Obx(() {
+      if (loading.value) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: ScreenConstant.sizeSmall),
+          child: const Center(
+            child: SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(CustomColor.colorBE185D),
+              ),
+            ),
+          ),
+        );
+      }
+      if (!hasMore()) return const SizedBox.shrink();
+      return Center(
+        child: Semantics(
+          button: true,
+          label: semanticsLabel,
+          excludeSemantics: true,
+          child: TextButton(
+            onPressed: onLoadMore,
+            child: Text(
+              "Load more",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.colorBE185D,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   // ---------------------------------------------------------------------------

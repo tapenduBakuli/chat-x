@@ -189,6 +189,11 @@ class Member {
   /// members the browse list shows.
   bool get isFriendshipNone => friendshipStatus == 'none';
 
+  /// True when the API reports this member as blocked. The users API has no
+  /// dedicated `is_blocked` field, so a "blocked" friendship_status is the
+  /// only server signal; otherwise members start unblocked.
+  bool get isBlocked => friendshipStatus == 'blocked';
+
   /// Non-empty photo URLs ordered by position. Falls back to the profile
   /// avatar, then the top-level avatar; empty when the member has none (the
   /// UI then shows its placeholder).

@@ -228,23 +228,16 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
           ],
         ),
         SizedBox(height: ScreenConstant.sizeSmall),
-        DragTarget<int>(
-          onWillAcceptWithDetails: (details) => details.data >= 0,
-          onAcceptWithDetails: (details) =>
-              controller.promoteGalleryPhotoToMain(details.data),
-          builder: (context, candidate, rejected) {
-            final bool hovering = candidate.isNotEmpty;
-            return GestureDetector(
+        // The main photo is not a drop target: it can only be changed by
+        // picking/uploading a new image (keeps the avatar API flow simple).
+        GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: controller.onAddPhotoTap,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
+              child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: hovering
-                        ? CustomColor.colorBE123C
-                        : Colors.transparent,
+                    color: Colors.transparent,
                     width: 2.5,
                   ),
                 ),
@@ -328,33 +321,31 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
                       ),
                     ),
                   ),
-                  Positioned(
-                    bottom: ScreenConstant.sizeSmall,
-                    left: ScreenConstant.sizeSmall,
-                    child: _overlayPill(
-                      icon: Icons.drag_handle,
-                      label: "Hold & Drag",
-                      bg: CustomColor.color0F172A.withOpacity(0.6),
-                      fg: CustomColor.colorWhite,
-                    ),
-                  ),
-                  Positioned(
-                    bottom: ScreenConstant.sizeSmall,
-                    right: ScreenConstant.sizeSmall,
-                    child: _overlayPill(
-                      icon: Icons.center_focus_strong,
-                      label: "Focus Mode",
-                      bg: CustomColor.colorWhite,
-                      fg: CustomColor.color0F172A,
-                    ),
-                  ),
+                  // Positioned(
+                  //   bottom: ScreenConstant.sizeSmall,
+                  //   left: ScreenConstant.sizeSmall,
+                  //   child: _overlayPill(
+                  //     icon: Icons.drag_handle,
+                  //     label: "Hold & Drag",
+                  //     bg: CustomColor.color0F172A.withOpacity(0.6),
+                  //     fg: CustomColor.colorWhite,
+                  //   ),
+                  // ),
+                  // Positioned(
+                  //   bottom: ScreenConstant.sizeSmall,
+                  //   right: ScreenConstant.sizeSmall,
+                  //   child: _overlayPill(
+                  //     icon: Icons.center_focus_strong,
+                  //     label: "Focus Mode",
+                  //     bg: CustomColor.colorWhite,
+                  //     fg: CustomColor.color0F172A,
+                  //   ),
+                  // ),
                       ],
                     ),
                   ),
                 ),
               ),
-            );
-          },
         ),
       ],
     );
@@ -504,8 +495,12 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
 
   Widget _galleryThumb(int index, File photo) {
     // DragTarget: dropping another thumbnail here reorders it to this slot.
+    // Only accepts valid gallery indices (the main photo is not draggable).
     return DragTarget<int>(
-      onWillAcceptWithDetails: (details) => details.data != index,
+      onWillAcceptWithDetails: (details) =>
+          details.data >= 0 &&
+          details.data < controller.galleryPhotos.length &&
+          details.data != index,
       onAcceptWithDetails: (details) =>
           controller.reorderGalleryPhoto(details.data, index),
       builder: (context, candidate, rejected) {

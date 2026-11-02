@@ -151,8 +151,8 @@ class RegisterController extends GetxController {
   final RxString avatarUrl = ''.obs;
 
   /// The local file last uploaded successfully via POST /users/me/avatar.
-  /// If the main photo (profileImage) is later a different file — swapped by
-  /// dragging a gallery photo onto it, or re-picked — the avatar has to be
+  /// If the main photo (profileImage) is later a different file (re-picked
+  /// via the photo picker), the avatar has to be
   /// uploaded again before the profile update. See [_syncAvatarIfChanged].
   String? _uploadedAvatarPath;
 
@@ -818,26 +818,6 @@ class RegisterController extends GetxController {
 
   void onReorderGallery() => debugPrint('Reorder gallery tapped');
 
-  /// Makes the gallery photo at [galleryIndex] the main profile photo. The
-  /// current main photo (if any) takes that photo's place in the gallery, so
-  /// dragging a gallery image onto the main frame swaps the two.
-  void promoteGalleryPhotoToMain(int galleryIndex) {
-    if (galleryIndex < 0 || galleryIndex >= galleryPhotos.length) return;
-
-    final File dragged = galleryPhotos[galleryIndex];
-    final File? currentMain = profileImage.value;
-
-    profileImage.value = dragged;
-
-    if (currentMain != null) {
-      // Swap: the old main photo drops into the dragged image's slot.
-      galleryPhotos[galleryIndex] = currentMain;
-    } else {
-      // No main photo yet: just move the dragged image out of the gallery.
-      galleryPhotos.removeAt(galleryIndex);
-    }
-  }
-
   /// Reorders the gallery, moving the item at [from] to index [to].
   void reorderGalleryPhoto(int from, int to) {
     if (from == to) return;
@@ -1045,8 +1025,7 @@ class RegisterController extends GetxController {
   }
 
   /// Re-uploads the main photo as the avatar if it differs from the file last
-  /// uploaded (e.g. the user dragged a gallery photo onto the main slot on
-  /// Profile Photos, or picked a new one). Also retries a register-time upload
+  /// uploaded (e.g. the user picked a new main photo). Also retries a register-time upload
   /// that failed. Returns false if an upload was needed and failed.
   Future<bool> _syncAvatarIfChanged() async {
     final File? current = profileImage.value;

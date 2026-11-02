@@ -10,6 +10,7 @@ import '../../../utils/custom_text_field.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
 import '../controller/home_controller.dart';
 import '../model/member.dart';
+import 'widgets/blocked_tab.dart';
 import 'widgets/friends_tab.dart';
 import 'widgets/member_network_image.dart';
 import 'widgets/reset_password_dialogs.dart';
@@ -1172,13 +1173,18 @@ class BrowseMembersScreen extends GetView<HomeController> {
   }
 
   Widget _buildBlockedTab() {
+    return BlockedTab(emptyState: _buildBlockedEmptyState());
+  }
+
+  /// Shown by [BlockedTab] when there are no blocked users.
+  Widget _buildBlockedEmptyState() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(Icons.block,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
-        Text("No blocked people.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
-        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        Text("No blocked users.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        Text("Members you block will appear here.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
         SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),

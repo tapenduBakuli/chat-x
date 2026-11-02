@@ -10,8 +10,11 @@ import '../../login/controller/login_controller.dart';
 import '../../login/services/login_services.dart';
 import '../../notification/services/notification_services.dart';
 import '../model/member.dart';
+import '../services/block_services.dart';
+import 'blocked_controller.dart';
 import '../services/friend_services.dart';
 import '../services/member_services.dart';
+import 'friends_controller.dart';
 
 /// The two ways the browse-members home renders its list.
 enum HomeViewMode { grid, deck }
@@ -82,7 +85,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Whether [m] may appear in the browse list (no friendship/request yet).
   bool _isBrowsable(Member m) =>
-      m.isFriendshipNone && !_requestedIds.contains(m.id);
+      m.isFriendshipNone && !_requestedIds.contains(m.id) && !isBlocked(m);
 
   bool get hasMore => _serverOffset < _total.value;
 
@@ -944,11 +947,27 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       // before the refetch lands, and stay hidden if a stale response races.
       _requestedIds.add(m.id);
       if (_removeLocally(m)) _hiddenByStatusIds.add(m.id);
+      // This creates a Friends > "Sent Requests" entry: refresh page 1 there.
+      // FriendsController is lazyPut, so skip it while only "prepared" — its
+      // own onInit loads fresh data when the tab first opens (Get.find would
+      // instantiate it and fetch twice). Not awaited: must not delay the pop.
+      if (Get.isRegistered<FriendsController>() &&
+          !Get.isPrepared<FriendsController>()) {
+        Get.find<FriendsController>().refreshSentRequests();
+      }
       await onRefresh();
       return true;
     } finally {
       sendingRequestIds.remove(m.id);
     }
+  }
+
+  /// Called by FriendsController after a sent request is cancelled: forget
+  /// the session-sticky hide so the member can reappear in Browse, then
+  /// refetch page 1 (fire-and-forget).
+  void onSentRequestCancelled(String userId) {
+    if (userId.isNotEmpty) _requestedIds.remove(userId);
+    onRefresh();
   }
 
   /// Connect from the detail screen: send the request and, on success, pop
@@ -957,11 +976,94 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// behaviour), so pop the detail route via the navigator instead. No-op if
   /// the user already left the detail screen.
   Future<void> onConnect(Member m) async {
-    if (sendingRequestIds.contains(m.id)) return;
+    if (sendingRequestIds.contains(m.id) || isBlocked(m)) return;
     final ok = await sendFriendRequest(m);
     if (ok) {
       Get.until((route) => route.settings.name != Routes.MEMBER_DETAIL);
     }
+  }
+
+  // --- Block / unblock -------------------------------------------------------
+
+  /// Block state changed during this session, keyed by user id (true =
+  /// blocked, false = unblocked). Overrides the server-reported
+  /// [Member.isBlocked], so it survives refetches and a server "blocked" can
+  /// be cleared by an unblock. Reactive so the detail screen's [Obx]s rebuild.
+  final RxMap<String, bool> blockStates = <String, bool>{}.obs;
+
+  /// Ids whose block/unblock call is in flight (pill spinner, ignores taps).
+  final RxSet<String> blockingUserIds = <String>{}.obs;
+
+  /// Whether [m] is currently blocked (session override, else the API value).
+  bool isBlocked(Member m) => blockStates[m.id] ?? m.isBlocked;
+
+  bool isBlockBusy(String memberId) => blockingUserIds.contains(memberId);
+
+  /// POST users/{id}/block. On success: marks [m] blocked (the detail screen
+  /// stays open and shows the blocked state), snackbar, and removes [m] from
+  /// the Browse grid/deck locally (no refetch). On failure: error snackbar,
+  /// state unchanged.
+  Future<void> blockMember(Member m) async {
+    if (m.id.isEmpty || blockingUserIds.contains(m.id)) return;
+    blockingUserIds.add(m.id);
+    try {
+      final res = await BlockService.instance.blockUser(m.id);
+      if (!res.success) {
+        Get.snackbar('Could not block', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      blockStates[m.id] = true;
+      Get.snackbar(
+        'Blocked',
+        res.message.isNotEmpty ? res.message : '${m.displayName} blocked',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      // Hidden like a status-filtered row so onlineCount stays consistent.
+      if (_removeLocally(m)) _hiddenByStatusIds.add(m.id);
+      // Keep the Blocked tab current. Skip while only "prepared" — its own
+      // onInit loads fresh data when the tab first opens. Not awaited.
+      if (Get.isRegistered<BlockedController>() &&
+          !Get.isPrepared<BlockedController>()) {
+        Get.find<BlockedController>().refreshBlocked(showError: false);
+      }
+    } finally {
+      blockingUserIds.remove(m.id);
+    }
+  }
+
+  /// DELETE users/{id}/block. On success: marks [m] unblocked, snackbar, and
+  /// refetches page 1 (fire-and-forget) so [m] may reappear in Browse. On
+  /// failure: error snackbar, stays blocked.
+  Future<void> unblockMember(Member m) async {
+    if (m.id.isEmpty || blockingUserIds.contains(m.id)) return;
+    blockingUserIds.add(m.id);
+    try {
+      final res = await BlockService.instance.unblockUser(m.id);
+      if (!res.success) {
+        Get.snackbar('Could not unblock', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      blockStates[m.id] = false;
+      Get.snackbar(
+        'Unblocked',
+        res.message.isNotEmpty ? res.message : '${m.displayName} unblocked',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      onRefresh();
+    } finally {
+      blockingUserIds.remove(m.id);
+    }
+  }
+
+  /// Called by BlockedController after an unblock from the Blocked tab: mark
+  /// the user unblocked for this session (overrides any stale server
+  /// "blocked") and refetch page 1 (fire-and-forget) so they may reappear in
+  /// Browse.
+  void onUserUnblocked(String userId) {
+    if (userId.isNotEmpty) blockStates[userId] = false;
+    onRefresh();
   }
 
   /// Pass from the detail screen: remove [m] locally, then pop back to Browse

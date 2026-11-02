@@ -320,28 +320,19 @@ class EditProfileScreen extends GetView<RegisterController> {
           ],
         ),
         SizedBox(height: ScreenConstant.sizeSmall),
-        // Drop a gallery thumbnail here to make it the main photo (swaps with
-        // the current main photo) — same behavior as Profile Photos.
-        DragTarget<int>(
-          onWillAcceptWithDetails: (details) => details.data >= 0,
-          onAcceptWithDetails: (details) =>
-              controller.promoteGalleryPhotoToMain(details.data),
-          builder: (context, candidate, rejected) {
-            final bool hovering = candidate.isNotEmpty;
-            return GestureDetector(
+        // The main photo is not a drop target: it can only be changed by
+        // picking/uploading a new image (keeps the avatar API flow simple).
+        GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: controller.onAddPhotoTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          child: Container(
             height: 260,
             width: double.infinity,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: hovering
-                    ? CustomColor.colorBE123C
-                    : CustomColor.colorE2E8F0,
-                width: hovering ? 2.5 : 1.5,
+                color: CustomColor.colorE2E8F0,
+                width: 1.5,
               ),
             ),
             child: ClipRRect(
@@ -416,8 +407,6 @@ class EditProfileScreen extends GetView<RegisterController> {
               ),
             ),
           ),
-        );
-          },
         ),
       ],
     );
@@ -482,7 +471,7 @@ class EditProfileScreen extends GetView<RegisterController> {
             SizedBox(width: ScreenConstant.sizeExtraSmall),
             Expanded(
               child: Text(
-                "Hold & drag to reorder, or drop onto the main photo.",
+                "Long-press and drag to reorder",
                 style: TextStyles.registerFieldNote,
               ),
             ),
@@ -556,10 +545,14 @@ class EditProfileScreen extends GetView<RegisterController> {
   }
 
   /// Long-press to pick up a thumbnail; drop it on another thumbnail to
-  /// reorder, or on the main photo to promote it (same as Profile Photos).
+  /// reorder. Drag & drop stays inside the gallery: the main photo is neither
+  /// a drop target nor draggable. Only valid gallery indices are accepted.
   Widget _galleryThumb(int index, File file) {
     return DragTarget<int>(
-      onWillAcceptWithDetails: (details) => details.data != index,
+      onWillAcceptWithDetails: (details) =>
+          details.data >= 0 &&
+          details.data < controller.galleryPhotos.length &&
+          details.data != index,
       onAcceptWithDetails: (details) =>
           controller.reorderGalleryPhoto(details.data, index),
       builder: (context, candidate, rejected) {
