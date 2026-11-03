@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import 'Store/HiveStore.dart';
 
@@ -123,12 +124,14 @@ class BaseClient {
   // MULTIPART POST (file upload)
   /// Uploads [file] as a multipart/form-data field named [fieldName] to [path].
   /// Attaches the bearer token (resolved at call time) unless [isAuth] is true.
-  /// Returns the raw [http.Response] like [post].
+  /// Returns the raw [http.Response] like [post]. [contentType] sets the
+  /// part's media type (null keeps http's default, as the avatar upload uses).
   Future<http.Response> postMultipart(
     String path,
     File file, {
     String fieldName = 'file',
     bool isAuth = false,
+    MediaType? contentType,
   }) async {
     try {
       await _ensureConnected(path);
@@ -136,7 +139,11 @@ class BaseClient {
       if (!isAuth) {
         request.headers['Authorization'] = "Bearer ${_authToken ?? ''}";
       }
-      request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
+      request.files.add(await http.MultipartFile.fromPath(
+        fieldName,
+        file.path,
+        contentType: contentType,
+      ));
 
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);

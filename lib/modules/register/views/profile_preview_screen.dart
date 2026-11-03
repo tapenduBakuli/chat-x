@@ -1,6 +1,4 @@
 import 'package:chat_x/device_manager/screen_constants.dart';
-import 'dart:io';
-
 import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/image_utils/image_utils.dart';
+import '../../home/views/widgets/member_network_image.dart';
 
 /// Read-only aggregation of everything the member picked across the earlier
 /// register steps. It only READS existing [RegisterController] fields; it adds
@@ -178,7 +177,7 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
             // photo first, then vault gallery), or a neutral placeholder.
             Positioned.fill(
               child: Obx(() {
-                final List<File> photos = controller.previewPhotos;
+                final photos = controller.previewPhotos;
                 if (photos.isEmpty) {
                   return _heroPlaceholder();
                 }
@@ -186,12 +185,19 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
                   controller: controller.heroPageController,
                   onPageChanged: controller.onHeroPageChanged,
                   itemCount: photos.length,
-                  itemBuilder: (context, index) => Image.file(
-                    photos[index],
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
+                  itemBuilder: (context, index) {
+                    // Local main photo (this session) or a server URL
+                    // (avatar / gallery).
+                    final p = photos[index];
+                    return p.file != null
+                        ? Image.file(
+                            p.file!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          )
+                        : MemberNetworkImage(url: p.url);
+                  },
                 );
               }),
             ),

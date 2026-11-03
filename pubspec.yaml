@@ -39,6 +39,8 @@ dependencies:
   hive: ^2.2.3
   sizing:
   http:
+  #Multipart content-type (MediaType)
+  http_parser: 4.1.2
   google_fonts:
   url_launcher: ^6.2.5
   #For camera

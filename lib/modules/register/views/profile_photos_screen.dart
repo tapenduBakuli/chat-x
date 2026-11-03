@@ -8,6 +8,8 @@ import 'package:get/get.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/image_utils/image_utils.dart';
+import '../../home/views/widgets/member_network_image.dart';
+import '../model/gallery_photo_model.dart';
 
 class ProfilePhotosScreen extends GetView<RegisterController> {
   const ProfilePhotosScreen({super.key});
@@ -259,6 +261,12 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
                           height: double.infinity,
                         );
                       }
+                      // No local pick this session: server avatar URL
+                      // (register / avatar-upload response).
+                      final String url = controller.mainPhotoUrl;
+                      if (url.isNotEmpty) {
+                        return MemberNetworkImage(url: url);
+                      }
                       return Container(
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
@@ -415,7 +423,7 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
           ),
           child: Obx(
             () => Text(
-              "${controller.galleryPhotos.length} / 15",
+              "${controller.galleryTotalCount} / ${RegisterController.kMaxGalleryPhotos}",
               style: TextStyles.policiesBadgeText.copyWith(
                 color: CustomColor.colorBE123C,
               ),
@@ -430,15 +438,32 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
   // (4) Gallery grid
   // ---------------------------------------------------------------------------
   Widget _buildGallery() {
+    // GetBuilder only provides the screen-entry hook (LIST on open).
+    // autoRemove: false — the controller is owned by the route binding.
+    return GetBuilder<RegisterController>(
+      autoRemove: false,
+      initState: (_) => Future.microtask(controller.onGalleryScreenEnter),
+      builder: (_) => _buildGalleryContent(),
+    );
+  }
+
+  Widget _buildGalleryContent() {
     return Obx(() {
-      final List<File> photos = controller.galleryPhotos;
-      final int count = photos.length;
-      const int maxSlots = 15;
+      final List<GalleryPhoto> photos = controller.galleryPhotos.toList();
+      final List<PendingGalleryUpload> pending =
+          controller.pendingGalleryUploads.toList();
+      final Set<String> busy = controller.busyGalleryPhotoIds.toSet();
+      final bool loading = controller.isGalleryLoading.value;
+      final int count = photos.length + pending.length;
+      const int maxSlots = RegisterController.kMaxGalleryPhotos;
 
       final List<Widget> tiles = [];
-      // Existing photos.
-      for (int i = 0; i < count; i++) {
-        tiles.add(_galleryThumb(i, photos[i]));
+      // Server photos (position 1..n), then uploads still in flight.
+      for (int i = 0; i < photos.length; i++) {
+        tiles.add(_galleryThumb(i, photos[i], busy.contains(photos[i].id)));
+      }
+      for (final p in pending) {
+        tiles.add(_pendingThumb(p));
       }
 
       if (count < maxSlots) {
@@ -464,15 +489,23 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: ScreenConstant.sizeSmall,
-            crossAxisSpacing: ScreenConstant.sizeSmall,
-            childAspectRatio: 1,
-            children: tiles,
-          ),
+          // First load: spinner instead of an empty grid.
+          if (loading && photos.isEmpty)
+            SizedBox(
+              height: ScreenConstant.defaultSizeOneTen,
+              width: double.infinity,
+              child: Center(child: _roseSpinner()),
+            )
+          else
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: ScreenConstant.sizeSmall,
+              crossAxisSpacing: ScreenConstant.sizeSmall,
+              childAspectRatio: 1,
+              children: tiles,
+            ),
           SizedBox(height: ScreenConstant.sizeSmall),
           Row(
             children: [
@@ -493,11 +526,13 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
     });
   }
 
-  Widget _galleryThumb(int index, File photo) {
+  Widget _galleryThumb(int index, GalleryPhoto photo, bool busy) {
     // DragTarget: dropping another thumbnail here reorders it to this slot.
-    // Only accepts valid gallery indices (the main photo is not draggable).
+    // Only accepts valid gallery indices (the main photo is not draggable);
+    // tiles with a DELETE in flight neither accept nor start drags.
     return DragTarget<int>(
       onWillAcceptWithDetails: (details) =>
+          !busy &&
           details.data >= 0 &&
           details.data < controller.galleryPhotos.length &&
           details.data != index,
@@ -509,17 +544,52 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
         // the scroll view). Payload is the gallery index.
         return LongPressDraggable<int>(
           data: index,
+          maxSimultaneousDrags: busy ? 0 : 1,
           dragAnchorStrategy: pointerDragAnchorStrategy,
           feedback: _thumbFeedback(photo),
           childWhenDragging: _thumbPlaceholder(),
-          child: _thumbContent(index, photo, highlight: hovering),
+          child: _thumbContent(index, photo, highlight: hovering, busy: busy),
         );
       },
     );
   }
 
+  Widget _roseSpinner() {
+    return SizedBox(
+      width: ScreenConstant.smallIconSize,
+      height: ScreenConstant.smallIconSize,
+      child: const CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation<Color>(CustomColor.colorBE185D),
+      ),
+    );
+  }
+
+  /// Upload in flight: local preview dimmed under a spinner (no drag/remove).
+  Widget _pendingThumb(PendingGalleryUpload pending) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(pending.file, fit: BoxFit.cover),
+          Container(
+            color: CustomColor.colorWhite.withOpacity(0.6),
+            alignment: Alignment.center,
+            child: _roseSpinner(),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// The visible thumbnail (image + #index badge + remove button).
-  Widget _thumbContent(int index, File photo, {bool highlight = false}) {
+  Widget _thumbContent(
+    int index,
+    GalleryPhoto photo, {
+    bool highlight = false,
+    bool busy = false,
+  }) {
     return Stack(
       children: [
         Positioned.fill(
@@ -536,10 +606,21 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(photo, fit: BoxFit.cover),
+              child: MemberNetworkImage(url: photo.url),
             ),
           ),
         ),
+        if (busy)
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                color: CustomColor.colorWhite.withOpacity(0.6),
+                alignment: Alignment.center,
+                child: _roseSpinner(),
+              ),
+            ),
+          ),
         Positioned(
           top: ScreenConstant.sizeExtraSmall,
           left: ScreenConstant.sizeExtraSmall,
@@ -560,12 +641,13 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
             ),
           ),
         ),
+        if (!busy)
         Positioned(
           top: ScreenConstant.sizeExtraSmall,
           right: ScreenConstant.sizeExtraSmall,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => controller.removeGalleryPhoto(index),
+            onTap: () => controller.confirmRemoveGalleryPhoto(photo),
             child: Container(
               height: 22,
               width: 22,
@@ -586,7 +668,7 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
   }
 
   /// Floating preview shown under the finger while dragging a thumbnail.
-  Widget _thumbFeedback(File photo) {
+  Widget _thumbFeedback(GalleryPhoto photo) {
     final double side = ScreenConstant.defaultSizeOneTen;
     return Material(
       color: Colors.transparent,
@@ -607,7 +689,7 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.file(photo, fit: BoxFit.cover),
+            child: MemberNetworkImage(url: photo.url),
           ),
         ),
       ),
@@ -700,7 +782,7 @@ class ProfilePhotosScreen extends GetView<RegisterController> {
             ),
             SizedBox(height: ScreenConstant.sizeExtraSmall / 2),
             Text(
-              "up to 15 slots",
+              "up to ${RegisterController.kMaxGalleryPhotos} slots",
               style: TextStyles.registerFieldNote,
             ),
           ],

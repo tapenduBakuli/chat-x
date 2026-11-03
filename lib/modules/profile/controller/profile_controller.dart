@@ -197,8 +197,12 @@ class ProfileController extends GetxController {
     currentPhotoIndex.value = index;
   }
 
-  void onEditProfile() {
-    Get.toNamed(Routes.EDIT_PROFILE);
+  /// Opens Edit Profile and, once the user comes back (Save & Continue or
+  /// back), re-fetches GET /users/me so the hero card shows the latest
+  /// avatar/gallery photos without leaving and re-entering Profile.
+  Future<void> onEditProfile() async {
+    await Get.toNamed(Routes.EDIT_PROFILE);
+    await fetchProfile();
   }
 
   void onBack() {

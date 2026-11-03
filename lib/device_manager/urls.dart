@@ -18,6 +18,16 @@ class Urls {
   // --- Users ---------------------------------------------------------------
   static const String savePaymentMethod = "${apiBase}users/me/payment-method";
   static const String uploadAvatar = "${apiBase}users/me/avatar";
+
+  /// GET — lists my gallery photos; POST (multipart, field `file`) — uploads
+  /// one gallery photo.
+  static const String myPhotos = "${apiBase}users/me/photos";
+
+  /// DELETE — removes one gallery photo: users/me/photos/{photo_id}
+  static String myPhotoById(String photoId) => "$myPhotos/$photoId";
+
+  /// PUT — reorders my gallery; body {"photo_ids": [...]} in new order.
+  static const String reorderMyPhotos = "$myPhotos/reorder";
   // --- Notifications -------------------------------------------------------
   /// GET — paginated list; query: unread_only, limit, offset.
   static const String notifications = "${apiBase}notifications";

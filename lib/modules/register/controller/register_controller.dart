@@ -8,12 +8,15 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../device_manager/screen_constants.dart';
+import '../../../device_manager/urls.dart';
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../login/model/login_response_model.dart';
+import '../model/gallery_photo_model.dart';
 import '../model/payment_method_response_model.dart';
+import '../services/gallery_photo_services.dart';
 import '../services/payment_services.dart';
 import '../services/profile_services.dart';
 import '../services/register_services.dart';
@@ -113,7 +116,7 @@ class RegisterController extends GetxController {
   }
 
   /// Selected payment method/provider.
-  final Rx<PaymentMethod> selectedMethod = PaymentMethod.bancontact.obs;
+  final Rx<PaymentMethod> selectedMethod = PaymentMethod.creditCard.obs;
 
   /// Mandate authorization toggle.
   final RxBool mandateAuthorized = true.obs;
@@ -357,15 +360,57 @@ class RegisterController extends GetxController {
   /// The profile photo selected from the camera or gallery (null until picked).
   final Rx<File?> profileImage = Rx<File?>(null);
 
-  /// Personal vault gallery photos (capped at 15).
-  final RxList<File> galleryPhotos = <File>[].obs;
+  /// Max gallery tiles shown/allowed in the UI (includes pending uploads).
+  static const int kMaxGalleryPhotos = 15;
+
+  /// Server-backed gallery (GET users/me/photos): positions >= 1, ascending.
+  /// Never holds the main avatar (position 0 is dropped when parsing).
+  final RxList<GalleryPhoto> galleryPhotos = <GalleryPhoto>[].obs;
+
+  /// Locally picked gallery photos whose upload is still in flight.
+  final RxList<PendingGalleryUpload> pendingGalleryUploads =
+      <PendingGalleryUpload>[].obs;
+
+  /// Gallery photo ids with a DELETE in flight (per-tile spinner).
+  final RxSet<String> busyGalleryPhotoIds = <String>{}.obs;
+
+  /// Whether a gallery LIST request with loader is in flight.
+  final RxBool isGalleryLoading = false.obs;
+
+  /// Incremented per LIST request so stale responses are discarded.
+  int _galleryListToken = 0;
+
+  /// Reorder single-flight guard: only one PUT at a time; drags that happen
+  /// meanwhile set [_reorderQueued] so the latest order is sent afterwards.
+  bool _reorderInFlight = false;
+  bool _reorderQueued = false;
+
+  /// Gallery tiles in use (server photos + pending uploads).
+  int get galleryTotalCount =>
+      galleryPhotos.length + pendingGalleryUploads.length;
+
+  /// Absolute URL of the server avatar ([avatarUrl] may be a relative
+  /// "/uploads/..." path); '' when unknown. Reactive inside Obx.
+  String get mainPhotoUrl {
+    final String url = avatarUrl.value.trim();
+    if (url.isEmpty) return '';
+    return url.startsWith('/') ? '${Urls.baseUrl}$url' : url;
+  }
 
   /// Ordered photos shown in the Profile Preview hero carousel: the main
-  /// profile photo first (if set), followed by the vault gallery photos.
-  List<File> get previewPhotos => <File>[
-        if (profileImage.value != null) profileImage.value!,
-        ...galleryPhotos,
-      ];
+  /// photo first (local file this session, else the server avatar URL),
+  /// followed by the server gallery photos. Pending uploads are excluded.
+  List<({File? file, String url})> get previewPhotos {
+    final File? local = profileImage.value;
+    final String mainUrl = mainPhotoUrl;
+    return <({File? file, String url})>[
+      if (local != null)
+        (file: local, url: '')
+      else if (mainUrl.isNotEmpty)
+        (file: null, url: mainUrl),
+      ...galleryPhotos.map((p) => (file: null, url: p.url)),
+    ];
+  }
 
   /// Current page of the Profile Preview hero carousel (drives the dashes and
   /// the "x / N" counter).
@@ -567,6 +612,12 @@ class RegisterController extends GetxController {
       if (result.isSuccess) {
         _onRegisterSuccess(result.response!);
 
+        // Server avatar from the register response (shown as the main photo
+        // when no local file is set). The avatar upload below overwrites it.
+        final String regAvatar =
+            result.response!.data?.user?.avatar_url ?? '';
+        if (regAvatar.isNotEmpty) avatarUrl.value = regAvatar;
+
         // Capture the register values used later by PUT /users/me, since
         // clearCreateAccountForm() wipes the form right after navigation.
         registeredDisplayName.value = displayName;
@@ -665,7 +716,12 @@ class RegisterController extends GetxController {
     await _pickImage(source);
   }
 
-  Future<ImageSource?> _showPhotoSourceSheet() {
+  /// [allowRemove] shows "Remove photo" (clears the MAIN photo) — gallery
+  /// callers pass false so the gallery flow can never clear the avatar.
+  Future<ImageSource?> _showPhotoSourceSheet({
+    String title = "Add Profile Photo",
+    bool allowRemove = true,
+  }) {
     return Get.bottomSheet<ImageSource>(
       SafeArea(
         child: Container(
@@ -692,7 +748,7 @@ class RegisterController extends GetxController {
                   ),
                 ),
               ),
-              Text("Add Profile Photo", style: TextStyles.registerFieldLabel),
+              Text(title, style: TextStyles.registerFieldLabel),
               SizedBox(height: ScreenConstant.sizeMedium),
               _photoSourceTile(
                 icon: Icons.photo_camera_outlined,
@@ -705,7 +761,7 @@ class RegisterController extends GetxController {
                 label: "Choose from gallery",
                 onTap: () => Get.back(result: ImageSource.gallery),
               ),
-              if (profileImage.value != null) ...[
+              if (allowRemove && profileImage.value != null) ...[
                 SizedBox(height: ScreenConstant.sizeSmall),
                 _photoSourceTile(
                   icon: Icons.delete_outline,
@@ -791,41 +847,213 @@ class RegisterController extends GetxController {
     }
   }
 
-  /// Opens the same Camera/Gallery chooser as [onAddPhotoTap] and appends the
-  /// picked photo to [galleryPhotos], up to a cap of 15.
+  // --- Gallery (server-backed: users/me/photos) ---------------------------
+  // The gallery APIs never feed or change the main avatar.
+
+  /// Profile Photos screen entry: load the gallery (with loader).
+  Future<void> onGalleryScreenEnter() => fetchGalleryPhotos(showLoader: true);
+
+  /// Edit Profile screen entry: load the gallery and resolve the server
+  /// avatar for the main photo (Hive login avatar first for an instant
+  /// image, then GET /users/me). Avatar lookup failures are silent.
+  Future<void> onEditProfileEnter() async {
+    final String saved = _store.getString(Keys.SAVEDAVATAR) ?? '';
+    if (saved.isNotEmpty && avatarUrl.value.isEmpty) avatarUrl.value = saved;
+
+    // Runs in parallel with the profile request below.
+    fetchGalleryPhotos(showLoader: true);
+
+    final res = await ProfileService.instance.getMyProfile();
+    if (!res.success || res.data == null) return;
+    final String profileAvatar = res.data!.profile?.avatarUrl ?? '';
+    final String url =
+        profileAvatar.isNotEmpty ? profileAvatar : res.data!.avatarUrl;
+    if (url.isNotEmpty) avatarUrl.value = url;
+  }
+
+  /// GET users/me/photos → [galleryPhotos]. Stale responses (a newer LIST
+  /// started meanwhile) are dropped; on failure the current list is kept.
+  Future<void> fetchGalleryPhotos({bool showLoader = false}) async {
+    final int token = ++_galleryListToken;
+    if (showLoader) isGalleryLoading.value = true;
+    try {
+      final res = await GalleryPhotoService.instance.fetchPhotos();
+      if (token != _galleryListToken) return;
+      if (res.success) {
+        galleryPhotos.assignAll(res.photos.take(kMaxGalleryPhotos));
+      } else {
+        Get.snackbar(
+          'Could not load photos',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      if (token == _galleryListToken) isGalleryLoading.value = false;
+    }
+  }
+
+  /// Opens the Camera/Gallery chooser and uploads the picked photo to the
+  /// gallery right away (up to [kMaxGalleryPhotos] tiles incl. pending).
   Future<void> onAddGalleryPhoto() async {
-    if (galleryPhotos.length >= 15) {
+    if (galleryTotalCount >= kMaxGalleryPhotos) {
       Get.snackbar(
         'Limit reached',
-        'You can add up to 15 photos.',
+        'You can add up to $kMaxGalleryPhotos photos.',
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
-    final source = await _showPhotoSourceSheet();
+    final source = await _showPhotoSourceSheet(
+      title: "Add Gallery Photo",
+      allowRemove: false,
+    );
     if (source == null) return;
     final File? file = await _pickImageFile(source);
     if (file != null) {
-      galleryPhotos.add(file);
+      await _uploadGalleryPhoto(file);
     }
   }
 
-  void removeGalleryPhoto(int index) {
-    if (index >= 0 && index < galleryPhotos.length) {
-      galleryPhotos.removeAt(index);
+  /// POST users/me/photos with a pending tile while in flight, then LIST.
+  Future<void> _uploadGalleryPhoto(File file) async {
+    final pending = PendingGalleryUpload(file);
+    pendingGalleryUploads.add(pending);
+    try {
+      final res = await GalleryPhotoService.instance.uploadPhoto(file);
+      if (res.success) {
+        Get.snackbar(
+          'Photo uploaded',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        await fetchGalleryPhotos();
+      } else {
+        Get.snackbar(
+          'Photo not uploaded',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      pendingGalleryUploads.remove(pending);
+    }
+  }
+
+  /// Close (x) on a gallery tile: confirm, then DELETE + LIST.
+  void confirmRemoveGalleryPhoto(GalleryPhoto photo) {
+    if (busyGalleryPhotoIds.contains(photo.id)) return;
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: CustomColor.colorWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          "Remove photo?",
+          style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+        ),
+        content: Text(
+          "This photo will be removed from your gallery.",
+          style: TextStyles.loginWelcomeSubtitle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              "Cancel",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              _deleteGalleryPhoto(photo);
+            },
+            child: Text(
+              "Remove",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.colorBE123C,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// DELETE users/me/photos/{id} (success by status code only), then LIST.
+  /// On failure the tile stays.
+  Future<void> _deleteGalleryPhoto(GalleryPhoto photo) async {
+    busyGalleryPhotoIds.add(photo.id);
+    try {
+      final res = await GalleryPhotoService.instance.deletePhoto(photo.id);
+      if (res.success) {
+        await fetchGalleryPhotos();
+      } else {
+        Get.snackbar(
+          'Could not remove photo',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      busyGalleryPhotoIds.remove(photo.id);
     }
   }
 
   void onReorderGallery() => debugPrint('Reorder gallery tapped');
 
-  /// Reorders the gallery, moving the item at [from] to index [to].
+  /// Drag-drop within the gallery: moves [from] to [to] optimistically, then
+  /// syncs the new order to the server (see [_syncGalleryOrder]).
   void reorderGalleryPhoto(int from, int to) {
     if (from == to) return;
     if (from < 0 || from >= galleryPhotos.length) return;
     if (to < 0 || to >= galleryPhotos.length) return;
+    if (busyGalleryPhotoIds.contains(galleryPhotos[from].id) ||
+        busyGalleryPhotoIds.contains(galleryPhotos[to].id)) {
+      return;
+    }
 
-    final File moved = galleryPhotos.removeAt(from);
+    final GalleryPhoto moved = galleryPhotos.removeAt(from);
     galleryPhotos.insert(to, moved);
+    _syncGalleryOrder();
+  }
+
+  /// PUT users/me/photos/reorder, single-flight. Drags during an in-flight
+  /// call are coalesced: the latest order is sent once it finishes. Ends with
+  /// a LIST either way (sync on success, revert on failure).
+  Future<void> _syncGalleryOrder() async {
+    if (_reorderInFlight) {
+      _reorderQueued = true;
+      return;
+    }
+    _reorderInFlight = true;
+    try {
+      while (true) {
+        _reorderQueued = false;
+        final res = await GalleryPhotoService.instance
+            .reorderPhotos(galleryPhotos.toList());
+        if (!res.success) {
+          _reorderQueued = false;
+          Get.snackbar(
+            'Could not reorder photos',
+            res.message,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          break;
+        }
+        if (!_reorderQueued) break;
+      }
+    } finally {
+      _reorderInFlight = false;
+    }
+    await fetchGalleryPhotos();
   }
 
   void onMainPhotoMenu() => debugPrint('Main photo menu tapped');
@@ -1018,9 +1246,10 @@ class RegisterController extends GetxController {
       'personal_and_safety_information': personalSafetyInfo.value,
       'has_std_or_sti': stiStatus.value,
       'preference_visibility_mode': visibilityMode.value,
-      // TODO: upload gallery photos and send their URLs here once a
-      // gallery-upload API exists (galleryPhotos are local Files only).
-      'photos': <String>[],
+      // `photos` is deliberately omitted: the gallery is managed by the
+      // users/me/photos endpoints (upload/delete/reorder), and GET /users/me
+      // returns profile.photos in the same {id,url,position} shape, so a
+      // `photos: []` here could replace/wipe the gallery just uploaded.
     };
   }
 
@@ -1093,7 +1322,8 @@ class RegisterController extends GetxController {
       'interests: ${interests.length}, '
       'gallery: ${galleryPhotos.length}',
     );
-    Get.offAllNamed(Routes.LOGIN);
+
+    Get.back();
   }
 
   void onMoreInfoTap() {
@@ -1101,7 +1331,7 @@ class RegisterController extends GetxController {
   }
 
   void onLoginTap() {
-    Get.back();
+    Get.offAllNamed(Routes.LOGIN);
   }
 
   void onBack() {

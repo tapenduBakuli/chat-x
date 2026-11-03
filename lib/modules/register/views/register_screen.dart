@@ -81,8 +81,8 @@ class RegisterScreen extends GetView<RegisterController> {
                     // _buildBankingCard(),
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildCountryField(context),
-                    SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                    _buildPromoField(),
+                    // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                    // _buildPromoField(),
                     SizedBox(height: ScreenConstant.defaultHeightThirty),
                     SizedBox(
                       height: ScreenConstant.defaultHeightFifty,

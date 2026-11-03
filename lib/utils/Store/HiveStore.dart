@@ -21,6 +21,7 @@ class Keys {
   static const String REFRESHTOKEN = "refreshToken";
   static const String USERID = "userId";
   static const String LOGGEDIN = "logged_in";
+  static const String ISLOGINORREGISTER = "is_login_or_register";
 
   // Session identity (set ONLY on a real login, not on register).
   static const String SESSIONEMAIL = "sessionEmail";

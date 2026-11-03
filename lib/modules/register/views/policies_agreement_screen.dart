@@ -263,68 +263,68 @@ class PoliciesAgreementScreen extends GetView<RegisterController> {
     final List<_PolicyItemData> items = [
       _PolicyItemData(
         title: "1. Terms & Conditions",
-        subtitle: "Governance, verified identity, member rights",
+        subtitle: "User agreement, acceptable use, and platform rules.",
         icon: Icons.description_outlined,
         iconBg: CustomColor.colorFFF1F2,
         iconColor: CustomColor.colorBE123C,
         body:
-            "Sets out core membership rules, identity verification guidelines, terms of account usage, and user rights under Belgian digital service regulations.",
+            "By accessing ChatX, you confirm that you are at least 18 years of age and legally competent to enter into this agreement under Belgian and European regulations.\n\nYou agree to use this platform exclusively for personal, respectful social discovery and dating interactions. \n\nAny commercial solicitation, scraping, or automated bot access is strictly prohibited.ChatX reserves the right to suspend or terminate accounts that violate community safety or misuse communication tools.",
       ),
       _PolicyItemData(
         title: "2. Privacy & Data Shield",
-        subtitle: "GDPR-first, zero public web indexing",
+        subtitle: "How we collect, use and protect your data.",
         icon: Icons.shield_outlined,
         iconBg: CustomColor.colorFFF1F2,
         iconColor: CustomColor.colorBE123C,
         body:
-            "Ensures complete data masking, strict GDPR compliance, encrypted personal records, and guarantees that member profiles remain unindexed by web search engines.",
+            "Your privacy is our core promise. Your registered email address and exact geographical coordinates are permanently hidden from other members.All user data is encrypted in transit using 256-bit TLS protocols and stored on secure European servers compliant with GDPR privacy standards.\n\nYou retain complete control to toggle 'Invisible Mode' at any time or request permanent profile deletion.",
       ),
       _PolicyItemData(
-        title: "3. Community Standards",
-        subtitle: "Mutual respect, active consent, safety",
+        title: "3. Community Safety, Trial Terms & Platform Standards",
+        subtitle: "Community standards, 15-day complimentary trial, fair conduct",
         icon: Icons.favorite_outline,
         iconBg: CustomColor.colorFFF1F2,
         iconColor: CustomColor.colorBE123C,
         body:
-            "Mandates explicit consent, respectful interactions, zero harassment policies, and robust reporting mechanisms to maintain a safe environment.",
+            "Community Standards & Mutual Respect: ChatX is an authentic, respectful community. We enforce a zero-tolerance policy against hate speech, harassment, stalking, and unsolicited explicit content. Every member has the right to feel safe, and you can block or report any member with a single click. Consent is mandatory in all interactions.\n\n15-Day Complimentary Trial & Fair Billing: Your membership starts with a complimentary 15-day VIP trial with complete access to Search, direct messaging, and friend connections. Zero euros (€0.00) are charged during your active trial period. A secure payment mandate is verified solely for 18+ identity guarantee and harassment prevention. You can cancel your subscription anytime with 1 click from your Accounts dashboard before the trial expires without incurring fees.\n\nStrictly Prohibited Conduct: Financial scams, cryptocurrency solicitations, blackmail, catfishing, underage impersonation, and identity theft will result in an instant account ban, permanent IP blocking, and reporting to legal authorities. Sharing another member's private messages or media outside of ChatX without explicit consent violates European privacy laws.\n\nLegal Compliance & European Jurisdiction: This agreement is governed by the laws of Belgium and the European Union. Platform operations comply with CX-NETWORK BV financial and cyber safety obligations. In cases of severe criminal abuse, fraud, or threats to physical safety, platform records and audit trails may be provided to law enforcement agencies upon valid warrant.\n\nOur Mutual Pledge: We pledge to protect your discretion, continuously moderate safety, and maintain a high-trust community. In return, you pledge to interact authentically, respect fellow members' boundaries, and contribute to a welcoming, enjoyable environment.",
       ),
-      _PolicyItemData(
-        title: "4. 15-Day Trial Terms",
-        subtitle: "Zero initial charges, 1-tap cancellation",
-        badge: "Free",
-        icon: Icons.card_giftcard_outlined,
-        iconBg: CustomColor.colorFFF1F2,
-        iconColor: CustomColor.colorBE123C,
-        body:
-            "Provides 15 days of full VIP access with zero upfront fees. Members can cancel instantly at any time prior to trial expiry with a single tap.",
-      ),
-      _PolicyItemData(
-        title: "5. Warning: Prohibited Conduct",
-        subtitle: "Anti-fraud, anti-exploitation, bans",
-        icon: Icons.warning_amber_rounded,
-        iconBg: CustomColor.colorFEF3C7,
-        iconColor: CustomColor.colorD97706,
-        body:
-            "Strictly forbids commercial solicitation, non-consensual media distribution, fraud, and illegal behavior. Violations result in instant, permanent expulsion.",
-      ),
-      _PolicyItemData(
-        title: "6. Legal Consequences",
-        subtitle: "Belgian & EU penal prosecution",
-        icon: Icons.gavel_outlined,
-        iconBg: CustomColor.colorFFF1F2,
-        iconColor: CustomColor.colorBE123C,
-        body:
-            "Outlines civil and criminal penalties under Belgian and European law for harassment, identity theft, unauthorized disclosure, or fraudulent activity.",
-      ),
-      _PolicyItemData(
-        title: "7. Our Mutual Pledge",
-        subtitle: "Discretion, integrity, responsible usage",
-        icon: Icons.favorite_border,
-        iconBg: CustomColor.colorFFF1F2,
-        iconColor: CustomColor.colorBE123C,
-        body:
-            "Our shared commitment to uphold discretion, safeguard member privacy, and foster an honorable community built on mutual respect and integrity.",
-      ),
+      // _PolicyItemData(
+      //   title: "4. 15-Day Trial Terms",
+      //   subtitle: "Zero initial charges, 1-tap cancellation",
+      //   badge: "Free",
+      //   icon: Icons.card_giftcard_outlined,
+      //   iconBg: CustomColor.colorFFF1F2,
+      //   iconColor: CustomColor.colorBE123C,
+      //   body:
+      //       "Provides 15 days of full VIP access with zero upfront fees. Members can cancel instantly at any time prior to trial expiry with a single tap.",
+      // ),
+      // _PolicyItemData(
+      //   title: "5. Warning: Prohibited Conduct",
+      //   subtitle: "Anti-fraud, anti-exploitation, bans",
+      //   icon: Icons.warning_amber_rounded,
+      //   iconBg: CustomColor.colorFEF3C7,
+      //   iconColor: CustomColor.colorD97706,
+      //   body:
+      //       "Strictly forbids commercial solicitation, non-consensual media distribution, fraud, and illegal behavior. Violations result in instant, permanent expulsion.",
+      // ),
+      // _PolicyItemData(
+      //   title: "6. Legal Consequences",
+      //   subtitle: "Belgian & EU penal prosecution",
+      //   icon: Icons.gavel_outlined,
+      //   iconBg: CustomColor.colorFFF1F2,
+      //   iconColor: CustomColor.colorBE123C,
+      //   body:
+      //       "Outlines civil and criminal penalties under Belgian and European law for harassment, identity theft, unauthorized disclosure, or fraudulent activity.",
+      // ),
+      // _PolicyItemData(
+      //   title: "7. Our Mutual Pledge",
+      //   subtitle: "Discretion, integrity, responsible usage",
+      //   icon: Icons.favorite_border,
+      //   iconBg: CustomColor.colorFFF1F2,
+      //   iconColor: CustomColor.colorBE123C,
+      //   body:
+      //       "Our shared commitment to uphold discretion, safeguard member privacy, and foster an honorable community built on mutual respect and integrity.",
+      // ),
     ];
 
     return Column(
@@ -420,10 +420,7 @@ class PoliciesAgreementScreen extends GetView<RegisterController> {
                   SizedBox(height: ScreenConstant.sizeSmall),
                   Divider(color: CustomColor.colorE2E8F0, thickness: 1),
                   SizedBox(height: ScreenConstant.sizeExtraSmall),
-                  Text(
-                    data.body,
-                    style: TextStyles.policiesItemBody,
-                  ),
+                  _buildFormattedBodyText(data.body),
                 ],
               ],
             ),
@@ -431,6 +428,51 @@ class PoliciesAgreementScreen extends GetView<RegisterController> {
         ),
       );
     });
+  }
+
+  Widget _buildFormattedBodyText(String text) {
+    final List<String> paragraphs = text.split('\n\n');
+    final List<InlineSpan> paragraphSpans = [];
+
+    for (int i = 0; i < paragraphs.length; i++) {
+      final String para = paragraphs[i];
+      if (para.contains(':')) {
+        final int colonIndex = para.indexOf(':');
+        final String title = para.substring(0, colonIndex + 1);
+        final String rest = para.substring(colonIndex + 1);
+
+        paragraphSpans.add(
+          TextSpan(
+            text: title,
+            style: TextStyles.policiesItemBody.copyWith(
+              fontWeight: FontWeight.bold,
+              color: CustomColor.color0F172A,
+            ),
+          ),
+        );
+        paragraphSpans.add(
+          TextSpan(
+            text: rest,
+            style: TextStyles.policiesItemBody,
+          ),
+        );
+      } else {
+        paragraphSpans.add(
+          TextSpan(
+            text: para,
+            style: TextStyles.policiesItemBody,
+          ),
+        );
+      }
+
+      if (i < paragraphs.length - 1) {
+        paragraphSpans.add(const TextSpan(text: '\n\n'));
+      }
+    }
+
+    return Text.rich(
+      TextSpan(children: paragraphSpans),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -466,33 +508,33 @@ class PoliciesAgreementScreen extends GetView<RegisterController> {
       children: [
         _consentCheckboxCard(
           title: "I agree to the Terms & Conditions",
-          subtitle: "Governing eligibility and membership rights in Belgium.",
+          subtitle: "User agreement, acceptable use, and platform rules.",
           valueRx: controller.agreeTerms,
         ),
         _consentCheckboxCard(
           title: "I agree to the Privacy Policy",
           subtitle:
-              "Including masked identity protection and strict GDPR compliance.",
+              "How we collect, use and protect your data.",
           valueRx: controller.agreePrivacy,
         ),
         _consentCheckboxCard(
           title: "I understand the community rules",
           subtitle:
-              "Active mutual consent and zero harassment standards.",
+              "Community standards, 15-day complimentary trial, fair conduct.",
           valueRx: controller.agreeCommunity,
         ),
-        _consentCheckboxCard(
-          title: "I understand the warning regarding prohibited behavior",
-          subtitle:
-              "Including legal consequences under Belgian and EU penal codes.",
-          valueRx: controller.agreeProhibited,
-        ),
-        _consentCheckboxCard(
-          title: "I understand the 15-day free trial & subscription terms",
-          subtitle:
-              "No initial charge, no commitment, 1-tap instant cancellation.",
-          valueRx: controller.agreeTrial,
-        ),
+        // _consentCheckboxCard(
+        //   title: "I understand the warning regarding prohibited behavior",
+        //   subtitle:
+        //       "Including legal consequences under Belgian and EU penal codes.",
+        //   valueRx: controller.agreeProhibited,
+        // ),
+        // _consentCheckboxCard(
+        //   title: "I understand the 15-day free trial & subscription terms",
+        //   subtitle:
+        //       "No initial charge, no commitment, 1-tap instant cancellation.",
+        //   valueRx: controller.agreeTrial,
+        // ),
       ],
     );
   }

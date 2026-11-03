@@ -10,6 +10,8 @@ import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
 import '../../../utils/image_utils/image_utils.dart';
+import '../../home/views/widgets/member_network_image.dart';
+import '../../register/model/gallery_photo_model.dart';
 
 class EditProfileScreen extends GetView<RegisterController> {
   const EditProfileScreen({super.key});
@@ -216,6 +218,8 @@ class EditProfileScreen extends GetView<RegisterController> {
                       padding: const EdgeInsets.all(5.0),
                       child: Obx(() {
                         final File? photo = controller.profileImage.value;
+                        // Local pick first, else the server avatar URL.
+                        final String url = controller.mainPhotoUrl;
                         return Container(
                           clipBehavior: Clip.antiAlias,
                           decoration: const BoxDecoration(
@@ -229,6 +233,8 @@ class EditProfileScreen extends GetView<RegisterController> {
                                   width: double.infinity,
                                   height: double.infinity,
                                 )
+                              : url.isNotEmpty
+                              ? MemberNetworkImage(url: url)
                               : Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -350,6 +356,11 @@ class EditProfileScreen extends GetView<RegisterController> {
                         height: double.infinity,
                       );
                     }
+                    // No local pick: server avatar (GET /users/me).
+                    final String url = controller.mainPhotoUrl;
+                    if (url.isNotEmpty) {
+                      return MemberNetworkImage(url: url);
+                    }
                     return Container(
                       color: CustomColor.colorF8FAFC,
                       child: Column(
@@ -424,7 +435,7 @@ class EditProfileScreen extends GetView<RegisterController> {
           children: [
             Obx(
               () => Text(
-                "Photo Gallery (${controller.galleryPhotos.length}/15)",
+                "Photo Gallery (${controller.galleryTotalCount}/${RegisterController.kMaxGalleryPhotos})",
                 style: TextStyles.registerFieldLabel,
               ),
             ),
@@ -511,14 +522,41 @@ class EditProfileScreen extends GetView<RegisterController> {
   }
 
   Widget _buildGalleryGrid() {
+    // GetBuilder only provides the screen-entry hook (LIST + avatar lookup).
+    // autoRemove: false — the controller is owned by the route binding.
+    return GetBuilder<RegisterController>(
+      autoRemove: false,
+      initState: (_) => Future.microtask(controller.onEditProfileEnter),
+      builder: (_) => _buildGalleryGridContent(),
+    );
+  }
+
+  Widget _buildGalleryGridContent() {
     return Obx(() {
-      final List<File> photos = controller.galleryPhotos;
-      final int count = photos.length;
-      const int maxSlots = 15;
+      final List<GalleryPhoto> photos = controller.galleryPhotos.toList();
+      final List<PendingGalleryUpload> pending =
+          controller.pendingGalleryUploads.toList();
+      final Set<String> busy = controller.busyGalleryPhotoIds.toSet();
+      final bool loading = controller.isGalleryLoading.value;
+      final int count = photos.length + pending.length;
+      const int maxSlots = RegisterController.kMaxGalleryPhotos;
+
+      // First load: spinner instead of an empty grid.
+      if (loading && photos.isEmpty) {
+        return SizedBox(
+          height: ScreenConstant.defaultSizeOneTen,
+          width: double.infinity,
+          child: Center(child: _roseSpinner()),
+        );
+      }
 
       final List<Widget> tiles = [];
-      for (int i = 0; i < count; i++) {
-        tiles.add(_galleryThumb(i, photos[i]));
+      // Server photos (position 1..n), then uploads still in flight.
+      for (int i = 0; i < photos.length; i++) {
+        tiles.add(_galleryThumb(i, photos[i], busy.contains(photos[i].id)));
+      }
+      for (final p in pending) {
+        tiles.add(_pendingThumb(p));
       }
 
       if (count < maxSlots) {
@@ -547,9 +585,10 @@ class EditProfileScreen extends GetView<RegisterController> {
   /// Long-press to pick up a thumbnail; drop it on another thumbnail to
   /// reorder. Drag & drop stays inside the gallery: the main photo is neither
   /// a drop target nor draggable. Only valid gallery indices are accepted.
-  Widget _galleryThumb(int index, File file) {
+  Widget _galleryThumb(int index, GalleryPhoto photo, bool busy) {
     return DragTarget<int>(
       onWillAcceptWithDetails: (details) =>
+          !busy &&
           details.data >= 0 &&
           details.data < controller.galleryPhotos.length &&
           details.data != index,
@@ -559,17 +598,48 @@ class EditProfileScreen extends GetView<RegisterController> {
         final bool hovering = candidate.isNotEmpty;
         return LongPressDraggable<int>(
           data: index,
+          // Tiles with a DELETE in flight can't be dragged.
+          maxSimultaneousDrags: busy ? 0 : 1,
           dragAnchorStrategy: pointerDragAnchorStrategy,
-          feedback: _thumbFeedback(file),
+          feedback: _thumbFeedback(photo),
           childWhenDragging: _thumbPlaceholder(),
-          child: _thumbContent(index, file, highlight: hovering),
+          child: _thumbContent(index, photo, highlight: hovering, busy: busy),
         );
       },
     );
   }
 
+  Widget _roseSpinner() {
+    return SizedBox(
+      width: ScreenConstant.smallIconSize,
+      height: ScreenConstant.smallIconSize,
+      child: const CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation<Color>(CustomColor.colorBE185D),
+      ),
+    );
+  }
+
+  /// Upload in flight: local preview dimmed under a spinner (no drag/remove).
+  Widget _pendingThumb(PendingGalleryUpload pending) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(pending.file, fit: BoxFit.cover),
+          Container(
+            color: CustomColor.colorWhite.withOpacity(0.6),
+            alignment: Alignment.center,
+            child: _roseSpinner(),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Floating preview under the finger while dragging.
-  Widget _thumbFeedback(File file) {
+  Widget _thumbFeedback(GalleryPhoto photo) {
     final double side = ScreenConstant.defaultSizeOneTen;
     return Material(
       color: Colors.transparent,
@@ -580,7 +650,6 @@ class EditProfileScreen extends GetView<RegisterController> {
           width: side,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            image: DecorationImage(image: FileImage(file), fit: BoxFit.cover),
             boxShadow: [
               BoxShadow(
                 color: CustomColor.color0F172A.withOpacity(0.3),
@@ -588,6 +657,10 @@ class EditProfileScreen extends GetView<RegisterController> {
                 offset: const Offset(0, 6),
               ),
             ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: MemberNetworkImage(url: photo.url),
           ),
         ),
       ),
@@ -606,7 +679,12 @@ class EditProfileScreen extends GetView<RegisterController> {
   }
 
   /// The visible thumbnail (image + #index badge + remove button).
-  Widget _thumbContent(int index, File file, {bool highlight = false}) {
+  Widget _thumbContent(
+    int index,
+    GalleryPhoto photo, {
+    bool highlight = false,
+    bool busy = false,
+  }) {
     return Stack(
       children: [
         Positioned.fill(
@@ -620,13 +698,25 @@ class EditProfileScreen extends GetView<RegisterController> {
                     : Colors.transparent,
                 width: 2.5,
               ),
-              image: DecorationImage(
-                image: FileImage(file),
-                fit: BoxFit.cover,
-              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: MemberNetworkImage(url: photo.url),
             ),
           ),
         ),
+        // DELETE in flight: dimmed tile with a spinner.
+        if (busy)
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                color: CustomColor.colorWhite.withOpacity(0.6),
+                alignment: Alignment.center,
+                child: _roseSpinner(),
+              ),
+            ),
+          ),
         Positioned(
           top: 4,
           left: 4,
@@ -645,11 +735,12 @@ class EditProfileScreen extends GetView<RegisterController> {
             ),
           ),
         ),
-        Positioned(
+        if (!busy)
+          Positioned(
           top: 4,
           right: 4,
           child: GestureDetector(
-            onTap: () => controller.removeGalleryPhoto(index),
+            onTap: () => controller.confirmRemoveGalleryPhoto(photo),
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: const BoxDecoration(
@@ -687,7 +778,7 @@ class EditProfileScreen extends GetView<RegisterController> {
             ),
             SizedBox(height: ScreenConstant.sizeExtraSmall),
             Text(
-              "Add Photo\n$slotNumber/15",
+              "Add Photo\n$slotNumber/${RegisterController.kMaxGalleryPhotos}",
               textAlign: TextAlign.center,
               style: TextStyles.policiesBadgeText.copyWith(
                 fontSize: 9,

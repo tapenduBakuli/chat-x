@@ -77,7 +77,43 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildSecurityNotice(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildPaymentMethods(),
+              // _buildPaymentMethods(),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  vertical: ScreenConstant.sizeMedium,
+                  horizontal: ScreenConstant.sizeExtraSmall,
+                ),
+                decoration: BoxDecoration(
+                  color:CustomColor.colorFFF1F2 ,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color:CustomColor.colorBE123C,
+                    width: 1.5
+                  ),
+                ),
+                child:
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.credit_card,
+                          size: ScreenConstant.smallIconSize,
+                          color: CustomColor.colorBE123C,
+                        ),
+                        SizedBox(width: ScreenConstant.sizeExtraSmall),
+                        Text(
+                          "Credit Card",
+                          textAlign: TextAlign.center,
+                          style: TextStyles.paymentMethodTitle,
+                        ),
+                        Spacer(),
+                        Text(
+                            "Visa / MC",
+                            textAlign: TextAlign.center,
+                            style: TextStyles.paymentMethodSubtitleSelected
+                        )
+                      ],
+                    ),
+              ),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildTextField(
                 label: "Account holder name",
@@ -343,24 +379,24 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
         Obx(
           () => Row(
             children: [
-              Expanded(
-                child: _methodCard(
-                  method: PaymentMethod.bancontact,
-                  icon: Icons.contactless_outlined,
-                  title: "Bancontact",
-                  subtitle: "Popular (BE)",
-                ),
-              ),
-              SizedBox(width: ScreenConstant.sizeSmall),
-              Expanded(
-                child: _methodCard(
-                  method: PaymentMethod.sepa,
-                  icon: Icons.account_balance_outlined,
-                  title: "SEPA Transfer",
-                  subtitle: "IBAN Direct",
-                ),
-              ),
-              SizedBox(width: ScreenConstant.sizeSmall),
+              // Expanded(
+              //   child: _methodCard(
+              //     method: PaymentMethod.bancontact,
+              //     icon: Icons.contactless_outlined,
+              //     title: "Bancontact",
+              //     subtitle: "Popular (BE)",
+              //   ),
+              // ),
+              // SizedBox(width: ScreenConstant.sizeSmall),
+              // Expanded(
+              //   child: _methodCard(
+              //     method: PaymentMethod.sepa,
+              //     icon: Icons.account_balance_outlined,
+              //     title: "SEPA Transfer",
+              //     subtitle: "IBAN Direct",
+              //   ),
+              // ),
+              // SizedBox(width: ScreenConstant.sizeSmall),
               Expanded(
                 child: _methodCard(
                   method: PaymentMethod.creditCard,
