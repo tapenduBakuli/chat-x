@@ -287,7 +287,7 @@ class RegisterController extends GetxController {
   }
 
   void onCancel() {
-    Get.back();
+    Get.offAllNamed(Routes.LOGIN);
   }
 
   /// Policies & Safety Agreement state

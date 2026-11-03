@@ -844,7 +844,7 @@ class PaymentDetailsScreen extends GetView<RegisterController> {
       behavior: HitTestBehavior.opaque,
       onTap: controller.onCancel,
       child: Text(
-        "Cancel and return to account setup",
+        "Cancel and return to Login",
         textAlign: TextAlign.center,
         style: TextStyles.paymentCancelLink,
       ),
