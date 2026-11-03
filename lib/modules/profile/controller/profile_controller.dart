@@ -119,7 +119,7 @@ class ProfileController extends GetxController {
     email.value = data.email;
     country.value = data.country;
     isInvisible.value = data.isInvisible;
-    hasPaymentMethod.value = data.hasPaymentMethod;
+    hasPaymentMethod.value = data.hasPaymentMethod ?? false;
     trialEndsAt.value = data.trialEndsAt;
     memberSince.value = _monthYear(data.createdAt);
     // Rule: invisible accounts show "Invisible", otherwise "Active".

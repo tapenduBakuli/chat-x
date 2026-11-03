@@ -48,7 +48,10 @@ class UpdateProfileUser {
   final String promoCode;
   final String role;
   final bool isInvisible;
-  final bool hasPaymentMethod;
+
+  /// null when the key is missing/not a bool, so only an explicit `false`
+  /// means "unpaid".
+  final bool? hasPaymentMethod;
   final String trialEndsAt;
   final String createdAt;
   final UpdateProfileDetails? profile;
@@ -63,7 +66,7 @@ class UpdateProfileUser {
     required this.promoCode,
     required this.role,
     required this.isInvisible,
-    required this.hasPaymentMethod,
+    this.hasPaymentMethod,
     required this.trialEndsAt,
     required this.createdAt,
     this.profile,
@@ -81,7 +84,9 @@ class UpdateProfileUser {
       promoCode: _str(json['promo_code']),
       role: _str(json['role']),
       isInvisible: json['is_invisible'] == true,
-      hasPaymentMethod: json['has_payment_method'] == true,
+      hasPaymentMethod: json['has_payment_method'] is bool
+          ? json['has_payment_method'] as bool
+          : null,
       trialEndsAt: _str(json['trial_ends_at']),
       createdAt: _str(json['created_at']),
       profile: profile is Map

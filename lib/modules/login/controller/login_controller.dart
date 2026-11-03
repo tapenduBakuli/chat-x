@@ -7,6 +7,7 @@ import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/biometric_service.dart';
 import '../../../utils/lib/otp_text_field.dart';
+import '../../register/model/onboarding_args.dart';
 import '../model/login_response_model.dart';
 import '../services/login_services.dart';
 
@@ -267,8 +268,19 @@ class LoginController extends GetxController {
       obscurePassword.value = true;
     }
 
-    debugPrint('Login succeeded -> ${user?.displayName}. Navigating home.');
-    Get.offAllNamed(Routes.HOME);
+    // A registered user who never saved a payment method (explicit
+    // has_payment_method == false) resumes onboarding at Payment; the session
+    // saved above authenticates those calls.
+    final String route = routeForPaymentState(user?.hasPaymentMethod);
+    debugPrint('Login succeeded -> ${user?.displayName}. Navigating to $route.');
+    if (route == Routes.PAYMENT && res.data != null) {
+      Get.offAllNamed(
+        Routes.PAYMENT,
+        arguments: OnboardingArgs.fromLoginData(res.data!),
+      );
+    } else {
+      Get.offAllNamed(Routes.HOME);
+    }
   }
 
   /// Authenticates the user with the device's biometrics (Face ID / Touch ID /

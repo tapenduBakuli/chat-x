@@ -6,7 +6,6 @@ import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../device_manager/urls.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/image_utils/image_utils.dart';
@@ -324,7 +323,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
     return Column(
       children: [
         Text(
-          "STEP 3 OF 4",
+          "STEP 3 OF 5",
           textAlign: TextAlign.center,
           style: TextStyles.policiesBadgeText,
         ),
@@ -406,10 +405,11 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                   child: Padding(
                     padding: const EdgeInsets.all(5.0),
                     child: Obx(() {
-                      // Local file first, else the avatar uploaded at
-                      // register (relative URL), else the placeholder.
+                      // Local file first, else the server avatar (relative or
+                      // absolute URL, resolved by mainPhotoUrl), else the
+                      // placeholder.
                       final File? photo = controller.profileImage.value;
-                      final String url = controller.avatarUrl.value;
+                      final String url = controller.mainPhotoUrl;
                       return Container(
                         clipBehavior: Clip.antiAlias,
                         decoration: const BoxDecoration(
@@ -425,7 +425,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
                               )
                             : url.isNotEmpty
                                 ? Image.network(
-                                    Urls.baseUrl + url,
+                                    url,
                                     fit: BoxFit.cover,
                                     width: double.infinity,
                                     height: double.infinity,

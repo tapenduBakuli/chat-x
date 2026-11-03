@@ -15,7 +15,8 @@ import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../login/model/login_response_model.dart';
 import '../model/gallery_photo_model.dart';
-import '../model/payment_method_response_model.dart';
+import '../model/onboarding_args.dart';
+import '../model/update_profile_response_model.dart';
 import '../services/gallery_photo_services.dart';
 import '../services/payment_services.dart';
 import '../services/profile_services.dart';
@@ -178,6 +179,44 @@ class RegisterController extends GetxController {
 
   final HiveStore _store = HiveStore();
 
+  /// Where onboarding was entered from. Defaults to [OnboardingSource.register]
+  /// (fresh sign-up, and Edit Profile which shares this controller). Set to
+  /// [OnboardingSource.login] when Payment is opened with [OnboardingArgs]
+  /// (unpaid user resuming onboarding after login / relaunch).
+  OnboardingSource onboardingSource = OnboardingSource.register;
+
+  bool get isLoginOnboarding => onboardingSource == OnboardingSource.login;
+
+  /// Hydrates the register-time values (name, DOB, country, avatar) from the
+  /// server so Profile Setup / Preview show them and PUT /users/me sends the
+  /// real display_name. Gender, orientation and preferences are left empty,
+  /// like a new user; the Profile Setup name/DOB inputs are not prefilled
+  /// (same as the register path, where they are cleared after register).
+  void applyOnboardingArgs(OnboardingArgs args) {
+    onboardingSource = args.source;
+
+    final String name = args.displayName.trim();
+    if (name.isNotEmpty) registeredDisplayName.value = name;
+
+    final dob = OnboardingArgs.parseDob(args.dateOfBirth);
+    if (dob != null) {
+      registeredDateOfBirth = '${dob.year.toString().padLeft(4, '0')}-'
+          '${dob.month.toString().padLeft(2, '0')}-'
+          '${dob.day.toString().padLeft(2, '0')}';
+      registeredDobYear = dob.year;
+      registeredDobMonth = dob.month;
+      registeredDobDay = dob.day;
+    }
+
+    final String country = args.country.trim();
+    if (country.isNotEmpty) registeredCountry = country;
+
+    final String avatar = args.avatarUrl.trim();
+    if (avatar.isNotEmpty && avatarUrl.value.isEmpty) {
+      avatarUrl.value = avatar;
+    }
+  }
+
   void togglePasswordVisibility() {
     obscurePassword.value = !obscurePassword.value;
   }
@@ -286,7 +325,16 @@ class RegisterController extends GetxController {
     }
   }
 
+  /// Payment "Cancel and return to Login". On the login-resume path the saved
+  /// session is cleared (remember-me is preserved by clearSession) so the next
+  /// launch can't skip payment; on the register path only the leftover
+  /// registration token is dropped.
   void onCancel() {
+    if (isLoginOnboarding) {
+      _store.clearSession();
+    } else {
+      _store.remove(Keys.REGISTRATIONTOKEN);
+    }
     Get.offAllNamed(Routes.LOGIN);
   }
 
@@ -666,6 +714,10 @@ class RegisterController extends GetxController {
   /// must log in before reaching Home. Only the registration token is stored
   /// so the immediately-following payment/onboarding call can authenticate via
   /// BaseClient's _authToken fallback to REGISTRATIONTOKEN.
+  ///
+  /// No REFRESHTOKEN is stored here (and no ACCESSTOKEN), so BaseClient's
+  /// automatic token refresh never applies to registration-token calls: a
+  /// 401 on this path keeps the previous behavior.
   void _onRegisterSuccess(LoginResponse res) {
     _store.setString(
       Keys.REGISTRATIONTOKEN,
@@ -1222,8 +1274,11 @@ class RegisterController extends GetxController {
     final String aboutMe = aboutMeController.text.trim();
     final city = _cityCoordinates[selectedProfileCity.value];
 
+    final String displayName = previewDisplayName;
+
     return <String, dynamic>{
-      'display_name': previewDisplayName,
+      // Never send an empty name (it would blank the server value).
+      if (displayName.isNotEmpty) 'display_name': displayName,
       'is_invisible': false,
       'date_of_birth': ?dateOfBirth, // omitted when null
       if (country.isNotEmpty) 'country': country,
@@ -1278,8 +1333,11 @@ class RegisterController extends GetxController {
   }
 
   /// Publishes the previewed profile: first syncs the avatar if the main photo
-  /// changed, then PUT /users/me, then routes to Login (onboarding is done;
-  /// the user must log in).
+  /// changed, then PUT /users/me, then routes on:
+  /// - register path → Login (the user must log in);
+  /// - login-resume path → Home (session already saved at login; the session
+  ///   name/avatar are refreshed from the result). Falls back to Login if the
+  ///   session keys are missing.
   Future<void> onPublishProfile() async {
     if (isUpdatingProfile.value) return;
     isUpdatingProfile.value = true;
@@ -1298,7 +1356,12 @@ class RegisterController extends GetxController {
         );
         // Registration-only token is no longer needed.
         await _store.remove(Keys.REGISTRATIONTOKEN);
-        Get.offAllNamed(Routes.LOGIN);
+        if (isLoginOnboarding && _hasLoginSession()) {
+          _syncSessionIdentity(res.data);
+          Get.offAllNamed(routeAfterPublish(onboardingSource));
+        } else {
+          Get.offAllNamed(Routes.LOGIN);
+        }
       } else {
         Get.snackbar(
           'Could not save profile',
@@ -1308,6 +1371,34 @@ class RegisterController extends GetxController {
       }
     } finally {
       isUpdatingProfile.value = false;
+    }
+  }
+
+  /// Whether the login session written by LoginController is present (needed
+  /// by Home's badge polling and the Splash session check).
+  bool _hasLoginSession() {
+    final String access = (_store.getString(Keys.ACCESSTOKEN) as String?) ?? '';
+    final String email = (_store.getString(Keys.SESSIONEMAIL) as String?) ?? '';
+    return access.isNotEmpty && email.isNotEmpty;
+  }
+
+  /// Updates the stored session name/avatar with the published values (only
+  /// when non-empty) so Home/Profile show what was set during onboarding.
+  void _syncSessionIdentity(UpdateProfileUser? data) {
+    final String serverName = (data?.displayName ?? '').trim();
+    final String name = serverName.isNotEmpty ? serverName : previewDisplayName;
+    if (name.isNotEmpty) {
+      _store.setString(Keys.SESSIONDISPLAYNAME, name);
+      _store.setString(Keys.SAVEDPROFILENAME, name);
+    }
+
+    final String profileAvatar = (data?.profile?.avatarUrl ?? '').trim();
+    final String userAvatar = (data?.avatarUrl ?? '').trim();
+    final String avatar = profileAvatar.isNotEmpty
+        ? profileAvatar
+        : (userAvatar.isNotEmpty ? userAvatar : avatarUrl.value.trim());
+    if (avatar.isNotEmpty) {
+      _store.setString(Keys.SAVEDAVATAR, avatar);
     }
   }
 
@@ -1342,6 +1433,10 @@ class RegisterController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Login / Splash open Payment with OnboardingArgs to resume onboarding;
+    // any other arguments (Register, Edit Profile) keep the register default.
+    final dynamic args = Get.arguments;
+    if (args is OnboardingArgs) applyOnboardingArgs(args);
     aboutMeController.addListener(() {
       aboutMeLength.value = aboutMeController.text.length;
     });

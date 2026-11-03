@@ -74,6 +74,18 @@ class HiveStore {
     return defBox.get(key);
   }
 
+  /// Like [setString] but never prints the value (for secrets/tokens).
+  Future<void> setStringQuiet(String key, String value) async {
+    await defBox.put(key, value);
+  }
+
+  /// Like [getString] but never prints the value (for secrets/tokens).
+  /// Returns '' when missing or not a string.
+  String getStringQuiet(String key) {
+    final dynamic v = defBox.get(key);
+    return v is String ? v : '';
+  }
+
   //Bool Storage
   setBool(String key, bool value) async {
     defBox.put(key, value);

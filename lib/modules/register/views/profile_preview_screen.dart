@@ -11,7 +11,8 @@ import '../../home/views/widgets/member_network_image.dart';
 /// Read-only aggregation of everything the member picked across the earlier
 /// register steps. It only READS existing [RegisterController] fields; it adds
 /// no new input state and nothing here is editable except the two action
-/// buttons (Edit -> back, Publish -> payment). Data-driven pieces are wrapped
+/// buttons (Edit -> back, Publish -> Login (register) / Home (login resume)).
+/// Data-driven pieces are wrapped
 /// in [Obx] so a change on an earlier screen is reflected if the user returns.
 class ProfilePreviewScreen extends GetView<RegisterController> {
   const ProfilePreviewScreen({super.key});

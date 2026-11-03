@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../device_manager/urls.dart';
+import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/base_client.dart';
 import '../../../utils/exception_handler.dart';
 import '../../../utils/text_utils/app_strings.dart';
@@ -212,12 +213,28 @@ class LoginService {
 
   /// POST /auth/logout with the refresh token. Returns true when the server
   /// acknowledges (204, or any 2xx). The body is empty on success.
+  ///
+  /// Auto-refresh is disabled for this call because the body carries the
+  /// refresh token: on a 401 the tokens are refreshed explicitly and the
+  /// logout is re-sent once with the NEW (rotated) refresh token.
   Future<bool> logout({required String refreshToken}) async {
     try {
-      final http.Response response = await BaseClient.instance.post(
+      http.Response response = await BaseClient.instance.post(
         Urls.logout,
         {"refresh_token": refreshToken},
+        refreshOnUnauthorized: false,
       );
+      if (response.statusCode == 401 &&
+          await BaseClient.instance.refreshTokens()) {
+        final String latest = HiveStore().getStringQuiet(Keys.REFRESHTOKEN);
+        if (latest.isNotEmpty) {
+          response = await BaseClient.instance.post(
+            Urls.logout,
+            {"refresh_token": latest},
+            refreshOnUnauthorized: false,
+          );
+        }
+      }
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
       debugPrint('LoginService.logout error: $e');

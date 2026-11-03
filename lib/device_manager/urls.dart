@@ -12,6 +12,10 @@ class Urls {
   static const String verifyEmail = "${apiBase}auth/verify-email";
   static const String resetPassword = "${apiBase}auth/reset-password";
   static const String logout = "${apiBase}auth/logout";
+
+  /// POST, unauthenticated; body {refresh_token}. Returns a new access token
+  /// AND a new (rotated) refresh token.
+  static const String authRefresh = "${apiBase}auth/refresh";
   // NOTE: endpoint path assumed — update if the backend uses a different one.
   static const String changePassword = "${apiBase}auth/change-password";
 

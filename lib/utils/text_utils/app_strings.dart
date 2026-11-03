@@ -8,4 +8,7 @@ class AppStrings {
   static const String noInternetConnection = "noInternetConnection";
   static const String apiNotRespondingAtTime = "apiNotRespondingAtTime";
   static const String errorOccuredWithCode = "errorOccuredWithCode";
+  static const String sessionExpiredTitle = "Session expired";
+  static const String sessionExpiredMessage =
+      "Session expired. Please log in again.";
 }
