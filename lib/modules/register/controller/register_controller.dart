@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:country_picker/country_picker.dart';
@@ -21,6 +22,8 @@ import '../services/gallery_photo_services.dart';
 import '../services/payment_services.dart';
 import '../services/profile_services.dart';
 import '../services/register_services.dart';
+import '../utils/edit_profile_payload.dart';
+import '../utils/profile_setup_hydration.dart';
 
 enum PaymentMethod { bancontact, sepa, creditCard }
 
@@ -149,6 +152,14 @@ class RegisterController extends GetxController {
   /// Whether the update-profile (PUT /users/me) request is in flight (drives
   /// the Publish Profile spinner on Profile Preview).
   final RxBool isUpdatingProfile = false.obs;
+
+  /// Whether the Edit Profile save (avatar sync + PUT /users/me + GET) is in
+  /// flight (drives the Save & Continue spinner on Edit Profile).
+  final RxBool isSavingEditProfile = false.obs;
+
+  /// Server values loaded by GET /users/me in [onEditProfileEnter]; the base
+  /// of the Edit Profile payload. Null until the hydration succeeded.
+  EditProfileOriginal? _editOriginal;
 
   /// Relative avatar path (e.g. "/uploads/avatars/x.jpg") returned by the
   /// avatar upload during register. Survives [clearCreateAccountForm].
@@ -915,12 +926,163 @@ class RegisterController extends GetxController {
     // Runs in parallel with the profile request below.
     fetchGalleryPhotos(showLoader: true);
 
-    final res = await ProfileService.instance.getMyProfile();
-    if (!res.success || res.data == null) return;
-    final String profileAvatar = res.data!.profile?.avatarUrl ?? '';
-    final String url =
-        profileAvatar.isNotEmpty ? profileAvatar : res.data!.avatarUrl;
-    if (url.isNotEmpty) avatarUrl.value = url;
+    isProfileHydrating.value = true;
+    try {
+      final res = await ProfileService.instance.getMyProfile();
+      if (!res.success || res.data == null) return;
+      final String profileAvatar = res.data!.profile?.avatarUrl ?? '';
+      final String url =
+          profileAvatar.isNotEmpty ? profileAvatar : res.data!.avatarUrl;
+      if (url.isNotEmpty) avatarUrl.value = url;
+
+      _hydrateProfileSetup(res.data!);
+      _hydrateIntimateDesires(res.data!.profile);
+      _editOriginal = EditProfileOriginal.fromUser(
+        res.data!,
+        hydratedCity: selectedProfileCity.value,
+      );
+    } finally {
+      isProfileHydrating.value = false;
+    }
+  }
+
+  /// True while Edit Profile waits for GET /users/me (drives a subtle loader
+  /// above the Profile Setup fields).
+  final RxBool isProfileHydrating = false.obs;
+
+  /// Pre-fills the Profile Setup state from GET /users/me. Only called from
+  /// [onEditProfileEnter], so onboarding flows are untouched. Values that do
+  /// not match a known option are left unselected (nothing is invented).
+  void _hydrateProfileSetup(UpdateProfileUser user) {
+    final UpdateProfileDetails? p = user.profile;
+
+    if (user.displayName.isNotEmpty) {
+      profileNameController.text = user.displayName;
+      registeredDisplayName.value = user.displayName;
+    }
+
+    final dob = ProfileSetupHydration.parseDob(user.dateOfBirth);
+    if (dob != null) {
+      // The Edit Profile year dropdown only lists 1950 .. (this year - 18);
+      // a value outside that would fail the dropdown's items assertion.
+      final bool yearListed =
+          dob.year >= 1950 && dob.year <= DateTime.now().year - 18;
+      selectedDobYear.value = yearListed ? dob.year : null;
+      selectedDobMonth.value = dob.month;
+      selectedDobDay.value = dob.day;
+      registeredDateOfBirth = '${dob.year.toString().padLeft(4, '0')}-'
+          '${dob.month.toString().padLeft(2, '0')}-'
+          '${dob.day.toString().padLeft(2, '0')}';
+      registeredDobYear = dob.year;
+      registeredDobMonth = dob.month;
+      registeredDobDay = dob.day;
+    }
+
+    if (user.country.isNotEmpty) {
+      selectedCountry.value = user.country;
+      registeredCountry = user.country;
+    }
+
+    if (p == null) return;
+
+    selectedGender.value = ProfileSetupHydration.matchGender(p.gender) ?? '';
+    selectedOrientation.value =
+        ProfileSetupHydration.matchOrientation(p.orientation) ?? '';
+    selectedLookingFor
+        .assignAll(ProfileSetupHydration.matchLookingFor(p.lookingFor));
+    selectedProfileCity.value = ProfileSetupHydration.matchCity(
+            p.location?.city ?? '', belgianCities) ??
+        '';
+    aboutMeController.text = p.aboutMe; // listener updates aboutMeLength
+  }
+
+  // Canonical option strings used by the Intimate Desires UI (onboarding and
+  // Edit Profile). Server values are matched to these case-insensitively.
+  static const List<String> _relationshipOptions = [
+    'One time',
+    'Multiple times',
+    'In-life friendship',
+    'Serious relationship',
+    'Other - optional',
+  ];
+  static const List<String> _physicalOptions = [
+    'Anal',
+    'Oral',
+    'Vaginal',
+    'Outdoor',
+    'Sensual Tantric',
+    'Threesome (FMF/MFM)',
+  ];
+  static const List<String> _kinkOptions = [
+    'Roleplay',
+    'Feet',
+    'BDSM / Bondage',
+    'Sensory Blindfold',
+    'Exhibitionism',
+  ];
+  static const List<String> _interestOptions = [
+    'Sports',
+    'Gaming',
+    'Movies',
+    'Music',
+    'Genres',
+    'Drawing / Painting / Art',
+    'Other interests',
+  ];
+  static const List<String> _safetyOptions = [
+    'Protected only (Condom required)',
+    'PrEP verified',
+    'Regular testing routine',
+    'Open to discuss',
+  ];
+  static const List<String> _stiOptions = ['No', 'Yes', 'Prefer not to say'];
+  static const List<String> _visibilityOptions = [
+    'Mutual Matches Only',
+    'Visible to ID-Verified Belgian Profiles',
+  ];
+
+  /// Canonical option for [value] (case-insensitive), or null if unknown.
+  String? _matchOption(String value, List<String> options) {
+    final String v = value.trim().toLowerCase();
+    for (final String o in options) {
+      if (o.toLowerCase() == v) return o;
+    }
+    return null;
+  }
+
+  List<String> _matchOptions(List<String> values, List<String> options) {
+    final List<String> out = <String>[];
+    for (final String v in values) {
+      final String? m = _matchOption(v, options);
+      if (m != null && !out.contains(m)) out.add(m);
+    }
+    return out;
+  }
+
+  /// Pre-fills the Intimate Desires state from GET /users/me. Only called from
+  /// [onEditProfileEnter], so onboarding flows are untouched.
+  void _hydrateIntimateDesires(UpdateProfileDetails? p) {
+    if (p == null) return;
+    relationshipPrefs
+        .assignAll(_matchOptions(p.relationshipPreferences, _relationshipOptions));
+
+    // core_physical_intimate / exploration_kink are authoritative; fall back to
+    // the combined sexual_preferences list when both are empty.
+    List<String> core = _matchOptions(p.corePhysicalIntimate, _physicalOptions);
+    List<String> kink = _matchOptions(p.explorationKink, _kinkOptions);
+    if (core.isEmpty && kink.isEmpty && p.sexualPreferences.isNotEmpty) {
+      core = _matchOptions(p.sexualPreferences, _physicalOptions);
+      kink = _matchOptions(p.sexualPreferences, _kinkOptions);
+    }
+    physicalPrefs.assignAll(core);
+    kinkPrefs.assignAll(kink);
+    interests.assignAll(_matchOptions(p.interestAndPassion, _interestOptions));
+
+    personalSafetyInfo.value =
+        _matchOption(p.personalSafetyInfo, _safetyOptions) ?? '';
+    stiStatus.value = _matchOption(p.hasStdOrSti, _stiOptions) ?? '';
+    visibilityMode.value =
+        _matchOption(p.preferenceVisibilityMode, _visibilityOptions) ?? '';
   }
 
   /// GET users/me/photos → [galleryPhotos]. Stale responses (a newer LIST
@@ -1255,7 +1417,10 @@ class RegisterController extends GetxController {
     return typed.isNotEmpty ? typed : registeredDisplayName.value;
   }
 
-  /// Builds the PUT /users/me payload from the onboarding state.
+  /// Builds the PUT /users/me payload from the onboarding state. Edit Profile
+  /// uses [_buildEditProfilePayload] instead (display_name/gender/orientation
+  /// are read-only there and several fields fall back to the hydrated server
+  /// value instead of being omitted/blanked).
   Map<String, dynamic> _buildUpdateProfilePayload() {
     String? dateOfBirth;
     if (selectedDobYear.value != null &&
@@ -1346,8 +1511,12 @@ class RegisterController extends GetxController {
       // retry instead of being sent to Login with the old avatar.
       if (!await _syncAvatarIfChanged()) return;
 
-      final res = await ProfileService.instance
-          .updateProfile(_buildUpdateProfilePayload());
+      final payload = _buildUpdateProfilePayload();
+      debugPrint('================= PUBLISH PROFILE PAYLOAD =================');
+      debugPrint(const JsonEncoder.withIndent('  ').convert(payload));
+      debugPrint('===========================================================');
+
+      final res = await ProfileService.instance.updateProfile(payload);
       if (res.success) {
         Get.snackbar(
           'Profile saved',
@@ -1402,19 +1571,151 @@ class RegisterController extends GetxController {
     }
   }
 
-  /// Edit Profile "Save & Continue" — keeps the legacy behavior that
-  /// onPublishProfile had before it called the API.
-  void onSaveEditProfile() {
-    debugPrint(
-      'Publish profile -> name: ${profileNameController.text.trim()}, '
-      'age: ${previewAge ?? '-'}, '
-      'relationship: ${relationshipPrefs.length}, '
-      'intimate: ${physicalPrefs.length + kinkPrefs.length}, '
-      'interests: ${interests.length}, '
-      'gallery: ${galleryPhotos.length}',
-    );
+  /// Builds the PUT /users/me payload for Edit Profile: display_name, gender
+  /// and orientation always come from [_editOriginal] (never the mutable UI
+  /// state); single-selects left empty fall back to the original server
+  /// value; multi-selects send exactly the current selection plus any
+  /// original values the UI doesn't know how to represent (so they're never
+  /// silently dropped).
+  Map<String, dynamic> _buildEditProfilePayload() {
+    final EditProfileOriginal original = _editOriginal!;
 
-    Get.back();
+    // Edited parts win; a part the dropdowns can't show (e.g. a server year
+    // outside the 1950..this-18 list) falls back to the hydrated value.
+    final int? y = selectedDobYear.value ?? registeredDobYear;
+    final int? m = selectedDobMonth.value ?? registeredDobMonth;
+    final int? d = selectedDobDay.value ?? registeredDobDay;
+    String dateOfBirth = original.dateOfBirth;
+    if (y != null && m != null && d != null) {
+      dateOfBirth = '${y.toString().padLeft(4, '0')}-'
+          '${m.toString().padLeft(2, '0')}-'
+          '${d.toString().padLeft(2, '0')}';
+    }
+    final String country =
+        selectedCountry.value.isNotEmpty ? selectedCountry.value : original.country;
+
+    // Only build a new location when the city dropdown changed from what
+    // hydration selected; otherwise keep sending the original server object
+    // (covers a server city outside the 6 Belgian cities too, since that
+    // case leaves selectedProfileCity at '' == hydratedCity).
+    Map<String, dynamic>? newLocation;
+    if (selectedProfileCity.value != original.hydratedCity) {
+      final city = _cityCoordinates[selectedProfileCity.value];
+      if (city != null) {
+        newLocation = <String, dynamic>{
+          'latitude': city.lat,
+          'longitude': city.lng,
+          'city': city.city,
+          'region': 'Belgium',
+        };
+      }
+    }
+
+    return EditProfilePayload.build(
+      original: original,
+      dateOfBirth: dateOfBirth,
+      country: country,
+      aboutMe: aboutMeController.text.trim(),
+      newLocation: newLocation,
+      lookingFor: EditProfilePayload.withUnmatched(
+        selected: selectedLookingFor.toList(),
+        original: original.lookingFor,
+        options: ProfileSetupHydration.lookingFor,
+      ),
+      relationshipPreferences: EditProfilePayload.withUnmatched(
+        selected: relationshipPrefs.toList(),
+        original: original.relationshipPreferences,
+        options: _relationshipOptions,
+      ),
+      corePhysicalIntimate: EditProfilePayload.withUnmatched(
+        selected: physicalPrefs.toList(),
+        original: original.corePhysicalIntimate,
+        options: _physicalOptions,
+      ),
+      explorationKink: EditProfilePayload.withUnmatched(
+        selected: kinkPrefs.toList(),
+        original: original.explorationKink,
+        options: _kinkOptions,
+      ),
+      interestAndPassion: EditProfilePayload.withUnmatched(
+        selected: interests.toList(),
+        original: original.interestAndPassion,
+        options: _interestOptions,
+      ),
+      personalSafetyInfo: personalSafetyInfo.value,
+      hasStdOrSti: stiStatus.value,
+      preferenceVisibilityMode: visibilityMode.value,
+    );
+  }
+
+  /// Edit Profile "Save & Continue": syncs the avatar if changed, PUTs
+  /// /users/me with [_buildEditProfilePayload], then refreshes the Hive
+  /// display name/avatar from a follow-up GET /users/me and goes back to
+  /// Profile. The Profile screen itself re-fetches on return (see
+  /// [ProfileController.onEditProfile]), so this GET is only used to keep
+  /// Hive (Home/Accounts) in sync immediately — it is not the sole refetch
+  /// path.
+  Future<void> onSaveEditProfile() async {
+    if (isSavingEditProfile.value) return;
+    // Without the loaded server values the read-only name/gender/orientation
+    // (and untouched fields) could be blanked, so wait for hydration.
+    if (_editOriginal == null) {
+      Get.snackbar(
+        isProfileHydrating.value ? 'Still loading' : 'Profile not loaded',
+        isProfileHydrating.value
+            ? 'Please wait while your profile loads.'
+            : 'Could not load your profile yet. Please go back and try again.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    isSavingEditProfile.value = true;
+    try {
+      if (!await _syncAvatarIfChanged()) return;
+
+      final payload = _buildEditProfilePayload();
+      debugPrint('================= EDIT PROFILE PAYLOAD =================');
+      debugPrint(const JsonEncoder.withIndent('  ').convert(payload));
+      debugPrint('==========================================================');
+
+      final res = await ProfileService.instance.updateProfile(payload);
+      if (!res.success) {
+        Get.snackbar(
+          'Could not save profile',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      Get.snackbar(
+        'Profile saved',
+        res.message.isNotEmpty ? res.message : 'Profile updated',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+
+      // Best-effort refresh of Hive-cached identity so Home/Accounts stay in
+      // sync without waiting for Profile's own refetch. A failure here is
+      // non-blocking: still go back, Profile's refetch will retry.
+      try {
+        final fresh = await ProfileService.instance.getMyProfile();
+        if (fresh.success && fresh.data != null) {
+          _syncSessionIdentity(fresh.data);
+        } else {
+          Get.snackbar(
+            'Profile refresh pending',
+            'Saved. Your profile will refresh shortly.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        }
+      } catch (e) {
+        debugPrint('Edit Profile post-save GET failed: $e');
+      }
+
+      Get.offAndToNamed(Routes.PROFILE);
+    } finally {
+      isSavingEditProfile.value = false;
+    }
   }
 
   void onMoreInfoTap() {

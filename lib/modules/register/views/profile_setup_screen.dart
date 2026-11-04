@@ -38,6 +38,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         backgroundColor: CustomColor.colorWhite,
+        centerTitle: true,
         elevation: 0,
         // leading: GestureDetector(
         //   behavior: HitTestBehavior.opaque,

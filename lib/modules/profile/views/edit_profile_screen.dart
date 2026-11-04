@@ -12,41 +12,25 @@ import '../../../utils/custom_widgets/universal_button.dart';
 import '../../../utils/image_utils/image_utils.dart';
 import '../../home/views/widgets/member_network_image.dart';
 import '../../register/model/gallery_photo_model.dart';
+import '../../register/views/widgets/intimate_desires_form.dart';
 
 class EditProfileScreen extends GetView<RegisterController> {
   const EditProfileScreen({super.key});
 
   static const List<String> _genders = ['Woman', 'Man', 'Non-binary'];
   static const List<String> _orientations = [
-    'Heterosexual',
-    'Homosexual',
+    'Straight',
     'Bisexual',
-    'Other',
+    'Gay / Lesbian',
+    'Pansexual',
+    'Open-minded',
   ];
   static const List<String> _lookingForOptions = [
-    'Serious relationship',
+    'Intimate connection',
     'Casual dating',
-    'Friendship',
-    'Multiple times',
-    'One time',
-    '1 life friendship',
-  ];
-
-  static const List<String> _physicalOptions = [
-    'Anal',
-    'Oral',
-    'Vaginal',
-    'Outdoor',
-    'Sensual Tantric',
-    'Threesome (FMF/MFM)',
-  ];
-
-  static const List<String> _kinkOptions = [
-    'Roleplay',
-    'Feet',
-    'BDSM / Bondage',
-    'Sensory Blindfold',
-    'Exhibitionism',
+    'Discreet exploration',
+    'Regular meetups',
+    'Deep friendship',
   ];
 
   @override
@@ -113,6 +97,20 @@ class EditProfileScreen extends GetView<RegisterController> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Obx(
+                            () => controller.isProfileHydrating.value
+                                ? Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: ScreenConstant.sizeSmall,
+                                    ),
+                                    child: const LinearProgressIndicator(
+                                      minHeight: 2,
+                                      color: CustomColor.colorBE185D,
+                                      backgroundColor: CustomColor.colorE2E8F0,
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
                           _buildProfileNameField(),
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                           _buildGenderField(),
@@ -814,21 +812,56 @@ class EditProfileScreen extends GetView<RegisterController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label("Profile Name"),
-        SizedBox(
-          height: ScreenConstant.defaultHeightFifty,
-          child: CustomTextField(
-            borderRadius: 26,
-            controller: controller.profileNameController,
-            hintText: "JerryTwo",
-            borderColor: CustomColor.colorE2E8F0,
-            prefix: Icon(
-              Icons.person_outline,
-              size: ScreenConstant.smallIconSize,
-              color: CustomColor.color94A3B8,
+        // Read-only on Edit Profile: the PUT payload always sends the
+        // original server name.
+        Semantics(
+          label: "Profile name, can't be changed",
+          readOnly: true,
+          child: SizedBox(
+            height: ScreenConstant.defaultHeightFifty,
+            child: CustomTextField(
+              borderRadius: 26,
+              controller: controller.profileNameController,
+              hintText: "JerryTwo",
+              readOnly: true,
+              enabled: false,
+              fillColor: CustomColor.colorF1F5F9,
+              textStyle: TextStyles.loginFieldText
+                  .copyWith(color: CustomColor.color94A3B8),
+              borderColor: CustomColor.colorE2E8F0,
+              prefix: Icon(
+                Icons.person_outline,
+                size: ScreenConstant.smallIconSize,
+                color: CustomColor.color94A3B8,
+              ),
+              suffix: Icon(
+                Icons.lock_outline,
+                size: ScreenConstant.minimumIconSize,
+                color: CustomColor.color94A3B8,
+              ),
             ),
           ),
         ),
+        _lockedNote(),
       ],
+    );
+  }
+
+  /// Small "Can't be changed" helper under the read-only fields.
+  Widget _lockedNote() {
+    return Padding(
+      padding: EdgeInsets.only(top: ScreenConstant.sizeExtraSmall + 2),
+      child: Row(
+        children: [
+          Icon(
+            Icons.lock_outline,
+            size: 11,
+            color: CustomColor.color94A3B8,
+          ),
+          SizedBox(width: ScreenConstant.sizeExtraSmall),
+          Text("Can't be changed", style: TextStyles.registerFieldNote),
+        ],
+      ),
     );
   }
 
@@ -838,46 +871,68 @@ class EditProfileScreen extends GetView<RegisterController> {
       children: [
         _label("Gender"),
         Obx(
-          () => Wrap(
+          () => _readOnlyChips(
+            semanticsLabel: "Gender",
+            options: _genders,
+            selected: controller.selectedGender.value,
+          ),
+        ),
+        _lockedNote(),
+      ],
+    );
+  }
+
+  /// Read-only single-select chips (gender / orientation): dimmed, taps
+  /// ignored, still showing the hydrated [selected] value.
+  Widget _readOnlyChips({
+    required String semanticsLabel,
+    required List<String> options,
+    required String selected,
+  }) {
+    return Semantics(
+      label: "$semanticsLabel: $selected, can't be changed",
+      readOnly: true,
+      excludeSemantics: true,
+      child: Opacity(
+        opacity: 0.6,
+        child: IgnorePointer(
+          child: Wrap(
             spacing: ScreenConstant.sizeSmall,
             runSpacing: ScreenConstant.sizeSmall,
-            children: _genders.map((g) {
-              final bool selected = controller.selectedGender.value == g;
-              return GestureDetector(
-                onTap: () => controller.selectGender(g),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ScreenConstant.sizeMedium,
-                    vertical: ScreenConstant.sizeExtraSmall + 2,
+            children: options.map((o) {
+              final bool isSelected = selected == o;
+              return Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: ScreenConstant.sizeMedium,
+                  vertical: ScreenConstant.sizeExtraSmall + 2,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? CustomColor.colorFFF1F2
+                      : CustomColor.colorF8FAFC,
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(
+                    color: isSelected
+                        ? CustomColor.colorBE123C
+                        : CustomColor.colorE2E8F0,
+                    width: 1.5,
                   ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? CustomColor.colorFFF1F2
-                        : CustomColor.colorF8FAFC,
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.colorE2E8F0,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    g,
-                    style: TextStyles.policiesPillText.copyWith(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.color334155,
-                      fontWeight:
-                          selected ? FontWeight.bold : FontWeight.w500,
-                    ),
+                ),
+                child: Text(
+                  o,
+                  style: TextStyles.policiesPillText.copyWith(
+                    color: isSelected
+                        ? CustomColor.colorBE123C
+                        : CustomColor.color334155,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.w500,
                   ),
                 ),
               );
             }).toList(),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1028,45 +1083,13 @@ class EditProfileScreen extends GetView<RegisterController> {
       children: [
         _label("Orientation"),
         Obx(
-          () => Wrap(
-            spacing: ScreenConstant.sizeSmall,
-            runSpacing: ScreenConstant.sizeSmall,
-            children: _orientations.map((o) {
-              final bool selected = controller.selectedOrientation.value == o;
-              return GestureDetector(
-                onTap: () => controller.selectOrientation(o),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ScreenConstant.sizeMedium,
-                    vertical: ScreenConstant.sizeExtraSmall + 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? CustomColor.colorFFF1F2
-                        : CustomColor.colorF8FAFC,
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.colorE2E8F0,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    o,
-                    style: TextStyles.policiesPillText.copyWith(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.color334155,
-                      fontWeight:
-                          selected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
+          () => _readOnlyChips(
+            semanticsLabel: "Orientation",
+            options: _orientations,
+            selected: controller.selectedOrientation.value,
           ),
         ),
+        _lockedNote(),
       ],
     );
   }
@@ -1081,11 +1104,10 @@ class EditProfileScreen extends GetView<RegisterController> {
             spacing: ScreenConstant.sizeSmall,
             runSpacing: ScreenConstant.sizeSmall,
             children: _lookingForOptions.map((opt) {
-              final bool selected = controller.relationshipPrefs.contains(opt);
+              // Same list the PUT payload (looking_for) and onboarding use.
+              final bool selected = controller.selectedLookingFor.contains(opt);
               return GestureDetector(
-                // Must toggle the same list the chip reads (relationshipPrefs);
-                // toggleLookingFor updates a different list, so taps had no effect.
-                onTap: () => controller.toggleRelationshipPref(opt),
+                onTap: () => controller.toggleLookingFor(opt),
                 child: Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: ScreenConstant.sizeMedium,
@@ -1252,102 +1274,9 @@ class EditProfileScreen extends GetView<RegisterController> {
   // (5) Intimate Desires & Chemistry
   // ---------------------------------------------------------------------------
   Widget _buildIntimateDesiresSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Physical & Attraction Preferences",
-          style: TextStyles.loginFieldLabel,
-        ),
-        SizedBox(height: ScreenConstant.sizeSmall),
-        Obx(
-          () => Wrap(
-            spacing: ScreenConstant.sizeSmall,
-            runSpacing: ScreenConstant.sizeSmall,
-            children: _physicalOptions.map((opt) {
-              final bool selected = controller.physicalPrefs.contains(opt);
-              return GestureDetector(
-                onTap: () => controller.togglePhysicalPref(opt),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ScreenConstant.sizeMedium,
-                    vertical: ScreenConstant.sizeExtraSmall + 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? CustomColor.colorFFF1F2
-                        : CustomColor.colorF8FAFC,
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.colorE2E8F0,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    opt,
-                    style: TextStyles.policiesPillText.copyWith(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.color334155,
-                      fontWeight:
-                          selected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-        Text(
-          "Kinks & Intimate Desires",
-          style: TextStyles.loginFieldLabel,
-        ),
-        SizedBox(height: ScreenConstant.sizeSmall),
-        Obx(
-          () => Wrap(
-            spacing: ScreenConstant.sizeSmall,
-            runSpacing: ScreenConstant.sizeSmall,
-            children: _kinkOptions.map((opt) {
-              final bool selected = controller.kinkPrefs.contains(opt);
-              return GestureDetector(
-                onTap: () => controller.toggleKinkPref(opt),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ScreenConstant.sizeMedium,
-                    vertical: ScreenConstant.sizeExtraSmall + 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? CustomColor.colorFFF1F2
-                        : CustomColor.colorF8FAFC,
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.colorE2E8F0,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    opt,
-                    style: TextStyles.policiesPillText.copyWith(
-                      color: selected
-                          ? CustomColor.colorBE123C
-                          : CustomColor.color334155,
-                      fontWeight:
-                          selected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
+    // Shared with the onboarding Intimate Desires screen so options, icons and
+    // selection behavior are identical; bound to the same RegisterController.
+    return const IntimateDesiresForm();
   }
 
   Widget _label(String text) {
@@ -1412,13 +1341,47 @@ class EditProfileScreen extends GetView<RegisterController> {
             ),
           ),
           SizedBox(width: ScreenConstant.sizeMedium),
+          // Save & Continue -> PUT /users/me; shows the same spinner pill as
+          // Login/Publish while saving and ignores taps meanwhile.
           Expanded(
-            child: buildLoginButton(
-              "Save & Continue",
-              true,
-              controller.onSaveEditProfile,
-              Icons.arrow_forward,
-            ),
+            child: Obx(() {
+              if (controller.isSavingEditProfile.value) {
+                return Semantics(
+                  label: "Saving profile",
+                  child: Container(
+                    height: ScreenConstant.defaultHeightSixty,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(100),
+                      gradient: const LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          CustomColor.colorBE185D,
+                          CustomColor.color581C87,
+                        ],
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          CustomColor.colorWhite,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return buildLoginButton(
+                "Save & Continue",
+                true,
+                controller.onSaveEditProfile,
+                Icons.arrow_forward,
+              );
+            }),
           ),
         ],
       ),
