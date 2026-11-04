@@ -388,7 +388,7 @@ class BaseClient {
       // debugPrint('$_basepath/$path');
       debugPrint(response.statusCode.toString());
       debugPrint(response.body);
-      return _processResponse(response);
+      return response;
     } on SocketException {
       throw FetchDataException('${AppStrings.noInternetConnection}', '$path');
     } on TimeoutException {
@@ -428,6 +428,7 @@ class BaseClient {
       throw ApiNotResponding('${AppStrings.apiNotRespondingAtTime}', '$path');
     }
   }
+  // ignore: unused_element
   dynamic _processResponse(http.Response response) {
     switch (response.statusCode) {
       case 200:

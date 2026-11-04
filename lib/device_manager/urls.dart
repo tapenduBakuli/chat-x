@@ -49,6 +49,8 @@ class Urls {
   static const String deleteAccount = "${apiBase}users/me";
   /// PUT — updates the current user's profile (post-payment onboarding).
   static const String updateProfile = "${apiBase}users/me";
+  /// PATCH — partial update of the current user (e.g. is_invisible).
+  static const String patchMyProfile = "${apiBase}users/me";
   /// GET — fetches the current user's account + profile.
   static const String getMyProfile = "${apiBase}users/me";
   static const String updatePassword = "${apiBase}users/me/password";
@@ -104,4 +106,31 @@ class Urls {
   /// DELETE — removes a friend: friends/{user_id}
   /// (the FRIEND'S USER id `items[].user.id`, not the friendship id).
   static String removeFriend(String userId) => "$friends/$userId";
+
+  // --- Chat ----------------------------------------------------------------
+  /// POST — creates or returns the 1:1 conversation with a user; body
+  /// `{"other_user_id": "USER_ID"}`.
+  static const String conversations = "${apiBase}conversations";
+
+  /// GET — paginated conversation list. Builds the exact URL
+  /// conversations?limit=..&offset=.. (BaseClient.get's `query:` would add a
+  /// trailing `&`, so it is not used).
+  static String conversationsPage({int limit = 20, int offset = 0}) =>
+      "$conversations?limit=$limit&offset=$offset";
+
+  /// GET — paginated messages of a conversation, NEWEST first:
+  /// conversations/{conversationId}/messages?limit=..&offset=..
+  static String conversationMessages(
+    String conversationId, {
+    int limit = 50,
+    int offset = 0,
+  }) =>
+      "$conversations/${Uri.encodeComponent(conversationId)}/messages"
+      "?limit=$limit&offset=$offset";
+
+  /// POST — sends a message; body `{"content": "..."}`. Same path as
+  /// [conversationMessages] but WITHOUT the query string:
+  /// conversations/{conversationId}/messages
+  static String sendConversationMessage(String conversationId) =>
+      "$conversations/${Uri.encodeComponent(conversationId)}/messages";
 }

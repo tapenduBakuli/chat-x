@@ -1,20 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../utils/Store/HiveStore.dart';
+import '../../home/controller/conversations_controller.dart';
 import '../../home/model/friend.dart';
 import '../model/chat_message.dart';
+import '../model/conversation_model.dart';
+import '../services/conversation_services.dart';
 
 /// Drives the 1:1 chat screen. The peer ([FriendUser]) is passed via
 /// [Get.arguments]. Uses DEMO data until the chat APIs/socket are provided —
 /// every spot that needs a real call is marked `// TODO(api)`.
 class ChatController extends GetxController {
+  /// Server conversation id; null on the demo (plain FriendUser) path.
+  /// TODO(api): GET/POST conversations/{conversationId}/messages
+  String? conversationId;
+
   /// The friend I'm chatting with; null when the route argument is missing.
   final Rxn<FriendUser> peer = Rxn<FriendUser>();
 
-  /// Messages stored oldest → newest (the list view renders reversed).
+  /// Messages stored oldest → newest (the list view renders reversed). The
+  /// API returns newest first, so pages are reversed before insertion.
   final RxList<ChatMessage> messages = <ChatMessage>[].obs;
 
   final RxBool isLoading = false.obs;
+
+  /// True when the FIRST history page failed (drives the inline retry row
+  /// instead of the "Say hi" empty state).
+  final RxBool loadFailed = false.obs;
+
+  /// Older page in flight (small spinner at the top of the list).
+  final RxBool isLoadingMore = false.obs;
+
+  /// An older page failed; shows a retry row at the top (no auto-retry loop).
+  final RxBool loadMoreFailed = false.obs;
+
+  static const int _pageSize = 50;
+
+  /// Raw server rows consumed so far (offset of the next older page).
+  int _offset = 0;
+  bool _hasMore = false;
 
   /// Peer "typing…" indicator. TODO(api): drive from the realtime socket.
   final RxBool peerTyping = false.obs;
@@ -38,7 +63,18 @@ class ChatController extends GetxController {
   void onInit() {
     super.onInit();
     final arg = Get.arguments;
-    if (arg is FriendUser) {
+    if (arg is ChatArgs) {
+      // Real conversation from POST conversations: header uses `other_user`.
+      conversationId = arg.conversation.id;
+      peer.value = arg.conversation.otherUser;
+      // Real conversations never show fabricated demo messages. History is
+      // fetched only when the conversation already has messages; a brand-new
+      // one (hasNoMessages) starts empty without a request.
+      scrollController.addListener(_onScroll);
+      if (!arg.conversation.hasNoMessages) loadMessages();
+      // TODO(api): subscribe to the realtime socket for this conversation.
+    } else if (arg is FriendUser) {
+      // Demo / unknown-conversation path (no conversationId).
       peer.value = arg;
       loadHistory();
       // TODO(api): subscribe to the realtime socket for this conversation
@@ -61,17 +97,154 @@ class ChatController extends GetxController {
     }
   }
 
+  /// The logged-in user's id: the saved Keys.USERID (login, or GET /users/me)
+  /// or '' when unknown.
+  static String currentUserId() {
+    try {
+      final dynamic v = HiveStore.defBox.get(Keys.USERID);
+      return v is String ? v.trim() : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// LEFT/RIGHT rule. A known [currentUserId] always wins: mine iff
+  /// sender == me. Last resort when it is unknown: anything not sent by the
+  /// peer is mine.
+  static bool resolveIsMine({
+    required String senderId,
+    required String currentUserId,
+    required String peerId,
+  }) {
+    if (currentUserId.isNotEmpty) return senderId == currentUserId;
+    if (peerId.isNotEmpty && senderId.isNotEmpty) return senderId != peerId;
+    return false;
+  }
+
+  /// Loads the first (newest) history page; also used by the retry row.
+  Future<void> loadMessages() async {
+    final id = conversationId;
+    if (id == null || id.isEmpty || isLoading.value) return;
+    isLoading.value = true;
+    loadFailed.value = false;
+    try {
+      final res = await _fetchPage(id, 0);
+      if (isClosed) return;
+      if (!res.success) {
+        loadFailed.value = true;
+        _toast("Couldn't load messages", res.message);
+        return;
+      }
+      _offset = res.rawCount;
+      _hasMore = res.rawCount > 0 && _offset < res.total;
+      // Server order is newest first; the list wants oldest first.
+      final history = res.items.reversed.toList();
+      final ids = history.map((m) => m.id).toSet();
+      // Keep anything sent locally before the page arrived (never in history).
+      final locals = messages.where((m) => !ids.contains(m.id)).toList();
+      messages.assignAll([...history, ...locals]);
+    } finally {
+      if (!isClosed) {
+        isLoading.value = false;
+        _fillIfShort();
+      }
+    }
+  }
+
+  /// Loads the next OLDER page and prepends it (de-duped by id).
+  Future<void> loadOlder() async {
+    final id = conversationId;
+    if (id == null ||
+        id.isEmpty ||
+        !_hasMore ||
+        isLoading.value ||
+        isLoadingMore.value) {
+      return;
+    }
+    isLoadingMore.value = true;
+    loadMoreFailed.value = false;
+    try {
+      final res = await _fetchPage(id, _offset);
+      if (isClosed) return;
+      if (!res.success) {
+        loadMoreFailed.value = true;
+        _toast("Couldn't load older messages", res.message);
+        return;
+      }
+      _offset += res.rawCount;
+      _hasMore = res.rawCount > 0 && _offset < res.total;
+      final existing = messages.map((m) => m.id).toSet();
+      final older = res.items.reversed.where((m) => !existing.contains(m.id));
+      // The list is reversed, so prepending extends the TOP; the pixel offset
+      // is measured from the bottom, hence the scroll position stays put.
+      messages.insertAll(0, older.toList());
+    } finally {
+      if (!isClosed) {
+        isLoadingMore.value = false;
+        _fillIfShort();
+      }
+    }
+  }
+
+  Future<MessageListResponse> _fetchPage(String id, int offset) {
+    final me = currentUserId();
+    final peerId = peer.value?.id ?? '';
+    return ConversationService.instance.fetchMessages(
+      id,
+      limit: _pageSize,
+      offset: offset,
+      isMine: (json) => resolveIsMine(
+        senderId: json['sender_id']?.toString() ?? '',
+        currentUserId: me,
+        peerId: peerId,
+      ),
+    );
+  }
+
+  void _onScroll() {
+    if (!scrollController.hasClients) return;
+    final p = scrollController.position;
+    // Reversed list: maxScrollExtent is the TOP (oldest messages).
+    if (p.pixels >= p.maxScrollExtent - 200) loadOlder();
+  }
+
+  /// If the loaded messages don't fill the viewport nothing can scroll, so
+  /// keep pulling older pages.
+  void _fillIfShort() {
+    if (!_hasMore || loadMoreFailed.value) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isClosed || !scrollController.hasClients) return;
+      if (scrollController.position.maxScrollExtent <= 0) loadOlder();
+    });
+  }
+
+  void _toast(String title, String message) => Get.snackbar(
+        title,
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+
   void onDraftChanged(String value) => draft.value = value;
 
-  /// Appends my message locally (sending → sent → delivered in DEMO).
-  /// TODO(api): POST the message / emit via socket; on ack set `sent`, on
-  /// failure mark it failed and offer a retry.
+  /// Local (not yet confirmed by the server) message ids start with this.
+  static const String _localPrefix = 'local-';
+
+  static bool isLocalId(String id) => id.startsWith(_localPrefix);
+
+  /// Local ids waiting for (or in) their POST, oldest first. Serialising the
+  /// POSTs keeps the server order equal to the UI order.
+  final List<String> _sendQueue = <String>[];
+  bool _draining = false;
+
+  /// Sends my message. Real conversations: optimistic append (`sending`),
+  /// queued POST, then a page-1 reload that is MERGED in. Demo path keeps
+  /// its local sending → sent → delivered simulation.
   Future<void> sendMessage() async {
     final text = textController.text.trim();
     if (text.isEmpty) return;
 
     final message = ChatMessage(
-      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      id: '$_localPrefix${DateTime.now().microsecondsSinceEpoch}',
       text: text,
       isMine: true,
       sentAt: DateTime.now(),
@@ -82,6 +255,12 @@ class ChatController extends GetxController {
     draft.value = '';
     _scrollToBottom();
 
+    if (conversationId != null && conversationId!.isNotEmpty) {
+      _sendQueue.add(message.id);
+      await _drainQueue();
+      return;
+    }
+
     // DEMO: fake server ack + delivery receipt.
     await Future.delayed(const Duration(milliseconds: 600));
     if (isClosed) return;
@@ -91,7 +270,126 @@ class ChatController extends GetxController {
     if (isClosed) return;
     _updateStatus(message.id, MessageStatus.delivered);
 
-    if (peer.value?.isOnline == true) _demoReply();
+    // The demo reply only runs on the demo (plain FriendUser) path.
+    if (conversationId == null && peer.value?.isOnline == true) _demoReply();
+  }
+
+  /// Tap on a failed bubble: POST the same message again.
+  Future<void> retryMessage(String localId) async {
+    final i = messages.indexWhere((m) => m.id == localId);
+    if (i == -1 || messages[i].status != MessageStatus.failed) return;
+    messages[i] = messages[i].copyWith(status: MessageStatus.sending);
+    _sendQueue.add(localId);
+    await _drainQueue();
+  }
+
+  /// Long-press / x on a failed bubble: drop it locally.
+  void deleteFailedMessage(String localId) {
+    final i = messages.indexWhere((m) => m.id == localId);
+    if (i == -1 || messages[i].status != MessageStatus.failed) return;
+    messages.removeAt(i);
+  }
+
+  Future<void> _drainQueue() async {
+    if (_draining) return;
+    _draining = true;
+    var anySuccess = false;
+    try {
+      while (_sendQueue.isNotEmpty && !isClosed) {
+        final localId = _sendQueue.removeAt(0);
+        if (await _postOne(localId)) anySuccess = true;
+      }
+    } finally {
+      _draining = false;
+    }
+    if (anySuccess && !isClosed) await _afterSend();
+  }
+
+  /// POSTs one queued message. Returns true on success.
+  Future<bool> _postOne(String localId) async {
+    final id = conversationId;
+    final i = messages.indexWhere((m) => m.id == localId);
+    if (id == null || i == -1) return false; // deleted meanwhile
+    final res = await ConversationService.instance.sendMessage(
+      id,
+      messages[i].text,
+      // A message returned by my own POST is always mine.
+      isMine: (_) => true,
+    );
+    if (isClosed) return false;
+    final sent = res.sent;
+    if (res.success && sent != null) {
+      messages.assignAll(replaceMessage(messages, localId, sent));
+      return true;
+    }
+    final j = messages.indexWhere((m) => m.id == localId);
+    if (j != -1) {
+      messages[j] = messages[j].copyWith(status: MessageStatus.failed);
+    }
+    _toast("Message not sent", res.message);
+    return false;
+  }
+
+  /// After a successful send: reload page 1 and MERGE it (never replace), then
+  /// quietly refresh the Chats tab. `_offset`/`_hasMore` are left untouched.
+  Future<void> _afterSend() async {
+    final id = conversationId;
+    if (id != null) {
+      final res = await _fetchPage(id, 0);
+      if (isClosed) return;
+      if (res.success) {
+        messages.assignAll(mergeNewest(messages, res.items));
+      } else {
+        // Quiet: the POST-response message is already in the list.
+        debugPrint('ChatController: post-send reload failed: ${res.message}');
+      }
+    }
+    // Chats tab: a quiet page-1 refresh updates the last-message snippet and
+    // time right away (it also refreshes on return, but this keeps the tab
+    // correct if it is visible underneath). Errors are silent when quiet.
+    if (Get.isRegistered<ConversationsController>()) {
+      Get.find<ConversationsController>().loadFirstPage(quiet: true);
+    }
+  }
+
+  /// Pure: swaps the local message [localId] IN PLACE with [server]. If the
+  /// server id is already in [list] (a concurrent reload added it) the local
+  /// one is simply dropped, so no duplicate appears.
+  static List<ChatMessage> replaceMessage(
+    List<ChatMessage> list,
+    String localId,
+    ChatMessage server,
+  ) {
+    final i = list.indexWhere((m) => m.id == localId);
+    if (i == -1) return List<ChatMessage>.of(list);
+    final result = List<ChatMessage>.of(list);
+    final dup = result.indexWhere((m) => m.id == server.id);
+    if (dup != -1 && dup != i) {
+      result.removeAt(i);
+    } else {
+      result[i] = server;
+    }
+    return result;
+  }
+
+  /// Pure: merges a page-1 response ([pageNewestFirst], server order) into
+  /// [existing] (oldest → newest). Only ids not already present are added,
+  /// sorted by time and placed after the existing server messages; local
+  /// `sending`/`failed` messages stay at the very end.
+  static List<ChatMessage> mergeNewest(
+    List<ChatMessage> existing,
+    List<ChatMessage> pageNewestFirst,
+  ) {
+    final seen = existing.map((m) => m.id).toSet();
+    final fresh = <ChatMessage>[];
+    for (final m in pageNewestFirst) {
+      if (seen.add(m.id)) fresh.add(m);
+    }
+    if (fresh.isEmpty) return List<ChatMessage>.of(existing);
+    fresh.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    final server = existing.where((m) => !isLocalId(m.id));
+    final local = existing.where((m) => isLocalId(m.id));
+    return [...server, ...fresh, ...local];
   }
 
   void _updateStatus(String id, MessageStatus status) {

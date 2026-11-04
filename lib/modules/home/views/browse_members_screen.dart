@@ -11,6 +11,7 @@ import '../../../utils/custom_widgets/universal_button.dart';
 import '../controller/home_controller.dart';
 import '../model/member.dart';
 import 'widgets/blocked_tab.dart';
+import 'widgets/chats_tab.dart';
 import 'widgets/friends_tab.dart';
 import 'widgets/member_network_image.dart';
 import 'widgets/reset_password_dialogs.dart';
@@ -94,6 +95,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
   }
 
   Widget _buildChatTab() {
+    return ChatsTab(emptyState: _buildChatEmptyState());
+  }
+
+  /// Shown by [ChatsTab] when there are no conversations.
+  Widget _buildChatEmptyState() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -135,8 +141,9 @@ class BrowseMembersScreen extends GetView<HomeController> {
 
   // ---------------------------------------------------------------------------
   // Accounts tab — scrollable page of settings cards. Most sections are
-  // static/demo (APIs land later); only the invisible toggle, plan highlight,
-  // the show-password toggles, and the reset-password dialog flow are live.
+  // static/demo (APIs land later); the invisible toggle is server-backed
+  // (GET/PATCH users/me), and the plan highlight, the show-password toggles,
+  // and the reset-password dialog flow are also live.
   // ---------------------------------------------------------------------------
   Widget _buildAccountsTab() {
     // Builder gives the dialogs a Navigator-aware context beneath the
@@ -637,7 +644,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   children: [
                     Expanded(
                       child: Text(
-                        "user@chatx.be",
+                        controller.userProfileEmail.value,
                         style: TextStyle(
                           fontFamily: "monospace",
                           fontSize: FontSize.s14,
@@ -669,49 +676,71 @@ class BrowseMembersScreen extends GetView<HomeController> {
           SizedBox(height: ScreenConstant.sizeMedium),
           // Invisibility row. INTERACTIVE — leading icon swaps with state.
           Obx(
-            () => Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(
-                  controller.isAccountInvisible.value
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: ScreenConstant.smallIconSize,
-                  color: CustomColor.colorBE185D,
-                ),
-                SizedBox(width: ScreenConstant.sizeSmall),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            () {
+              final bool isInvisible = controller.isAccountInvisible.value;
+              final bool isLoading = controller.isInvisibleLoading.value;
+              final bool isUpdating = controller.isInvisibleUpdating.value;
+              final bool busy = isLoading || isUpdating;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    isInvisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: ScreenConstant.smallIconSize,
+                    color: CustomColor.colorBE185D,
+                  ),
+                  SizedBox(width: ScreenConstant.sizeSmall),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Make Account Invisible",
+                          style: TextStyles.browseToggleLabel.copyWith(
+                            color: CustomColor.color0F172A,
+                            fontSize: FontSize.s14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: ScreenConstant.sizeExtraSmall / 1.5),
+                        Text(
+                          "When invisible, your profile is completely hidden "
+                          "from Search, Discovery, and suggestions.",
+                          style: TextStyles.registerFieldNote.copyWith(
+                            color: CustomColor.color64748B,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: ScreenConstant.sizeSmall),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        "Make Account Invisible",
-                        style: TextStyles.browseToggleLabel.copyWith(
-                          color: CustomColor.color0F172A,
-                          fontSize: FontSize.s14,
-                          fontWeight: FontWeight.bold,
+                      if (busy) ...[
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: CustomColor.colorBE185D,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: ScreenConstant.sizeExtraSmall / 1.5),
-                      Text(
-                        "When invisible, your profile is completely hidden "
-                        "from Search, Discovery, and suggestions.",
-                        style: TextStyles.registerFieldNote.copyWith(
-                          color: CustomColor.color64748B,
-                        ),
+                        SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      ],
+                      Switch(
+                        value: isInvisible,
+                        onChanged: busy ? null : controller.toggleInvisible,
+                        activeColor: CustomColor.colorWhite,
+                        activeTrackColor: CustomColor.colorBE185D,
                       ),
                     ],
                   ),
-                ),
-                SizedBox(width: ScreenConstant.sizeSmall),
-                Switch(
-                  value: controller.isAccountInvisible.value,
-                  onChanged: controller.toggleInvisible,
-                  activeColor: CustomColor.colorWhite,
-                  activeTrackColor: CustomColor.colorBE185D,
-                ),
-              ],
-            ),
+                ],
+              );
+            },
           ),
         ],
       ),

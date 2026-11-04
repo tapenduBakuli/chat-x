@@ -9,9 +9,11 @@ import '../../../utils/lib/otp_text_field.dart';
 import '../../login/controller/login_controller.dart';
 import '../../login/services/login_services.dart';
 import '../../notification/services/notification_services.dart';
+import '../../register/services/profile_services.dart';
 import '../model/member.dart';
 import '../services/block_services.dart';
 import 'blocked_controller.dart';
+import 'conversations_controller.dart';
 import '../services/friend_services.dart';
 import '../services/member_services.dart';
 import 'friends_controller.dart';
@@ -95,9 +97,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// User profile info loaded from HiveStore.
   final RxString userAvatarUrl = ''.obs;
   final RxString userProfileName = ''.obs;
+  final RxString userProfileEmail = ''.obs;
 
   void loadUserData() {
     final String? avatar = HiveStore().getString(Keys.SAVEDAVATAR);
+    final String? email = HiveStore().getString(Keys.SAVEDEMAIL);
     final String? name = HiveStore().getString(Keys.SAVEDPROFILENAME) ??
         HiveStore().getString(Keys.SAVEDNAME) ??
         HiveStore().getString(Keys.SESSIONDISPLAYNAME);
@@ -106,6 +110,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     if (name != null && name.isNotEmpty) {
       userProfileName.value = name;
+    }
+    if (email != null && email.isNotEmpty) {
+      userProfileEmail.value = email;
     }
   }
 
@@ -280,10 +287,96 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   final RxInt selectedPlanIndex = 1.obs;
   void selectPlan(int i) => selectedPlanIndex.value = i;
 
-  /// Whether the account is set to "invisible" (local toggle, no API). Drives
-  /// both the Switch and the leading eye/eye-off icon.
+  /// Whether the account is "invisible". Server-backed: loaded from GET
+  /// /users/me on Accounts-tab entry and only changed from the server's
+  /// answer (no optimistic update). Drives both the Switch and the leading
+  /// eye/eye-off icon.
   final RxBool isAccountInvisible = false.obs;
-  void toggleInvisible(bool v) => isAccountInvisible.value = v;
+
+  /// First GET /users/me for the toggle is in flight (spinner + disabled).
+  final RxBool isInvisibleLoading = false.obs;
+
+  /// PATCH (+ follow-up GET) is in flight (spinner + disabled, blocks taps).
+  final RxBool isInvisibleUpdating = false.obs;
+
+  static const Duration _invisibleThrottle = Duration(seconds: 10);
+  static const Duration _invisibleErrorToastGap = Duration(seconds: 30);
+  DateTime? _lastInvisibleFetch;
+  DateTime? _lastInvisibleErrorToast;
+  bool _isFetchingInvisible = false;
+  bool _hasLoadedInvisible = false;
+
+  /// Loads `is_invisible` via GET /users/me. Throttled to once per
+  /// [_invisibleThrottle] unless [force]. On failure keeps the last known
+  /// value and shows a throttled, non-blocking snackbar.
+  Future<void> loadInvisibleStatus({bool force = false}) async {
+    if (_isFetchingInvisible || isInvisibleUpdating.value) return;
+    final now = DateTime.now();
+    if (!force &&
+        _lastInvisibleFetch != null &&
+        now.difference(_lastInvisibleFetch!) < _invisibleThrottle) {
+      return;
+    }
+    final token = HiveStore().getString(Keys.ACCESSTOKEN);
+    if (token == null || token.toString().isEmpty) return;
+
+    _isFetchingInvisible = true;
+    _lastInvisibleFetch = now;
+    if (!_hasLoadedInvisible) isInvisibleLoading.value = true;
+    try {
+      final res = await ProfileService.instance.getMyProfile();
+      if (res.success && res.data != null) {
+        isAccountInvisible.value = res.data!.isInvisible;
+        _hasLoadedInvisible = true;
+      } else {
+        // Let the next tab entry retry immediately.
+        _lastInvisibleFetch = null;
+        final last = _lastInvisibleErrorToast;
+        if (last == null || now.difference(last) >= _invisibleErrorToastGap) {
+          _lastInvisibleErrorToast = now;
+          Get.snackbar('Could not load visibility', res.message,
+              snackPosition: SnackPosition.BOTTOM);
+        }
+      }
+    } finally {
+      _isFetchingInvisible = false;
+      isInvisibleLoading.value = false;
+    }
+  }
+
+  /// Flips visibility on the server: PATCH users/me, then GET users/me for
+  /// the authoritative value. The UI value never changes before the server
+  /// answers, so a failed PATCH simply leaves the previous value.
+  Future<void> toggleInvisible(bool newValue) async {
+    if (isInvisibleUpdating.value || isInvisibleLoading.value) return;
+    isInvisibleUpdating.value = true;
+    try {
+      final res = await ProfileService.instance.updateInvisibility(newValue);
+      if (!res.success) {
+        Get.snackbar('Could not update visibility', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+
+      final fresh = await ProfileService.instance.getMyProfile();
+      final bool authoritative = fresh.success && fresh.data != null
+          ? fresh.data!.isInvisible
+          : (res.isInvisible ?? newValue);
+      isAccountInvisible.value = authoritative;
+      _hasLoadedInvisible = true;
+      _lastInvisibleFetch = DateTime.now();
+
+      Get.snackbar(
+        'Visibility updated',
+        res.message.isNotEmpty
+            ? res.message
+            : (authoritative ? "You're now invisible" : "You're visible again"),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isInvisibleUpdating.value = false;
+    }
+  }
 
   /// Whether the three Change-Password card fields are shown (not obscured).
   final RxBool showChangePwd = false.obs;
@@ -1078,6 +1171,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     selectedNavIndex.value = index;
     // Checkpoint: every tab switch re-checks the unread badge (throttled).
     refreshUnreadNotifications();
+    // Accounts tab: sync the invisible toggle (forced the first time only).
+    if (index == 3) loadInvisibleStatus(force: !_hasLoadedInvisible);
+    // Chat tab: load/refresh the conversation list (10s throttle; the
+    // first open always loads).
+    if (index == 1 && Get.isRegistered<ConversationsController>()) {
+      Get.find<ConversationsController>().onTabOpened();
+    }
   }
 
   /// Logs out: calls the logout API with the stored refresh token, then (on a

@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../controller/blocked_controller.dart';
+import '../controller/conversations_controller.dart';
 import '../controller/friends_controller.dart';
 import '../controller/home_controller.dart';
 
@@ -17,6 +18,10 @@ class HomeBinding extends Bindings {
     // Blocked tab (GET users/blocked + unblock).
     Get.lazyPut<BlockedController>(
       () => BlockedController(),
+    );
+    // Chat tab (GET conversations).
+    Get.lazyPut<ConversationsController>(
+      () => ConversationsController(),
     );
   }
 }

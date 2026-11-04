@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:get/get.dart';
 
 import '../../../device_manager/screen_constants.dart';
@@ -139,11 +140,19 @@ class ChatScreen extends GetView<ChatController> {
             }
           },
           itemBuilder: (_) => [
-            _menuItem('profile', Icons.person_outline, 'View profile',
-                CustomColor.color0F172A),
+            _menuItem(
+              'profile',
+              Icons.person_outline,
+              'View profile',
+              CustomColor.color0F172A,
+            ),
             _menuItem('block', Icons.block, 'Block', CustomColor.color0F172A),
-            _menuItem('report', Icons.flag_outlined, 'Report',
-                CustomColor.colorE11D48),
+            _menuItem(
+              'report',
+              Icons.flag_outlined,
+              'Report',
+              CustomColor.colorE11D48,
+            ),
           ],
         ),
       ],
@@ -151,7 +160,11 @@ class ChatScreen extends GetView<ChatController> {
   }
 
   PopupMenuItem<String> _menuItem(
-      String value, IconData icon, String label, Color color) {
+    String value,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
     return PopupMenuItem<String>(
       value: value,
       child: Row(
@@ -174,9 +187,7 @@ class ChatScreen extends GetView<ChatController> {
   Widget _avatar(FriendUser user) {
     final double size = ScreenConstant.defaultWidthForty;
     return Semantics(
-      label: user.isOnline
-          ? '${user.displayName}, online'
-          : user.displayName,
+      label: user.isOnline ? '${user.displayName}, online' : user.displayName,
       excludeSemantics: true,
       child: SizedBox(
         width: size,
@@ -196,7 +207,9 @@ class ChatScreen extends GetView<ChatController> {
                     ? MemberNetworkImage(url: user.avatarUrl)
                     : Container(
                         alignment: Alignment.center,
-                        decoration: const BoxDecoration(gradient: _brandGradient),
+                        decoration: const BoxDecoration(
+                          gradient: _brandGradient,
+                        ),
                         child: Text(
                           _initials(user.displayName),
                           style: TextStyles.registerSectionTitle.copyWith(
@@ -235,14 +248,21 @@ class ChatScreen extends GetView<ChatController> {
       final bool loading = controller.isLoading.value;
       final List<ChatMessage> items = controller.messages.toList();
       if (items.isEmpty) {
-        return loading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(CustomColor.colorBE185D),
-                ),
-              )
-            : _emptyState(peer);
+        if (loading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                CustomColor.colorBE185D,
+              ),
+            ),
+          );
+        }
+        if (controller.loadFailed.value) {
+          return Center(
+            child: _retryRow("Couldn't load messages", controller.loadMessages),
+          );
+        }
+        return _emptyState(peer);
       }
       final int n = items.length;
       return ListView.builder(
@@ -250,12 +270,14 @@ class ChatScreen extends GetView<ChatController> {
         reverse: true,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.symmetric(
-          horizontal: ScreenConstant.defaultWidthTen +
-              ScreenConstant.sizeExtraSmall,
+          horizontal:
+              ScreenConstant.defaultWidthTen + ScreenConstant.sizeExtraSmall,
           vertical: ScreenConstant.sizeMedium,
         ),
-        itemCount: n,
+        itemCount: n + 1,
         itemBuilder: (_, i) {
+          // Reversed list: the last index is the TOP (older-messages row).
+          if (i == n) return _olderRow();
           // Reversed list: index 0 is the newest message.
           final int ci = n - 1 - i;
           final ChatMessage m = items[ci];
@@ -276,6 +298,72 @@ class ChatScreen extends GetView<ChatController> {
         },
       );
     });
+  }
+
+  /// Top of the list: small spinner while loading older messages, or a retry
+  /// row when that load failed.
+  Widget _olderRow() {
+    return Obx(() {
+      if (controller.isLoadingMore.value) {
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: ScreenConstant.sizeSmall),
+          child: Center(
+            child: SizedBox(
+              width: ScreenConstant.smallIconSize,
+              height: ScreenConstant.smallIconSize,
+              child: const CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  CustomColor.colorBE185D,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      if (controller.loadMoreFailed.value) {
+        return _retryRow("Couldn't load older messages", controller.loadOlder);
+      }
+      return const SizedBox.shrink();
+    });
+  }
+
+  Widget _retryRow(String title, VoidCallback onRetry) {
+    return Semantics(
+      button: true,
+      label: '$title. Tap to retry',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onRetry,
+        borderRadius: BorderRadius.circular(100),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ScreenConstant.sizeMedium,
+            vertical: ScreenConstant.sizeSmall,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.refresh,
+                size: ScreenConstant.smallIconSize,
+                color: CustomColor.colorBE185D,
+              ),
+              SizedBox(width: ScreenConstant.sizeExtraSmall),
+              Flexible(
+                child: Text(
+                  '$title - Tap to retry',
+                  style: TextStyles.registerFieldNote.copyWith(
+                    color: CustomColor.colorBE185D,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _dateSeparator(String label) {
@@ -326,6 +414,7 @@ class ChatScreen extends GetView<ChatController> {
     );
     final String time = controller.timeLabel(m.sentAt);
     final String statusText = mine ? ', ${_statusLabel(m.status)}' : '';
+    final bool failed = mine && m.status == MessageStatus.failed;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -335,67 +424,137 @@ class ChatScreen extends GetView<ChatController> {
       ),
       child: Semantics(
         label:
-            '${mine ? 'You' : peer.displayName}, $time$statusText: ${m.text}',
+            '${mine ? 'You' : peer.displayName}, $time$statusText: ${m.text}'
+            '${failed ? '. Tap to retry' : ''}',
+        button: failed,
+        onTap: failed ? () => controller.retryMessage(m.id) : null,
+        onLongPress: failed ? () => controller.deleteFailedMessage(m.id) : null,
+        customSemanticsActions: failed
+            ? <CustomSemanticsAction, VoidCallback>{
+                const CustomSemanticsAction(label: 'Delete message'): () =>
+                    controller.deleteFailedMessage(m.id),
+              }
+            : null,
         excludeSemantics: true,
-        child: Column(
-          crossAxisAlignment:
-              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: ScreenConstant.screenWidthHalf * 1.5,
-              ),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: ScreenConstant.sizeSmallHighest,
-                  vertical: ScreenConstant.sizeSmall,
+        child: _retryWrap(
+          failed: failed,
+          message: m,
+          child: Column(
+            crossAxisAlignment: mine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: ScreenConstant.screenWidthHalf * 1.5,
                 ),
-                decoration: BoxDecoration(
-                  gradient: mine ? _brandGradient : null,
-                  color: mine ? null : CustomColor.colorWhite,
-                  borderRadius: radius,
-                  boxShadow: mine
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: CustomColor.color717B96.withOpacity(0.12),
-                            blurRadius: 16,
-                            spreadRadius: -6,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                ),
-                child: Text(
-                  m.text,
-                  style: TextStyles.loginFieldText.copyWith(
-                    fontSize: FontSize.s15,
-                    color: mine
-                        ? CustomColor.colorWhite
-                        : CustomColor.color0F172A,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ScreenConstant.sizeSmallHighest,
+                    vertical: ScreenConstant.sizeSmall,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: mine ? _brandGradient : null,
+                    color: mine ? null : CustomColor.colorWhite,
+                    borderRadius: radius,
+                    boxShadow: mine
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: CustomColor.color717B96.withOpacity(0.12),
+                              blurRadius: 16,
+                              spreadRadius: -6,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                  ),
+                  child: Text(
+                    m.text,
+                    style: TextStyles.loginFieldText.copyWith(
+                      fontSize: FontSize.s15,
+                      color: mine
+                          ? CustomColor.colorWhite
+                          : CustomColor.color0F172A,
+                    ),
                   ),
                 ),
               ),
-            ),
-            if (!groupedNext)
-              Padding(
-                padding: EdgeInsets.only(
-                  top: ScreenConstant.defaultHeightFour,
-                  left: ScreenConstant.defaultHeightFour,
-                  right: ScreenConstant.defaultHeightFour,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(time, style: TextStyles.registerFieldNote),
-                    if (mine) ...[
-                      SizedBox(width: ScreenConstant.defaultHeightFour),
-                      _statusIcon(m.status),
+              if (failed)
+                _failedFooter(m)
+              else if (!groupedNext)
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: ScreenConstant.defaultHeightFour,
+                    left: ScreenConstant.defaultHeightFour,
+                    right: ScreenConstant.defaultHeightFour,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(time, style: TextStyles.registerFieldNote),
+                      if (mine) ...[
+                        SizedBox(width: ScreenConstant.defaultHeightFour),
+                        _statusIcon(m.status),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  /// Failed bubbles: tap retries, long-press deletes (see [_failedFooter]).
+  Widget _retryWrap({
+    required bool failed,
+    required ChatMessage message,
+    required Widget child,
+  }) {
+    if (!failed) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => controller.retryMessage(message.id),
+      onLongPress: () => controller.deleteFailedMessage(message.id),
+      child: child,
+    );
+  }
+
+  /// Red error icon + "Tap to retry" + a small x that deletes the message.
+  Widget _failedFooter(ChatMessage m) {
+    return Padding(
+      padding: EdgeInsets.only(top: ScreenConstant.defaultHeightFour),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: ScreenConstant.smallIconSize,
+            color: CustomColor.colorE11D48,
+          ),
+          SizedBox(width: ScreenConstant.defaultHeightFour),
+          Text(
+            'Not sent - Tap to retry',
+            style: TextStyles.registerFieldNote.copyWith(
+              color: CustomColor.colorE11D48,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(width: ScreenConstant.defaultHeightFour),
+          InkWell(
+            onTap: () => controller.deleteFailedMessage(m.id),
+            borderRadius: BorderRadius.circular(100),
+            child: Padding(
+              padding: EdgeInsets.all(ScreenConstant.defaultHeightFour),
+              child: Icon(
+                Icons.close,
+                size: ScreenConstant.minimumIconSize,
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -404,6 +563,10 @@ class ChatScreen extends GetView<ChatController> {
     late final IconData icon;
     Color color = CustomColor.color94A3B8;
     switch (s) {
+      case MessageStatus.failed:
+        icon = Icons.error_outline;
+        color = CustomColor.colorE11D48;
+        break;
       case MessageStatus.sending:
         icon = Icons.schedule;
         break;
@@ -428,6 +591,8 @@ class ChatScreen extends GetView<ChatController> {
 
   static String _statusLabel(MessageStatus s) {
     switch (s) {
+      case MessageStatus.failed:
+        return 'Not sent';
       case MessageStatus.sending:
         return 'Sending';
       case MessageStatus.sent:
@@ -556,9 +721,9 @@ class ChatScreen extends GetView<ChatController> {
   // ---------------------------------------------------------------------------
   Widget _composer() {
     OutlineInputBorder border(Color color) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: color),
-        );
+      borderRadius: BorderRadius.circular(24),
+      borderSide: BorderSide(color: color),
+    );
 
     return Container(
       decoration: const BoxDecoration(
@@ -621,8 +786,7 @@ class ChatScreen extends GetView<ChatController> {
                 ),
               ),
               SizedBox(width: ScreenConstant.sizeSmall),
-              Obx(() =>
-                  _sendButton(controller.draft.value.trim().isNotEmpty)),
+              Obx(() => _sendButton(controller.draft.value.trim().isNotEmpty)),
             ],
           ),
         ),
@@ -719,8 +883,11 @@ class ChatScreen extends GetView<ChatController> {
   // Helpers
   // ---------------------------------------------------------------------------
   static String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();

@@ -14,6 +14,7 @@ import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../home/controller/home_controller.dart';
 import '../../login/model/login_response_model.dart';
 import '../model/gallery_photo_model.dart';
 import '../model/onboarding_args.dart';
@@ -1553,7 +1554,11 @@ class RegisterController extends GetxController {
 
   /// Updates the stored session name/avatar with the published values (only
   /// when non-empty) so Home/Profile show what was set during onboarding.
-  void _syncSessionIdentity(UpdateProfileUser? data) {
+  ///
+  /// [freshAvatar] is the absolute URL returned by the avatar upload API in
+  /// this same save; when set it wins over the GET /users/me values (which can
+  /// lag behind or carry a different field), because it is the newest.
+  void _syncSessionIdentity(UpdateProfileUser? data, {String? freshAvatar}) {
     final String serverName = (data?.displayName ?? '').trim();
     final String name = serverName.isNotEmpty ? serverName : previewDisplayName;
     if (name.isNotEmpty) {
@@ -1563,11 +1568,29 @@ class RegisterController extends GetxController {
 
     final String profileAvatar = (data?.profile?.avatarUrl ?? '').trim();
     final String userAvatar = (data?.avatarUrl ?? '').trim();
-    final String avatar = profileAvatar.isNotEmpty
-        ? profileAvatar
-        : (userAvatar.isNotEmpty ? userAvatar : avatarUrl.value.trim());
+    final String fresh = (freshAvatar ?? '').trim();
+    final String avatar = fresh.isNotEmpty
+        ? fresh
+        : (profileAvatar.isNotEmpty
+            ? profileAvatar
+            : (userAvatar.isNotEmpty ? userAvatar : avatarUrl.value.trim()));
+    final String previous = (_store.getString(Keys.SAVEDAVATAR) ?? '').trim();
+    debugPrint('Avatar sync -> previous: $previous | uploaded: $fresh | '
+        'profile.avatar_url: $profileAvatar | avatar_url: $userAvatar | '
+        'chosen: $avatar');
     if (avatar.isNotEmpty) {
       _store.setString(Keys.SAVEDAVATAR, avatar);
+      // If the server reuses the same URL for a replaced image, Flutter's
+      // image cache would keep showing the old picture: drop cached copies.
+      final cache = PaintingBinding.instance.imageCache;
+      if (previous.isNotEmpty) cache.evict(NetworkImage(previous));
+      cache.evict(NetworkImage(avatar));
+    }
+
+    // Home's header avatar/name are Rx values loaded from Hive once at
+    // startup; push the fresh values so they update without a restart.
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().loadUserData();
     }
   }
 
@@ -1671,7 +1694,10 @@ class RegisterController extends GetxController {
     }
     isSavingEditProfile.value = true;
     try {
+      final String? uploadedBefore = _uploadedAvatarPath;
       if (!await _syncAvatarIfChanged()) return;
+      // True only when a new main photo was uploaded during this save.
+      final bool avatarJustUploaded = _uploadedAvatarPath != uploadedBefore;
 
       final payload = _buildEditProfilePayload();
       debugPrint('================= EDIT PROFILE PAYLOAD =================');
@@ -1700,7 +1726,10 @@ class RegisterController extends GetxController {
       try {
         final fresh = await ProfileService.instance.getMyProfile();
         if (fresh.success && fresh.data != null) {
-          _syncSessionIdentity(fresh.data);
+          _syncSessionIdentity(
+            fresh.data,
+            freshAvatar: avatarJustUploaded ? mainPhotoUrl : null,
+          );
         } else {
           Get.snackbar(
             'Profile refresh pending',
@@ -1712,7 +1741,12 @@ class RegisterController extends GetxController {
         debugPrint('Edit Profile post-save GET failed: $e');
       }
 
-      Get.offAndToNamed(Routes.PROFILE);
+      // Edit Profile was pushed from Profile (ProfileController.onEditProfile
+      // awaits it and refetches GET /users/me), so pop back to it.
+      // offAndToNamed(PROFILE) stacked a second Profile on top of the first.
+      // Get.back() would only close the snackbar shown above (get 4.7.3), so
+      // pop the route itself.
+      Get.until((route) => route.settings.name != Routes.EDIT_PROFILE);
     } finally {
       isSavingEditProfile.value = false;
     }

@@ -3,8 +3,11 @@ import 'dart:math' as math;
 import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
+import '../../chat/model/conversation_model.dart';
+import '../../chat/services/conversation_services.dart';
 import '../model/friend.dart';
 import '../services/friend_services.dart';
+import 'conversations_controller.dart';
 import 'home_controller.dart';
 
 /// Drives the Friends tab: "Friend Requests" (shown first), "My Friends" and
@@ -85,6 +88,11 @@ class FriendsController extends GetxController {
   /// Friends' USER ids (`f.user.id`) currently being removed. Separate from
   /// the request-id sets so ids never collide.
   final RxSet<String> busyFriendIds = <String>{}.obs;
+  /// Friends' USER ids (`f.user.id`) for which POST conversations is
+  /// in-flight (opening chat). Treated as busy in the UI like
+  /// [busyFriendIds] so the chat icon shows a spinner and the Remove menu
+  /// is disabled while opening.
+  final RxSet<String> openingChatIds = <String>{}.obs;
 
   /// Collapsible section state. Expanded by default; lives on the controller
   /// so it survives tab switches during the session.
@@ -447,9 +455,27 @@ class FriendsController extends GetxController {
     }
   }
 
-  /// Opens the 1:1 chat with [user]. TODO(api): pass/create a conversation
-  /// id once the chat API exists.
-  void openChat(FriendUser user) {
-    Get.toNamed(Routes.CHAT, arguments: user);
+  /// Opens the 1:1 chat with [user]: POST conversations with their user id,
+  /// then navigates to Routes.CHAT with the resulting conversation. On
+  /// failure: error snackbar, stays on the Friends tab.
+  Future<void> openChat(FriendUser user) async {
+    final String userId = user.id;
+    if (userId.isEmpty || openingChatIds.contains(userId)) return;
+    openingChatIds.add(userId);
+    try {
+      final res = await ConversationService.instance.openConversation(userId);
+      if (!res.success || res.conversation == null) {
+        Get.snackbar('Could not open chat', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      // Mark the Chat list stale so the new conversation shows on next open.
+      if (Get.isRegistered<ConversationsController>()) {
+        Get.find<ConversationsController>().invalidate();
+      }
+      Get.toNamed(Routes.CHAT, arguments: ChatArgs(res.conversation!));
+    } finally {
+      openingChatIds.remove(userId);
+    }
   }
 }

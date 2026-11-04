@@ -670,12 +670,16 @@ class FriendsTab extends StatelessWidget {
           Obx(() {
             // Removing (keyed by the friend's user id): chat disabled and a
             // spinner replaces the "More" menu.
-            final bool busy = controller.busyFriendIds.contains(user.id);
+            final bool removing = controller.busyFriendIds.contains(user.id);
+            // Opening the chat (POST conversations): spinner replaces the
+            // chat icon; chat and the Remove menu are disabled.
+            final bool opening = controller.openingChatIds.contains(user.id);
+            final bool busy = removing || opening;
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Opacity(
-                  opacity: busy ? 0.5 : 1,
+                  opacity: removing ? 0.5 : 1,
                   child: Material(
                     color: CustomColor.colorFDF2F8,
                     shape: const CircleBorder(),
@@ -683,15 +687,32 @@ class FriendsTab extends StatelessWidget {
                       tooltip: "Chat",
                       onPressed:
                           busy ? null : () => controller.openChat(user),
-                      icon: Icon(
-                        Icons.chat_bubble_outline,
-                        size: ScreenConstant.smallIconSize,
-                        color: CustomColor.colorBE185D,
-                      ),
+                      icon: opening
+                          ? Semantics(
+                              label: "Opening chat with ${user.displayName}",
+                              excludeSemantics: true,
+                              child: const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    CustomColor.colorBE185D,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              Icons.chat_bubble_outline,
+                              size: ScreenConstant.smallIconSize,
+                              color: CustomColor.colorBE185D,
+                            ),
                     ),
                   ),
                 ),
-                busy ? _removingSpinner(user) : _friendMenu(context, f),
+                removing
+                    ? _removingSpinner(user)
+                    : _friendMenu(context, f, enabled: !opening),
               ],
             );
           }),
@@ -726,8 +747,10 @@ class FriendsTab extends StatelessWidget {
   }
 
   /// "More" menu with the "Remove friend" action (confirm dialog first).
-  Widget _friendMenu(BuildContext context, Friendship f) {
+  Widget _friendMenu(BuildContext context, Friendship f,
+      {bool enabled = true}) {
     return PopupMenuButton<String>(
+      enabled: enabled,
       tooltip: "More",
       icon: Icon(
         Icons.more_vert,

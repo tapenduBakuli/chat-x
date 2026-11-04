@@ -49,6 +49,10 @@ class UpdateProfileUser {
   final String role;
   final bool isInvisible;
 
+  /// Raw `is_invisible`: null when the key is missing/not a bool (so "missing"
+  /// can be told apart from an explicit `false`).
+  final bool? isInvisibleRaw;
+
   /// null when the key is missing/not a bool, so only an explicit `false`
   /// means "unpaid".
   final bool? hasPaymentMethod;
@@ -66,6 +70,7 @@ class UpdateProfileUser {
     required this.promoCode,
     required this.role,
     required this.isInvisible,
+    this.isInvisibleRaw,
     this.hasPaymentMethod,
     required this.trialEndsAt,
     required this.createdAt,
@@ -84,6 +89,8 @@ class UpdateProfileUser {
       promoCode: _str(json['promo_code']),
       role: _str(json['role']),
       isInvisible: json['is_invisible'] == true,
+      isInvisibleRaw:
+          json['is_invisible'] is bool ? json['is_invisible'] as bool : null,
       hasPaymentMethod: json['has_payment_method'] is bool
           ? json['has_payment_method'] as bool
           : null,
