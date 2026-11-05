@@ -580,8 +580,10 @@ class ChatScreen extends GetView<ChatController> {
         icon = Icons.done_all;
         break;
       case MessageStatus.read:
+        // WhatsApp-style blue double-tick. color0EA5E9 (#0EA5E9, sky blue) is
+        // the existing blue token in app_colors.dart — no new hex introduced.
         icon = Icons.done_all;
-        color = CustomColor.colorBE185D;
+        color = CustomColor.color0EA5E9;
         break;
     }
     return Icon(

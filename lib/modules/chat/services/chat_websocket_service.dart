@@ -169,6 +169,37 @@ class ChatWebSocketService {
     }
   }
 
+  /// Acknowledges that an incoming message reached this device. Sends
+  /// `{"type":"ack_delivery","message_id":id}` over the active socket. No-op
+  /// (with a debug log) when the socket is not connected or [messageId] is
+  /// empty. Never throws and never logs the token.
+  void ackDelivery(String messageId) =>
+      _sendAck('ack_delivery', messageId);
+
+  /// Acknowledges that the recipient is looking at the conversation. Sends
+  /// `{"type":"ack_read","message_id":id}` over the active socket. Same
+  /// no-op/guard behavior as [ackDelivery].
+  void ackRead(String messageId) => _sendAck('ack_read', messageId);
+
+  /// Shared writer for the `ack_delivery` / `ack_read` frames.
+  void _sendAck(String type, String messageId) {
+    if (messageId.isEmpty) return;
+    if (!_isConnected || _socket == null) {
+      debugPrint('ChatWebSocketService: Not connected, skipping $type.');
+      return;
+    }
+    try {
+      final payload = jsonEncode(<String, dynamic>{
+        'type': type,
+        'message_id': messageId,
+      });
+      _socket?.add(payload);
+      debugPrint('ChatWebSocketService: Sent $type over socket -> $payload');
+    } catch (e) {
+      debugPrint('ChatWebSocketService: $type error: $e');
+    }
+  }
+
   void _listenToSocket() {
     _subscription?.cancel();
     _subscription = _socket?.listen(

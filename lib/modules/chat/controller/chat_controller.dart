@@ -66,6 +66,19 @@ class ChatController extends GetxController {
 
   StreamSubscription? _socketSubscription;
 
+  /// True while THIS chat screen is open (the controller is route-scoped via
+  /// ChatBinding, so controller-alive == screen-open). Drives whether an
+  /// incoming `new_message` also gets `ack_read`. We deliberately do NOT add a
+  /// WidgetsBindingObserver app-background handler (the task marks it
+  /// OPTIONAL): it adds lifecycle complexity for a marginal gain. Tradeoff: if
+  /// the user backgrounds the app while this chat is on top, an incoming
+  /// message is still read-acked. Acceptable for v1.
+  bool isScreenActive = false;
+
+  /// Message ids already read-acked this session, so we never re-ack the same
+  /// id (history load + live arrival both route through [_sendReadAck]).
+  final Set<String> _ackedRead = <String>{};
+
   @override
   void onInit() {
     super.onInit();
@@ -73,6 +86,7 @@ class ChatController extends GetxController {
     // Step 2: Connect to WebSocket after login / opening chat
     ChatWebSocketService.instance.connect();
     _socketSubscription = ChatWebSocketService.instance.onNewMessage.listen(_onIncomingSocketData);
+    isScreenActive = true;
 
     final arg = Get.arguments;
     if (arg is ChatArgs) {
@@ -122,6 +136,30 @@ class ChatController extends GetxController {
         debugPrint(
             'ChatController: socket error frame -> ${eventData['code']}: ${eventData['message']}');
         _failLatestPending();
+        return;
+      }
+
+      // Status-receipt frames for MY messages. They carry a `message_id` (and
+      // optionally `conversation_id`); match purely by id and never fall
+      // through to new_message parsing. Each branch returns early.
+      if (type == 'message_delivered' ||
+          type == 'message_read' ||
+          type == 'message_sent') {
+        final String statusId = (eventData['message_id'] ??
+                    eventData['id'] ??
+                    (eventData['message'] is Map
+                        ? (eventData['message'] as Map)['id']
+                        : null))
+                ?.toString() ??
+            '';
+        final String statusConvId =
+            eventData['conversation_id']?.toString() ?? '';
+        final MessageStatus target = type == 'message_read'
+            ? MessageStatus.read
+            : (type == 'message_delivered'
+                ? MessageStatus.delivered
+                : MessageStatus.sent);
+        _applyStatusUpgrade(statusId, target, convId: statusConvId);
         return;
       }
 
@@ -181,9 +219,79 @@ class ChatController extends GetxController {
           messages.add(incoming);
         }
         _scrollToBottom();
+
+        // Recipient's responsibility: ack a message from the OTHER user the
+        // moment it arrives. Always ack delivery; also ack read when this
+        // chat is the active, matching conversation. Skipped on the demo
+        // (no-conversationId) path by _canAck.
+        if (!incoming.isMine && _canAck(eventConvId)) {
+          ChatWebSocketService.instance.ackDelivery(incoming.id);
+          if (isScreenActive) _sendReadAck(incoming.id);
+        }
       }
     } catch (e) {
       debugPrint('ChatController: Socket message parsing error: $e');
+    }
+  }
+
+  /// Whether acks may be emitted for an event: there must be a real
+  /// conversation (demo FriendUser path has none), and when the frame carries
+  /// a conversation_id it must match the active conversation.
+  bool _canAck(String eventConvId) {
+    final String activeConvId = conversationId ?? '';
+    if (activeConvId.isEmpty) return false;
+    if (eventConvId.isNotEmpty && eventConvId != activeConvId) return false;
+    return true;
+  }
+
+  /// Sends `ack_read` for [messageId] once per session (de-duped via
+  /// [_ackedRead]). No-op on a repeat id.
+  void _sendReadAck(String messageId) {
+    if (messageId.isEmpty || !_ackedRead.add(messageId)) return;
+    ChatWebSocketService.instance.ackRead(messageId);
+  }
+
+  /// Upgrades MY message [messageId] to [target] status (never downgrades,
+  /// `failed` is terminal until retry). Ignores the frame when its [convId]
+  /// is present and does not match the active conversation, or when the id is
+  /// not in the current list. Mutates reactively.
+  void _applyStatusUpgrade(
+    String messageId,
+    MessageStatus target, {
+    String? convId,
+  }) {
+    if (messageId.isEmpty) return;
+    final String activeConvId = conversationId ?? '';
+    if (convId != null &&
+        convId.isNotEmpty &&
+        activeConvId.isNotEmpty &&
+        convId != activeConvId) {
+      return; // status frame for a different conversation
+    }
+    final int i = messages.indexWhere((m) => m.id == messageId);
+    if (i == -1) return;
+    final MessageStatus current = messages[i].status;
+    // failed is terminal until the user retries; do not auto-advance it.
+    if (current == MessageStatus.failed) return;
+    if (target.index <= current.index) return; // never move backwards
+    messages[i] = messages[i].copyWith(status: target);
+  }
+
+  /// Read-on-open: for every loaded message from the OTHER user that is not
+  /// already read, send `ack_read` (de-duped). Only runs when the screen is
+  /// active and there is a real conversation; local (un-posted) ids are
+  /// skipped. Old history pages are already-read context for the recipient
+  /// but the sender still needs them turned read, so this acks them too.
+  void _ackReadForLoadedHistory() {
+    if (!isScreenActive) return;
+    final String id = conversationId ?? '';
+    if (id.isEmpty) return;
+    for (final m in messages) {
+      if (!m.isMine &&
+          m.status != MessageStatus.read &&
+          !isLocalId(m.id)) {
+        _sendReadAck(m.id);
+      }
     }
   }
 
@@ -277,6 +385,7 @@ class ChatController extends GetxController {
       // Keep anything sent locally before the page arrived (never in history).
       final locals = messages.where((m) => !ids.contains(m.id)).toList();
       messages.assignAll([...history, ...locals]);
+      _ackReadForLoadedHistory();
     } finally {
       if (!isClosed) {
         isLoading.value = false;
@@ -312,6 +421,7 @@ class ChatController extends GetxController {
       // The list is reversed, so prepending extends the TOP; the pixel offset
       // is measured from the bottom, hence the scroll position stays put.
       messages.insertAll(0, older.toList());
+      _ackReadForLoadedHistory();
     } finally {
       if (!isClosed) {
         isLoadingMore.value = false;
@@ -750,6 +860,7 @@ class ChatController extends GetxController {
 
   @override
   void onClose() {
+    isScreenActive = false;
     _socketSubscription?.cancel();
     textController.dispose();
     scrollController.dispose();
