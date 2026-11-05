@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
 import '../../chat/model/conversation_model.dart';
+import '../../chat/services/chat_websocket_service.dart';
 import '../../chat/services/conversation_services.dart';
 import '../model/friend.dart';
 import '../services/friend_services.dart';
@@ -473,7 +474,19 @@ class FriendsController extends GetxController {
       if (Get.isRegistered<ConversationsController>()) {
         Get.find<ConversationsController>().invalidate();
       }
-      Get.toNamed(Routes.CHAT, arguments: ChatArgs(res.conversation!));
+      // This conversation may have been created just now, after the socket
+      // connected, so the live session does not know it (no join frame).
+      // Reconnect to re-sync the server's conversation set before chatting.
+      // Bound it so navigation isn't blocked long; HTTP-primary send covers
+      // any remaining gap if the reconnect times out.
+      final conversation = res.conversation!;
+      await ChatWebSocketService.instance.reconnect().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+      // Avoid a second reconnect for the same id in ChatController.onInit.
+      ChatWebSocketService.instance.markConversationKnown(conversation.id);
+      Get.toNamed(Routes.CHAT, arguments: ChatArgs(conversation));
     } finally {
       openingChatIds.remove(userId);
     }

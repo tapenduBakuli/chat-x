@@ -133,4 +133,12 @@ class Urls {
   /// conversations/{conversationId}/messages
   static String sendConversationMessage(String conversationId) =>
       "$conversations/${Uri.encodeComponent(conversationId)}/messages";
+
+  /// WebSocket URL for realtime chat connection.
+  static String wsChatUrl(String token) =>
+      "wss://chatx-4le7.onrender.com/api/v1/ws/chat?token=${Uri.encodeComponent(token)}";
+
+  /// DELETE — deletes a message: messages/{messageId}?for_everyone=false
+  static String deleteMessage(String messageId, {bool forEveryone = false}) =>
+      "${apiBase}messages/${Uri.encodeComponent(messageId)}?for_everyone=$forEveryone";
 }

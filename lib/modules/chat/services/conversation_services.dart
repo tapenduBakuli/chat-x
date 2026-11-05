@@ -189,6 +189,42 @@ class ConversationService {
     }
   }
 
+  /// DELETE /messages/{messageId}?for_everyone=false.
+  /// Checks status code (200 / 204) for API success. Never throws.
+  Future<({bool success, String message})> deleteMessage(
+    String messageId, {
+    bool forEveryone = false,
+  }) async {
+    try {
+      final http.Response response = await BaseClient.instance.delete(
+        Urls.deleteMessage(messageId, forEveryone: forEveryone),
+        <String, dynamic>{},
+      );
+      final code = response.statusCode;
+      final body = _decode(response);
+      if (code == 200 || code == 204) {
+        final serverMsg =
+            body is Map ? (body['message']?.toString().trim() ?? '') : '';
+        return (
+          success: true,
+          message: serverMsg.isNotEmpty ? serverMsg : 'Message deleted',
+        );
+      }
+      return (
+        success: false,
+        message: _extractMessage(body, 'Could not delete the message ($code).'),
+      );
+    } on AppException catch (e) {
+      return (success: false, message: _offlineMessage(e));
+    } catch (e) {
+      debugPrint('ConversationService.deleteMessage error: $e');
+      return (
+        success: false,
+        message: 'Something went wrong. Please try again.',
+      );
+    }
+  }
+
   dynamic _decode(http.Response r) {
     if (r.body.isEmpty) return <String, dynamic>{};
     try {

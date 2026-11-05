@@ -275,7 +275,7 @@ class ChatScreen extends GetView<ChatController> {
           vertical: ScreenConstant.sizeMedium,
         ),
         itemCount: n + 1,
-        itemBuilder: (_, i) {
+        itemBuilder: (context, i) {
           // Reversed list: the last index is the TOP (older-messages row).
           if (i == n) return _olderRow();
           // Reversed list: index 0 is the newest message.
@@ -288,6 +288,7 @@ class ChatScreen extends GetView<ChatController> {
             children: [
               if (newDay) _dateSeparator(controller.dayLabel(m.sentAt)),
               _bubble(
+                context,
                 peer,
                 m,
                 groupedPrev: controller.isGroupedWithPrevious(ci),
@@ -398,6 +399,7 @@ class ChatScreen extends GetView<ChatController> {
   /// Chat bubble. The tail-side bottom corner is tight on the last bubble of a
   /// group; the same-side top corner is tight when it continues a group.
   Widget _bubble(
+    BuildContext context,
     FriendUser peer,
     ChatMessage m, {
     required bool groupedPrev,
@@ -437,6 +439,7 @@ class ChatScreen extends GetView<ChatController> {
             : null,
         excludeSemantics: true,
         child: _retryWrap(
+          context: context,
           failed: failed,
           message: m,
           child: Column(
@@ -506,17 +509,17 @@ class ChatScreen extends GetView<ChatController> {
     );
   }
 
-  /// Failed bubbles: tap retries, long-press deletes (see [_failedFooter]).
+  /// Failed bubbles tap to retry; long-press on any bubble confirms deletion via API.
   Widget _retryWrap({
+    required BuildContext context,
     required bool failed,
     required ChatMessage message,
     required Widget child,
   }) {
-    if (!failed) return child;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => controller.retryMessage(message.id),
-      onLongPress: () => controller.deleteFailedMessage(message.id),
+      onTap: failed ? () => controller.retryMessage(message.id) : null,
+      onLongPress: () => controller.confirmDeleteMessage(context, message),
       child: child,
     );
   }
@@ -737,24 +740,7 @@ class ChatScreen extends GetView<ChatController> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // IconButton(
-              //   tooltip: 'Emoji (coming soon)',
-              //   icon: Icon(
-              //     Icons.emoji_emotions_outlined,
-              //     size: ScreenConstant.smallIconSize,
-              //     color: CustomColor.color64748B,
-              //   ),
-              //   onPressed: () => controller.comingSoon('Emoji'),
-              // ),
-              // IconButton(
-              //   tooltip: 'Attach (coming soon)',
-              //   icon: Icon(
-              //     Icons.attach_file,
-              //     size: ScreenConstant.smallIconSize,
-              //     color: CustomColor.color64748B,
-              //   ),
-              //   onPressed: () => controller.comingSoon('Attachments'),
-              // ),
+
               Expanded(
                 child: TextField(
                   controller: controller.textController,
@@ -785,7 +771,25 @@ class ChatScreen extends GetView<ChatController> {
                   ),
                 ),
               ),
-              SizedBox(width: ScreenConstant.sizeSmall),
+             // SizedBox(width: ScreenConstant.sizeSmall),
+              IconButton(
+                tooltip: 'Emoji (coming soon)',
+                icon: Icon(
+                  Icons.emoji_emotions_outlined,
+                  size: ScreenConstant.smallIconSize,
+                  color: CustomColor.color64748B,
+                ),
+                onPressed: () => controller.comingSoon('Emoji'),
+              ),
+              // IconButton(
+              //   tooltip: 'Attach (coming soon)',
+              //   icon: Icon(
+              //     Icons.attach_file,
+              //     size: ScreenConstant.smallIconSize,
+              //     color: CustomColor.color64748B,
+              //   ),
+              //   onPressed: () => controller.comingSoon('Attachments'),
+              // ),
               Obx(() => _sendButton(controller.draft.value.trim().isNotEmpty)),
             ],
           ),

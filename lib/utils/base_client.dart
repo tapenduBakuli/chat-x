@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../device_manager/urls.dart';
+import '../modules/chat/services/chat_websocket_service.dart';
 import '../modules/login/model/login_response_model.dart';
 import '../routes/routes.dart';
 import 'Store/HiveStore.dart';
@@ -121,6 +122,12 @@ class BaseClient {
         // The refresh token rotates: the old one is no longer valid.
         await store.setStringQuiet(Keys.REFRESHTOKEN, tokens.refreshToken);
       }
+      // The chat socket captured the OLD access token in its connect URL and
+      // is not notified of rotations. Reconnect so it picks up the freshly
+      // saved ACCESSTOKEN. Fire-and-forget; the service's _isReconnecting /
+      // _isConnecting guards (and single-flight refresh) prevent loops.
+      // ignore: unawaited_futures
+      ChatWebSocketService.instance.reconnect();
       return _RefreshOutcome.refreshed;
     } catch (_) {
       debugPrint('Token refresh -> network error');

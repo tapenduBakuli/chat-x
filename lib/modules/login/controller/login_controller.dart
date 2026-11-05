@@ -7,6 +7,7 @@ import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/biometric_service.dart';
 import '../../../utils/lib/otp_text_field.dart';
+import '../../chat/services/chat_websocket_service.dart';
 import '../../register/model/onboarding_args.dart';
 import '../model/login_response_model.dart';
 import '../services/login_services.dart';
@@ -245,6 +246,8 @@ class LoginController extends GetxController {
     _store.setBool(Keys.LOGGEDIN, true);
     _store.setString(Keys.SAVEDAVATAR, user?.avatar_url ?? "");
     _store.setString(Keys.SAVEDPROFILENAME, user?.displayName ?? "");
+    // Connect to WebSocket chat connection for the logged-in user
+    ChatWebSocketService.instance.connect();
     // Session identity — a real login (not register) is what establishes a
     // logged-in session, keyed off these fields at startup.
     _store.setString(

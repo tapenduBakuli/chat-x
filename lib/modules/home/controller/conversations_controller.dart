@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
 import '../../chat/model/conversation_model.dart';
+import '../../chat/services/chat_websocket_service.dart';
 import '../../chat/services/conversation_services.dart';
 
 /// Chat tab (bottom nav index 1): paginated GET conversations list.
@@ -115,6 +118,24 @@ class ConversationsController extends GetxController {
       _isOpening = false;
     }
     if (!isClosed) loadFirstPage(quiet: true);
+  }
+
+  StreamSubscription? _socketSubscription;
+
+  @override
+  void onInit() {
+    super.onInit();
+    ChatWebSocketService.instance.connect();
+    _socketSubscription =
+        ChatWebSocketService.instance.onNewMessage.listen((_) {
+      loadFirstPage(quiet: true);
+    });
+  }
+
+  @override
+  void onClose() {
+    _socketSubscription?.cancel();
+    super.onClose();
   }
 
   void _toast(String title, String message) {

@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/TextStyles.dart';
+import '../../../utils/colors/app_colors.dart';
 import '../../home/controller/conversations_controller.dart';
 import '../../home/model/friend.dart';
 import '../model/chat_message.dart';
 import '../model/conversation_model.dart';
+import '../services/chat_websocket_service.dart';
 import '../services/conversation_services.dart';
 
 /// Drives the 1:1 chat screen. The peer ([FriendUser]) is passed via
@@ -59,27 +64,156 @@ class ChatController extends GetxController {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
+  StreamSubscription? _socketSubscription;
+
   @override
   void onInit() {
     super.onInit();
+
+    // Step 2: Connect to WebSocket after login / opening chat
+    ChatWebSocketService.instance.connect();
+    _socketSubscription = ChatWebSocketService.instance.onNewMessage.listen(_onIncomingSocketData);
+
     final arg = Get.arguments;
     if (arg is ChatArgs) {
       // Real conversation from POST conversations: header uses `other_user`.
       conversationId = arg.conversation.id;
       peer.value = arg.conversation.otherUser;
+      // If this conversation is newer than the current socket session, the
+      // live session does not know it (no join frame) and realtime receive /
+      // any residual socket send would miss it. Reconnect ONCE to let the
+      // server re-sync. Fire-and-forget so screen build / history load are not
+      // delayed. Anti-thrash: guarded by _knownConversationIds + createdAt.
+      unawaited(_ensureSocketKnowsConversation(arg.conversation));
       // Real conversations never show fabricated demo messages. History is
       // fetched only when the conversation already has messages; a brand-new
       // one (hasNoMessages) starts empty without a request.
       scrollController.addListener(_onScroll);
       if (!arg.conversation.hasNoMessages) loadMessages();
-      // TODO(api): subscribe to the realtime socket for this conversation.
     } else if (arg is FriendUser) {
       // Demo / unknown-conversation path (no conversationId).
       peer.value = arg;
       loadHistory();
-      // TODO(api): subscribe to the realtime socket for this conversation
-      // (incoming messages, typing, read receipts); unsubscribe in onClose.
     }
+  }
+
+  /// Step 4: Handles incoming realtime messages from WebSocket (`type: new_message`).
+  void _onIncomingSocketData(Map<String, dynamic> eventData) {
+    if (isClosed) return;
+    try {
+      debugPrint('ChatController: Realtime socket event received -> $eventData');
+
+      final String type = eventData['type']?.toString() ?? '';
+
+      // Error frame, e.g. {"type":"error","code":"not_found",...}. Never parse
+      // it as a message. Match the active conversation by conversation_id when
+      // present; `not_found` carries none, so treat a bare error as a failure
+      // of the most recent in-flight optimistic message. (FIX-2 is HTTP-primary
+      // so in normal operation nothing is in flight here; this is the safety
+      // net that keeps a bubble from showing `sent` after a server rejection.)
+      if (type == 'error') {
+        final String errConvId = eventData['conversation_id']?.toString() ?? '';
+        final String activeId = conversationId ?? '';
+        if (errConvId.isNotEmpty &&
+            activeId.isNotEmpty &&
+            errConvId != activeId) {
+          return; // error for a different conversation
+        }
+        debugPrint(
+            'ChatController: socket error frame -> ${eventData['code']}: ${eventData['message']}');
+        _failLatestPending();
+        return;
+      }
+
+      // Realtime new_message frames carry the message in a nested `message`
+      // sub-object: {"type":"new_message","message":{...}}. Parse ONLY that.
+      final Map<String, dynamic> msgJson = eventData['message'] is Map
+          ? Map<String, dynamic>.from(eventData['message'] as Map)
+          : (eventData['data'] is Map
+              ? Map<String, dynamic>.from(eventData['data'] as Map)
+              : Map<String, dynamic>.from(eventData));
+
+      final String eventConvId =
+          (msgJson['conversation_id'] ?? eventData['conversation_id'])?.toString() ?? '';
+      final String activeConvId = conversationId ?? '';
+
+      if (activeConvId.isNotEmpty &&
+          eventConvId.isNotEmpty &&
+          eventConvId != activeConvId) {
+        debugPrint(
+            'ChatController: Ignoring event for different conv $eventConvId vs $activeConvId');
+        return;
+      }
+
+      final me = currentUserId();
+      final peerId = peer.value?.id ?? '';
+      final ChatMessage? incoming = ChatMessage.fromApiJson(
+        msgJson,
+        isMine: (json) {
+          final String sId =
+              (json['sender_id'] ?? json['user_id'] ?? json['sender']?['id'])
+                      ?.toString() ??
+                  '';
+          return resolveIsMine(
+            senderId: sId,
+            currentUserId: me,
+            peerId: peerId,
+          );
+        },
+      );
+
+      if (incoming != null && incoming.text.isNotEmpty) {
+        final existingIndex = messages.indexWhere((m) => m.id == incoming.id);
+        if (existingIndex != -1) {
+          messages[existingIndex] = incoming;
+        } else if (incoming.isMine) {
+          // If it's my own message echoing back from the server, replace the pending
+          // local optimistic message (id starts with 'local-') with the server message.
+          final localIndex = messages.indexWhere(
+            (m) => isLocalId(m.id) && m.text.trim() == incoming.text.trim(),
+          );
+          if (localIndex != -1) {
+            messages[localIndex] = incoming;
+          } else {
+            messages.add(incoming);
+          }
+        } else {
+          messages.add(incoming);
+        }
+        _scrollToBottom();
+      }
+    } catch (e) {
+      debugPrint('ChatController: Socket message parsing error: $e');
+    }
+  }
+
+  /// If the socket session does not yet know [conversation] and the
+  /// conversation was created after the socket connected, reconnect once so
+  /// the server re-syncs. Reconnects at most once per conversation open
+  /// (guarded by the service's known-conversation set).
+  Future<void> _ensureSocketKnowsConversation(Conversation conversation) async {
+    final String id = conversation.id;
+    if (id.isEmpty) return;
+    final ws = ChatWebSocketService.instance;
+    if (ws.isConversationKnown(id)) return;
+
+    final bool connected = await ws.ensureConnected();
+    if (!connected || isClosed) return;
+
+    final DateTime? createdAt = conversation.createdAt;
+    final DateTime? connectedAt = ws.connectedAt;
+    final bool newerThanSession = createdAt != null &&
+        connectedAt != null &&
+        createdAt.isAfter(connectedAt);
+
+    if (newerThanSession) {
+      await ws.reconnect().timeout(
+            const Duration(seconds: 2),
+            onTimeout: () {},
+          );
+    }
+    // Mark known either way so we don't reconnect again for this id.
+    ws.markConversationKnown(id);
   }
 
   /// Loads the conversation history.
@@ -256,6 +390,14 @@ class ChatController extends GetxController {
     _scrollToBottom();
 
     if (conversationId != null && conversationId!.isNotEmpty) {
+      // HTTP-primary send (FIX-2 option b). The WebSocket `send_message` is
+      // rejected with {"type":"error","code":"not_found"} for a conversation
+      // created after the socket connected (there is no join frame; the live
+      // session only knows conversations that existed at connect). The HTTP
+      // POST hits the same id in the DB and is the proven delivery path, so we
+      // always POST and let the socket be the realtime RECEIVE channel. The
+      // existing merge/replace de-dup means a socket echo of my own message
+      // never duplicates the bubble.
       _sendQueue.add(message.id);
       await _drainQueue();
       return;
@@ -288,6 +430,84 @@ class ChatController extends GetxController {
     final i = messages.indexWhere((m) => m.id == localId);
     if (i == -1 || messages[i].status != MessageStatus.failed) return;
     messages.removeAt(i);
+  }
+
+  /// Shows confirmation dialog to delete [message].
+  void confirmDeleteMessage(BuildContext context, ChatMessage message) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: CustomColor.colorWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          "Delete Message",
+          style: TextStyles.registerSectionTitle.copyWith(
+            fontSize: 16,
+            color: CustomColor.color0F172A,
+          ),
+        ),
+        content: Text(
+          "Are you sure you want to delete this message?",
+          style: TextStyles.policiesConsentSubtitle.copyWith(
+            fontSize: 14,
+            color: CustomColor.color475569,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              "Cancel",
+              style: TextStyles.browseToggleLabel.copyWith(
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              deleteMessageApi(message);
+            },
+            child: Text(
+              "Delete",
+              style: TextStyles.browseToggleLabel.copyWith(
+                color: CustomColor.colorE11D48,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Calls DELETE /messages/{message_id} API. Checks status code (200/204) for
+  /// API success, and removes the message from the local [messages] list on success.
+  Future<void> deleteMessageApi(ChatMessage message) async {
+    // If it's a local un-posted message, remove immediately
+    if (isLocalId(message.id)) {
+      messages.removeWhere((m) => m.id == message.id);
+      return;
+    }
+
+    final res = await ConversationService.instance.deleteMessage(message.id);
+    if (isClosed) return;
+
+    if (res.success) {
+      messages.removeWhere((m) => m.id == message.id);
+      Get.snackbar(
+        'Message deleted',
+        res.message.isNotEmpty ? res.message : 'The message was deleted.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } else {
+      Get.snackbar(
+        'Could not delete message',
+        res.message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
   Future<void> _drainQueue() async {
@@ -390,6 +610,31 @@ class ChatController extends GetxController {
     final server = existing.where((m) => !isLocalId(m.id));
     final local = existing.where((m) => isLocalId(m.id));
     return [...server, ...fresh, ...local];
+  }
+
+  /// Marks the newest still-pending optimistic message as failed (reuses the
+  /// existing failed/retry bubble UI). No-op when nothing is in flight.
+  void _failLatestPending() {
+    final updated = markLatestPendingFailed(messages);
+    if (updated != null) {
+      messages.assignAll(updated);
+      _toast('Message not sent', 'The server rejected it. Tap to retry.');
+    }
+  }
+
+  /// Pure: finds the newest message with a local id and `sending` status and
+  /// returns a new list with it marked `failed`. Returns null when there is no
+  /// such message (so callers can skip any UI side effect).
+  static List<ChatMessage>? markLatestPendingFailed(List<ChatMessage> list) {
+    for (var i = list.length - 1; i >= 0; i--) {
+      final m = list[i];
+      if (isLocalId(m.id) && m.status == MessageStatus.sending) {
+        final result = List<ChatMessage>.of(list);
+        result[i] = m.copyWith(status: MessageStatus.failed);
+        return result;
+      }
+    }
+    return null;
   }
 
   void _updateStatus(String id, MessageStatus status) {
@@ -505,7 +750,7 @@ class ChatController extends GetxController {
 
   @override
   void onClose() {
-    // TODO(api): unsubscribe from the realtime socket.
+    _socketSubscription?.cancel();
     textController.dispose();
     scrollController.dispose();
     inputFocus.dispose();
