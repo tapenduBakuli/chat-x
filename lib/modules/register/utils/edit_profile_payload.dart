@@ -2,8 +2,9 @@ import '../model/update_profile_response_model.dart';
 
 /// Immutable copy of the server values loaded by GET /users/me when Edit
 /// Profile opens. Used to build the PUT /users/me payload so that:
-/// - display_name, gender and orientation (not editable on Edit Profile) are
-///   always the original server values, whatever the UI state is;
+/// - display_name and orientation (not editable on Edit Profile) are always
+///   the original server values, whatever the UI state is; gender is
+///   editable and falls back to the original value only when unselected;
 /// - single-selects the user left empty fall back to the original value;
 /// - list values the UI cannot show (not a known option) are never dropped.
 class EditProfileOriginal {
@@ -123,8 +124,13 @@ class EditProfilePayload {
 
   /// [newLocation] is the user's newly chosen city payload (null when the
   /// city dropdown is unchanged); the original server location is kept then.
+  ///
+  /// [gender] is the user's current selection (editable on Edit Profile);
+  /// when empty the original server value is sent instead, so it is never
+  /// blanked.
   static Map<String, dynamic> build({
     required EditProfileOriginal original,
+    String gender = '',
     required String dateOfBirth,
     required String country,
     required String aboutMe,
@@ -144,6 +150,7 @@ class EditProfilePayload {
     final String? sti = _singleSelect(hasStdOrSti, original.hasStdOrSti);
     final String? visibility = _singleSelect(
         preferenceVisibilityMode, original.preferenceVisibilityMode);
+    final String? genderValue = _singleSelect(gender, original.gender);
 
     return <String, dynamic>{
       // Not editable here: always the original server values, never empty.
@@ -151,7 +158,8 @@ class EditProfilePayload {
       'is_invisible': original.isInvisible,
       if (dateOfBirth.isNotEmpty) 'date_of_birth': dateOfBirth,
       if (country.isNotEmpty) 'country': country,
-      if (original.gender.isNotEmpty) 'gender': original.gender,
+      // Editable: the current selection, else the original server value.
+      'gender': ?genderValue,
       if (original.orientation.isNotEmpty)
         'orientation': List<String>.of(original.orientation),
       'about_me': aboutMe,

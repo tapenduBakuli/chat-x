@@ -6,7 +6,9 @@ import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
 import '../controller/home_controller.dart';
+import '../controller/member_detail_controller.dart';
 import '../model/member.dart';
+import '../model/presence_label.dart';
 import 'widgets/member_network_image.dart';
 
 /// Full member profile, opened from the grid card or the deck. The member is
@@ -15,155 +17,211 @@ import 'widgets/member_network_image.dart';
 /// Styling mirrors the register profile preview: a swipeable photo hero with
 /// overlay pills, then white rounded cards on a light background, and a pinned
 /// bottom action bar.
-class MemberDetailScreen extends GetView<HomeController> {
+class MemberDetailScreen extends GetView<MemberDetailController> {
   const MemberDetailScreen({super.key});
+
+  /// Connect / Pass / Block actions live on the shared [HomeController].
+  HomeController get home => Get.find<HomeController>();
 
   @override
   Widget build(BuildContext context) {
-    final arg = Get.arguments;
-    if (arg is! Member) {
+    if (!controller.isValid) {
       return _notFound();
     }
-    final Member member = arg;
-
-    return Scaffold(
-      backgroundColor: CustomColor.colorAF5FF,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _HeroCarousel(member: member),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        ScreenConstant.defaultWidthTwenty,
-                        ScreenConstant.defaultHeightTwentyThree,
-                        ScreenConstant.defaultWidthTwenty,
-                        ScreenConstant.defaultHeightThirty,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _sectionCard(
-                            "About",
-                            Text(
-                              member.profile.bio.isEmpty
-                                  ? "No bio added yet."
-                                  : member.profile.bio,
-                              style: TextStyles.registerFieldNote.copyWith(
-                                fontSize: FontSize.s14,
-                                color: CustomColor.color334155,
-                                height: 1.5,
+    return Obx(() {
+      final Member member = controller.member.value;
+      return Scaffold(
+        backgroundColor: CustomColor.colorAF5FF,
+        body: SafeArea(
+          bottom: false,
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  Expanded(
+                    child: RefreshIndicator(
+                      color: CustomColor.colorBE185D,
+                      onRefresh: controller.load,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _HeroCarousel(member: member),
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                ScreenConstant.defaultWidthTwenty,
+                                ScreenConstant.defaultHeightTwentyThree,
+                                ScreenConstant.defaultWidthTwenty,
+                                ScreenConstant.defaultHeightThirty,
                               ),
-                            ),
-                          ),
-                          SizedBox(
-                            height: ScreenConstant.defaultHeightTwentyThree,
-                          ),
-                          _sectionCard(
-                            "Looking for",
-                            _chipWrap(member.profile.lookingFor, rose: true),
-                          ),
-                          SizedBox(
-                            height: ScreenConstant.defaultHeightTwentyThree,
-                          ),
-                          _sectionCard(
-                            "Orientation",
-                            _chipWrap(member.profile.orientations, rose: true),
-                          ),
-                          SizedBox(
-                            height: ScreenConstant.defaultHeightTwentyThree,
-                          ),
-                          _sectionCard(
-                            "Interests",
-                            _chipWrap(member.profile.interests, rose: false),
-                          ),
-                          SizedBox(
-                            height: ScreenConstant.defaultHeightTwentyThree,
-                          ),
-                          _sectionCard(
-                            "Intimate preferences",
-                            // API `relationship_preferences`.
-                            _chipWrap(
-                              member.profile.relationshipIntents,
-                              rose: true,
-                            ),
-                          ),
-                          SizedBox(
-                            height: ScreenConstant.defaultHeightTwentyThree,
-                          ),
-                          _locationCard(member),
-                          Container(
-                            padding: EdgeInsets.fromLTRB(
-                              ScreenConstant.defaultWidthTen,
-                              ScreenConstant.sizeSmall,
-                              ScreenConstant.defaultWidthTen,
-                              ScreenConstant.sizeSmall,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              color: CustomColor.colorWhite,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: CustomColor.color717B96.withOpacity(0.12),
-                                  blurRadius: 16,
-                                  spreadRadius: -4,
-                                  offset: const Offset(0, -4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () =>
-                                      controller.onPassFromDetail(member),
-                                  child: Container(
-                                    height: ScreenConstant.defaultHeightSixty,
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: ScreenConstant.sizeLarge,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _sectionCard(
+                                    "About",
+                                    Text(
+                                      member.profile.bio.isEmpty
+                                          ? "No bio added yet."
+                                          : member.profile.bio,
+                                      style: TextStyles.registerFieldNote
+                                          .copyWith(
+                                            fontSize: FontSize.s14,
+                                            color: CustomColor.color334155,
+                                            height: 1.5,
+                                          ),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        ScreenConstant.defaultHeightTwentyThree,
+                                  ),
+                                  _sectionCard(
+                                    "Looking for",
+                                    _chipWrap(
+                                      member.profile.lookingFor,
+                                      rose: true,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        ScreenConstant.defaultHeightTwentyThree,
+                                  ),
+                                  _sectionCard(
+                                    "Orientation",
+                                    _chipWrap(
+                                      member.profile.orientations,
+                                      rose: true,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        ScreenConstant.defaultHeightTwentyThree,
+                                  ),
+                                  _sectionCard(
+                                    "Interests",
+                                    _chipWrap(
+                                      member.profile.interests,
+                                      rose: false,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        ScreenConstant.defaultHeightTwentyThree,
+                                  ),
+                                  _sectionCard(
+                                    "Intimate preferences",
+                                    // API `relationship_preferences`.
+                                    _chipWrap(
+                                      member.profile.relationshipIntents,
+                                      rose: true,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        ScreenConstant.defaultHeightTwentyThree,
+                                  ),
+                                  _locationCard(member),
+                                  Container(
+                                    padding: EdgeInsets.fromLTRB(
+                                      ScreenConstant.defaultWidthTen,
+                                      ScreenConstant.sizeSmall,
+                                      ScreenConstant.defaultWidthTen,
+                                      ScreenConstant.sizeSmall,
                                     ),
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(100),
-                                      border: Border.all(color: CustomColor.colorE2E8F0),
+                                      borderRadius: BorderRadius.circular(20),
+                                      color: CustomColor.colorWhite,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: CustomColor.color717B96
+                                              .withOpacity(0.12),
+                                          blurRadius: 16,
+                                          spreadRadius: -4,
+                                          offset: const Offset(0, -4),
+                                        ),
+                                      ],
                                     ),
                                     child: Row(
                                       children: [
-                                        Icon(
-                                          Icons.close,
-                                          size: ScreenConstant.smallIconSize,
-                                          color: CustomColor.color64748B,
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () =>
+                                              home.onPassFromDetail(member),
+                                          child: Container(
+                                            height: ScreenConstant
+                                                .defaultHeightSixty,
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal:
+                                                  ScreenConstant.sizeLarge,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(100),
+                                              border: Border.all(
+                                                color: CustomColor.colorE2E8F0,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.close,
+                                                  size: ScreenConstant
+                                                      .smallIconSize,
+                                                  color:
+                                                      CustomColor.color64748B,
+                                                ),
+                                                SizedBox(
+                                                  width: ScreenConstant
+                                                      .sizeExtraSmall,
+                                                ),
+                                                Text(
+                                                  "Pass",
+                                                  style: TextStyles
+                                                      .browseToggleLabel,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                        SizedBox(width: ScreenConstant.sizeExtraSmall),
-                                        Text("Pass", style: TextStyles.browseToggleLabel),
+                                        SizedBox(
+                                          width: ScreenConstant.sizeMedium,
+                                        ),
+                                        Expanded(child: _connectButton(member)),
                                       ],
                                     ),
                                   ),
-                                ),
-                                SizedBox(width: ScreenConstant.sizeMedium),
-                                Expanded(
-                                  child: _connectButton(member),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ],
+                  ),
+                  // _actionBar(member),
+                ],
+              ),
+              // Thin loader over the top edge; never blocks the hero.
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Obx(
+                  () => controller.isLoading.value
+                      ? const LinearProgressIndicator(
+                          minHeight: 2,
+                          color: CustomColor.colorBE185D,
+                          backgroundColor: CustomColor.colorFDF2F8,
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ),
-            ),
-            // _actionBar(member),
-
-          ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -316,7 +374,7 @@ class MemberDetailScreen extends GetView<HomeController> {
           children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => controller.onPassFromDetail(member),
+              onTap: () => home.onPassFromDetail(member),
               child: Container(
                 height: ScreenConstant.defaultHeightSixty,
                 padding: EdgeInsets.symmetric(
@@ -340,9 +398,7 @@ class MemberDetailScreen extends GetView<HomeController> {
               ),
             ),
             SizedBox(width: ScreenConstant.sizeMedium),
-            Expanded(
-              child: _connectButton(member),
-            ),
+            Expanded(child: _connectButton(member)),
           ],
         ),
       ),
@@ -353,7 +409,7 @@ class MemberDetailScreen extends GetView<HomeController> {
   /// a white spinner (same style as the Login button) and ignores taps.
   Widget _connectButton(Member member) {
     return Obx(() {
-      if (controller.isSendingRequest(member.id)) {
+      if (home.isSendingRequest(member.id)) {
         return Container(
           height: ScreenConstant.defaultHeightSixty,
           decoration: BoxDecoration(
@@ -361,10 +417,7 @@ class MemberDetailScreen extends GetView<HomeController> {
             gradient: const LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-              colors: [
-                CustomColor.colorBE185D,
-                CustomColor.color581C87,
-              ],
+              colors: [CustomColor.colorBE185D, CustomColor.color581C87],
             ),
           ),
           alignment: Alignment.center,
@@ -379,25 +432,43 @@ class MemberDetailScreen extends GetView<HomeController> {
         );
       }
       // Blocked members can't be connected with: dimmed and non-interactive.
-      final bool blocked = controller.isBlocked(member);
+      final bool blocked = home.isBlocked(member);
+      // A fetched friendship_status other than 'none' (request sent/received,
+      // friends…) means Connect no longer applies.
+      final String status = member.friendshipStatus;
+      final bool related = status != 'none' && status != 'blocked';
+      final bool disabled = blocked || related;
       return Semantics(
         button: true,
-        enabled: !blocked,
+        enabled: !disabled,
         label: blocked ? "Connect unavailable, member is blocked" : null,
         child: IgnorePointer(
-          ignoring: blocked,
+          ignoring: disabled,
           child: Opacity(
-            opacity: blocked ? 0.4 : 1,
+            opacity: disabled ? 0.4 : 1,
             child: buildLoginButton(
-              "Connect",
+              related ? _relationLabel(status) : "Connect",
               true,
-              () => controller.onConnect(member),
+              () => home.onConnect(member),
               Icons.favorite,
             ),
           ),
         ),
       );
     });
+  }
+
+  String _relationLabel(String status) {
+    switch (status) {
+      case 'request_sent':
+        return "Request sent";
+      case 'request_received':
+        return "Request received";
+      case 'friends':
+        return "Friends";
+      default:
+        return "Connect";
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -464,6 +535,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   int _index = 0;
 
   HomeController get _home => Get.find<HomeController>();
+  MemberDetailController get _detail => Get.find<MemberDetailController>();
 
   @override
   void dispose() {
@@ -608,7 +680,9 @@ class _HeroCarouselState extends State<_HeroCarousel> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "${member.displayName}, ${member.age}",
+                  member.age > 0
+                      ? "${member.displayName}, ${member.age}"
+                      : member.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -625,14 +699,29 @@ class _HeroCarouselState extends State<_HeroCarousel> {
                   children: [
                     if (member.genderLabel.isNotEmpty)
                       _overlayPill(Icons.person_outline, member.genderLabel),
-                    _overlayPill(
-                      Icons.circle,
-                      // The users API has no city yet → plain "Active".
-                      member.profile.city.isEmpty
-                          ? "Active"
-                          : "Active • ${member.profile.city}",
-                      iconColor: CustomColor.color10B981,
-                    ),
+                    // Availability (GET users/{id}/availability). Always shown
+                    // on this screen: "Checking…" while loading, then
+                    // "Active now" / "Last seen …" / "Offline" (also the
+                    // fallback if the call failed).
+                    Obx(() {
+                      final UserAvailability? a = _detail.availability.value;
+                      final bool loading =
+                          _detail.isAvailabilityLoading.value;
+                      final PresenceLabel? p = presenceLabel(a);
+                      final String text = p?.text ??
+                          (loading ? 'Checking…' : 'Offline');
+                      final bool online = p?.kind == PresenceKind.online;
+                      return Semantics(
+                        label: 'Status: $text',
+                        child: _overlayPill(
+                          Icons.circle,
+                          text,
+                          iconColor: online
+                              ? CustomColor.color10B981
+                              : CustomColor.color64748B,
+                        ),
+                      );
+                    }),
                   ],
                 ),
                 SizedBox(height: ScreenConstant.sizeExtraSmall),
@@ -679,9 +768,8 @@ class _HeroCarouselState extends State<_HeroCarousel> {
             behavior: HitTestBehavior.opaque,
             onTap: busy
                 ? null
-                : () => blocked
-                    ? _confirmUnblock(member)
-                    : _confirmBlock(member),
+                : () =>
+                      blocked ? _confirmUnblock(member) : _confirmBlock(member),
             child: busy
                 ? _overlayPillWithLeading(
                     SizedBox(
@@ -718,9 +806,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
         fit: StackFit.expand,
         children: [
           IgnorePointer(
-            child: ColoredBox(
-              color: CustomColor.color0F172A.withOpacity(0.55),
-            ),
+            child: ColoredBox(color: CustomColor.color0F172A.withOpacity(0.55)),
           ),
           Center(
             child: Semantics(
@@ -787,18 +873,18 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   }
 
   void _confirmBlock(Member member) => _confirmBlockAction(
-        title: "Block ${member.displayName}?",
-        body: "Are you sure you want to block ${member.displayName}?",
-        actionLabel: "Block",
-        onConfirm: () => _home.blockMember(member),
-      );
+    title: "Block ${member.displayName}?",
+    body: "Are you sure you want to block ${member.displayName}?",
+    actionLabel: "Block",
+    onConfirm: () => _home.blockMember(member),
+  );
 
   void _confirmUnblock(Member member) => _confirmBlockAction(
-        title: "Unblock ${member.displayName}?",
-        body: "Are you sure you want to unblock ${member.displayName}?",
-        actionLabel: "Unblock",
-        onConfirm: () => _home.unblockMember(member),
-      );
+    title: "Unblock ${member.displayName}?",
+    body: "Are you sure you want to unblock ${member.displayName}?",
+    actionLabel: "Unblock",
+    onConfirm: () => _home.unblockMember(member),
+  );
 
   /// Same dialog look as the Friends "Remove friend?" confirm.
   void _confirmBlockAction({

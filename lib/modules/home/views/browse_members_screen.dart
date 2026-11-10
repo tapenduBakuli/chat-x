@@ -2538,34 +2538,6 @@ class BrowseMembersScreen extends GetView<HomeController> {
                 ),
               ),
             ),
-            // Top-left "Active" pill.
-            Positioned(
-              top: ScreenConstant.sizeSmall,
-              left: ScreenConstant.sizeSmall,
-              child: _smallPill(
-                bg: CustomColor.color0D1527,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: CustomColor.color10B981,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    SizedBox(width: ScreenConstant.sizeExtraSmall),
-                    Text(
-                      "Active",
-                      style: TextStyles.policiesBadgeText.copyWith(
-                        color: CustomColor.colorWhite,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
             // Top-right photo count (only when > 1 photo).
             if (photoCount > 1)
               Positioned(
@@ -2697,7 +2669,11 @@ class BrowseMembersScreen extends GetView<HomeController> {
                 // Let deckIndex drive the rebuild instead of removing a child.
                 return false;
               },
-              child: _deckCard(member),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => controller.openMemberDetail(member),
+                child: _deckCard(member),
+              ),
             ),
           ),
           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -2736,37 +2712,6 @@ class BrowseMembersScreen extends GetView<HomeController> {
                     stops: [0.0, 0.4, 1.0],
                   ),
                 ),
-              ),
-            ),
-          ),
-          // Top-left presence + city pill.
-          Positioned(
-            top: ScreenConstant.sizeMedium,
-            left: ScreenConstant.sizeMedium,
-            child: _smallPill(
-              bg: CustomColor.color0D1527,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: CustomColor.color10B981,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: ScreenConstant.sizeExtraSmall),
-                  Text(
-                    // The users API has no city yet → plain "Active".
-                    member.profile.city.isEmpty
-                        ? "Active"
-                        : "Active • ${member.profile.city}",
-                    style: TextStyles.policiesBadgeText.copyWith(
-                      color: CustomColor.colorWhite,
-                    ),
-                  ),
-                ],
               ),
             ),
           ),

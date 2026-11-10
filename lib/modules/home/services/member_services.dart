@@ -71,6 +71,104 @@ class MemberService {
     }
   }
 
+  /// GET /users/{user_id} (authenticated) — fetches a single member's full profile.
+  Future<({bool success, String message, Member? member})> fetchMemberById(
+      String userId) async {
+    try {
+      final http.Response response =
+          await BaseClient.instance.get(Urls.getUserById(userId));
+
+      final dynamic body = response.body.isNotEmpty
+          ? jsonDecode(utf8.decode(response.bodyBytes))
+          : <String, dynamic>{};
+
+      if (response.statusCode == 200 && body is Map<String, dynamic>) {
+        final data = body['data'];
+        if (data is Map<String, dynamic>) {
+          final member = Member.fromJson(data);
+          return (
+            success: true,
+            message: _extractMessage(body, 'Member loaded'),
+            member: member,
+          );
+        }
+      }
+
+      debugPrint('MemberService.fetchMemberById -> ${response.statusCode}');
+      return (
+        success: false,
+        message: _extractMessage(
+          body,
+          'Could not load member details (${response.statusCode}).',
+        ),
+        member: null,
+      );
+    } on AppException catch (e) {
+      return (
+        success: false,
+        message: e.message == AppStrings.noInternetConnection
+            ? 'No internet connection. Please check your network and try again.'
+            : 'Could not reach the server. Please try again.',
+        member: null,
+      );
+    } catch (e) {
+      debugPrint('MemberService.fetchMemberById error: $e');
+      return (
+        success: false,
+        message: 'Something went wrong. Please try again.',
+        member: null,
+      );
+    }
+  }
+
+  /// GET /users/{user_id}/availability (authenticated) — fetches user availability status.
+  Future<({bool success, String message, UserAvailability? availability})>
+      fetchUserAvailability(String userId) async {
+    try {
+      final http.Response response =
+          await BaseClient.instance.get(Urls.getUserAvailability(userId));
+
+      final dynamic body = response.body.isNotEmpty
+          ? jsonDecode(utf8.decode(response.bodyBytes))
+          : <String, dynamic>{};
+
+      if (response.statusCode == 200 && body is Map<String, dynamic>) {
+        final availability = UserAvailability.fromJson(body);
+        return (
+          success: true,
+          message: _extractMessage(body, 'Availability loaded'),
+          availability: availability,
+        );
+      }
+
+      debugPrint(
+          'MemberService.fetchUserAvailability -> ${response.statusCode}');
+      return (
+        success: false,
+        message: _extractMessage(
+          body,
+          'Could not load availability (${response.statusCode}).',
+        ),
+        availability: null,
+      );
+    } on AppException catch (e) {
+      return (
+        success: false,
+        message: e.message == AppStrings.noInternetConnection
+            ? 'No internet connection. Please check your network and try again.'
+            : 'Could not reach the server. Please try again.',
+        availability: null,
+      );
+    } catch (e) {
+      debugPrint('MemberService.fetchUserAvailability error: $e');
+      return (
+        success: false,
+        message: 'Something went wrong. Please try again.',
+        availability: null,
+      );
+    }
+  }
+
   /// Top-level `message`, nested `error.message`, or string `error`.
   String _extractMessage(dynamic body, String fallback) {
     if (body is Map) {

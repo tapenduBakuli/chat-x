@@ -57,6 +57,14 @@ class Urls {
   /// GET — lists browsable members (limit/offset + optional gender/age).
   static const String users = "${apiBase}users";
 
+  /// GET — fetches a single user's full profile by ID: users/{user_id}
+  static String getUserById(String userId) =>
+      "$users/${Uri.encodeComponent(userId)}";
+
+  /// GET — fetches user availability status by ID: users/{user_id}/availability
+  static String getUserAvailability(String userId) =>
+      "$users/${Uri.encodeComponent(userId)}/availability";
+
   /// POST blocks / DELETE unblocks a member: users/{user_id}/block
   /// (the member's USER id).
   static String blockUser(String userId) => "$users/$userId/block";

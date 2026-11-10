@@ -1,5 +1,6 @@
 import 'package:chat_x/modules/chat/binding/chat_binding.dart';
 import 'package:chat_x/modules/home/binding/home_binding.dart';
+import 'package:chat_x/modules/home/binding/member_detail_binding.dart';
 import 'package:chat_x/modules/chat/views/chat_screen.dart';
 import 'package:chat_x/modules/home/views/browse_members_screen.dart';
 import 'package:chat_x/modules/home/views/member_detail_screen.dart';
@@ -98,7 +99,7 @@ class Theme1AppPages {
     GetPage(
       name: Routes.MEMBER_DETAIL,
       page: () => const MemberDetailScreen(),
-      binding: HomeBinding(),
+      binding: MemberDetailBinding(),
     ),
     GetPage(
       name: Routes.PROFILE,

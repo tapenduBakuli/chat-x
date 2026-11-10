@@ -1419,7 +1419,7 @@ class RegisterController extends GetxController {
   }
 
   /// Builds the PUT /users/me payload from the onboarding state. Edit Profile
-  /// uses [_buildEditProfilePayload] instead (display_name/gender/orientation
+  /// uses [_buildEditProfilePayload] instead (display_name/orientation
   /// are read-only there and several fields fall back to the hydrated server
   /// value instead of being omitted/blanked).
   Map<String, dynamic> _buildUpdateProfilePayload() {
@@ -1636,6 +1636,7 @@ class RegisterController extends GetxController {
 
     return EditProfilePayload.build(
       original: original,
+      gender: selectedGender.value.trim(),
       dateOfBirth: dateOfBirth,
       country: country,
       aboutMe: aboutMeController.text.trim(),

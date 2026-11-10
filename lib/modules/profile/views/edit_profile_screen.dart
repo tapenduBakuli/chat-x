@@ -17,7 +17,7 @@ import '../../register/views/widgets/intimate_desires_form.dart';
 class EditProfileScreen extends GetView<RegisterController> {
   const EditProfileScreen({super.key});
 
-  static const List<String> _genders = ['Woman', 'Man', 'Non-binary'];
+  static const List<String> _genders = ['Woman', 'Man', 'Trans-man', 'trans-woman'];
   static const List<String> _orientations = [
     'Straight',
     'Bisexual',
@@ -865,19 +865,60 @@ class EditProfileScreen extends GetView<RegisterController> {
     );
   }
 
+  /// Editable single-select gender chips, pre-selected from GET /users/me.
   Widget _buildGenderField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label("Gender"),
-        Obx(
-          () => _readOnlyChips(
-            semanticsLabel: "Gender",
-            options: _genders,
-            selected: controller.selectedGender.value,
-          ),
-        ),
-        _lockedNote(),
+        Obx(() {
+          final String selected = controller.selectedGender.value;
+          return Wrap(
+            spacing: ScreenConstant.sizeSmall,
+            runSpacing: ScreenConstant.sizeSmall,
+            children: _genders.map((o) {
+              final bool isSelected = selected == o;
+              return Semantics(
+                button: true,
+                selected: isSelected,
+                label: "Gender: $o",
+                excludeSemantics: true,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(100),
+                  onTap: () => controller.selectGender(o),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ScreenConstant.sizeMedium,
+                      vertical: ScreenConstant.sizeExtraSmall + 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? CustomColor.colorFFF1F2
+                          : CustomColor.colorF8FAFC,
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(
+                        color: isSelected
+                            ? CustomColor.colorBE123C
+                            : CustomColor.colorE2E8F0,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      o,
+                      style: TextStyles.policiesPillText.copyWith(
+                        color: isSelected
+                            ? CustomColor.colorBE123C
+                            : CustomColor.color334155,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        }),
       ],
     );
   }

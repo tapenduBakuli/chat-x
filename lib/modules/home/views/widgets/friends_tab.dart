@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../../device_manager/screen_constants.dart';
 import '../../../../utils/TextStyles.dart';
 import '../../../../utils/colors/app_colors.dart';
+import '../../controller/conversations_controller.dart';
 import '../../controller/friends_controller.dart';
 import '../../model/friend.dart';
 import 'member_network_image.dart';
@@ -675,39 +676,52 @@ class FriendsTab extends StatelessWidget {
             // chat icon; chat and the Remove menu are disabled.
             final bool opening = controller.openingChatIds.contains(user.id);
             final bool busy = removing || opening;
+            final int unreadCount = _getUnreadCountForFriend(user.id);
+
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Opacity(
                   opacity: removing ? 0.5 : 1,
-                  child: Material(
-                    color: CustomColor.colorFDF2F8,
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      tooltip: "Chat",
-                      onPressed:
-                          busy ? null : () => controller.openChat(user),
-                      icon: opening
-                          ? Semantics(
-                              label: "Opening chat with ${user.displayName}",
-                              excludeSemantics: true,
-                              child: const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    CustomColor.colorBE185D,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Material(
+                        color: CustomColor.colorFDF2F8,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: "Chat",
+                          onPressed:
+                              busy ? null : () => controller.openChat(user),
+                          icon: opening
+                              ? Semantics(
+                                  label: "Opening chat with ${user.displayName}",
+                                  excludeSemantics: true,
+                                  child: const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        CustomColor.colorBE185D,
+                                      ),
+                                    ),
                                   ),
+                                )
+                              : Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: ScreenConstant.smallIconSize,
+                                  color: CustomColor.colorBE185D,
                                 ),
-                              ),
-                            )
-                          : Icon(
-                              Icons.chat_bubble_outline,
-                              size: ScreenConstant.smallIconSize,
-                              color: CustomColor.colorBE185D,
-                            ),
-                    ),
+                        ),
+                      ),
+                      if (unreadCount > 0 && !opening)
+                        Positioned(
+                          top: -2,
+                          right: -2,
+                          child: _unreadBadge(unreadCount),
+                        ),
+                    ],
                   ),
                 ),
                 removing
@@ -717,6 +731,43 @@ class FriendsTab extends StatelessWidget {
             );
           }),
         ],
+      ),
+    );
+  }
+
+  int _getUnreadCountForFriend(String userId) {
+    if (!Get.isRegistered<ConversationsController>()) return 0;
+    final convsController = Get.find<ConversationsController>();
+    final conv = convsController.conversations.firstWhereOrNull(
+      (c) => c.otherUser.id == userId,
+    );
+    return conv?.unreadCount ?? 0;
+  }
+
+  Widget _unreadBadge(int count) {
+    if (count <= 0) return const Offstage();
+    final String label = count > 99 ? "99+" : "$count";
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 5,
+        vertical: 2,
+      ),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [CustomColor.colorBE185D, CustomColor.color581C87],
+        ),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: CustomColor.colorWhite, width: 1.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyles.registerFieldNote.copyWith(
+          fontSize: 10,
+          color: CustomColor.colorWhite,
+          fontWeight: FontWeight.bold,
+          height: 1.0,
+        ),
       ),
     );
   }

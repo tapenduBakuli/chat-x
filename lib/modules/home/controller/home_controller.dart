@@ -1009,7 +1009,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Reset the deck cursor back to the first member.
   void resetDeck() => deckIndex.value = 0;
 
-  /// Open the full profile for [m].
+  /// Open the full profile for [m]. The detail screen's own controller
+  /// (MemberDetailController) fetches GET users/{id} + availability.
   void openMemberDetail(Member m) =>
       Get.toNamed(Routes.MEMBER_DETAIL, arguments: m);
 

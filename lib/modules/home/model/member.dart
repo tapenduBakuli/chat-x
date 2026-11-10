@@ -14,6 +14,21 @@ int _int(dynamic v) {
   return 0;
 }
 
+/// `location` may be a plain string ("Remains Hidden") or an object such as
+/// `{city, region|state, country}` / `{name|label}`.
+String _location(dynamic v) {
+  if (v is String) return v;
+  if (v is Map) {
+    final named = _str(v['name']).isNotEmpty ? _str(v['name']) : _str(v['label']);
+    if (named.isNotEmpty) return named;
+    final region = _str(v['region']).isNotEmpty ? v['region'] : v['state'];
+    return <String>[_str(v['city']), _str(region), _str(v['country'])]
+        .where((e) => e.trim().isNotEmpty)
+        .join(', ');
+  }
+  return '';
+}
+
 List<String> _strList(dynamic v) {
   if (v is List) {
     return v.map(_str).where((e) => e.isNotEmpty).toList(growable: false);
@@ -79,6 +94,13 @@ class MemberProfile {
   /// Profile-level `avatar_url` ('' when null).
   final String avatarUrl;
 
+  /// Detail-only fields (GET /users/{id}); empty when not provided.
+  final List<String> corePhysicalIntimate;
+  final List<String> explorationKink;
+  final List<String> sexualPreferences;
+  final String personalSafetyInfo;
+  final String hasStdOrSti;
+
   const MemberProfile({
     required this.gender,
     required this.orientations,
@@ -91,7 +113,36 @@ class MemberProfile {
     required this.relationshipIntents,
     required this.photos,
     required this.avatarUrl,
+    this.corePhysicalIntimate = const <String>[],
+    this.explorationKink = const <String>[],
+    this.sexualPreferences = const <String>[],
+    this.personalSafetyInfo = '',
+    this.hasStdOrSti = '',
   });
+
+  /// Detail values win; list values are kept wherever the detail is empty.
+  MemberProfile mergeWith(MemberProfile d) {
+    String s(String a, String b) => a.isNotEmpty ? a : b;
+    List<T> l<T>(List<T> a, List<T> b) => a.isNotEmpty ? a : b;
+    return MemberProfile(
+      gender: s(d.gender, gender),
+      orientations: l(d.orientations, orientations),
+      bio: s(d.bio, bio),
+      location: s(d.location, location),
+      city: s(d.city, city),
+      region: s(d.region, region),
+      interests: l(d.interests, interests),
+      lookingFor: l(d.lookingFor, lookingFor),
+      relationshipIntents: l(d.relationshipIntents, relationshipIntents),
+      photos: l(d.photos, photos),
+      avatarUrl: s(d.avatarUrl, avatarUrl),
+      corePhysicalIntimate: l(d.corePhysicalIntimate, corePhysicalIntimate),
+      explorationKink: l(d.explorationKink, explorationKink),
+      sexualPreferences: l(d.sexualPreferences, sexualPreferences),
+      personalSafetyInfo: s(d.personalSafetyInfo, personalSafetyInfo),
+      hasStdOrSti: s(d.hasStdOrSti, hasStdOrSti),
+    );
+  }
 
   /// Used when the API returns `profile: null`.
   static const MemberProfile empty = MemberProfile(
@@ -128,7 +179,7 @@ class MemberProfile {
       gender: _str(json['gender']),
       orientations: _strList(json['orientation']),
       bio: _str(json['about_me']),
-      location: _str(json['location']),
+      location: _location(json['location']),
       // city/region are not part of the users API yet.
       city: '',
       region: '',
@@ -137,6 +188,11 @@ class MemberProfile {
       relationshipIntents: _strList(json['relationship_preferences']),
       photos: List<MemberPhoto>.unmodifiable(photos),
       avatarUrl: _str(json['avatar_url']),
+      corePhysicalIntimate: _strList(json['core_physical_intimate']),
+      explorationKink: _strList(json['exploration_kink']),
+      sexualPreferences: _strList(json['sexual_preferences']),
+      personalSafetyInfo: _str(json['personal_safety_info']),
+      hasStdOrSti: _str(json['has_std_or_sti']),
     );
   }
 }
@@ -182,6 +238,21 @@ class Member {
       friendshipStatus: status.isEmpty ? 'none' : status,
       avatarUrl: _str(json['avatar_url']),
       profile: profile,
+    );
+  }
+
+  /// Merges a freshly fetched [detail] over this (list) member: fetched values
+  /// win, list values are kept for anything the detail leaves empty.
+  Member mergeWith(Member detail) {
+    String s(String a, String b) => a.isNotEmpty ? a : b;
+    return Member(
+      id: s(detail.id, id),
+      displayName: s(detail.displayName, displayName),
+      age: detail.age > 0 ? detail.age : age,
+      role: s(detail.role, role),
+      friendshipStatus: detail.friendshipStatus,
+      avatarUrl: s(detail.avatarUrl, avatarUrl),
+      profile: profile.mergeWith(detail.profile),
     );
   }
 
@@ -280,6 +351,36 @@ class MemberListResponse {
       total: total,
       limit: limit,
       offset: offset,
+    );
+  }
+}
+
+/// Realtime user availability returned by GET /users/{user_id}/availability.
+class UserAvailability {
+  final String userId;
+  final bool isOnline;
+  final DateTime? lastSeenAt;
+  final bool canReceiveMessages;
+
+  const UserAvailability({
+    required this.userId,
+    required this.isOnline,
+    this.lastSeenAt,
+    this.canReceiveMessages = true,
+  });
+
+  factory UserAvailability.fromJson(Map<String, dynamic> json) {
+    final data =
+        json['data'] is Map ? json['data'] as Map<String, dynamic> : json;
+    return UserAvailability(
+      userId: _str(data['user_id']),
+      isOnline: data['is_online'] is bool ? data['is_online'] as bool : false,
+      lastSeenAt: data['last_seen_at'] is String
+          ? DateTime.tryParse(data['last_seen_at'] as String)?.toLocal()
+          : null,
+      canReceiveMessages: data['can_receive_messages'] is bool
+          ? data['can_receive_messages'] as bool
+          : true,
     );
   }
 }

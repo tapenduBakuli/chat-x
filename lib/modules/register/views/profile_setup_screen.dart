@@ -13,7 +13,7 @@ import '../../../utils/image_utils/image_utils.dart';
 class ProfileSetupScreen extends GetView<RegisterController> {
   const ProfileSetupScreen({super.key});
 
-  static const List<String> _genders = ['Woman', 'Man', 'Non-binary'];
+  static const List<String> _genders = ['Woman', 'Man', 'Trans-man', 'trans-woman'];
   static const List<String> _orientations = [
     'Straight',
     'Bisexual',
