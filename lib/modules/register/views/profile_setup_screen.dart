@@ -2,6 +2,8 @@ import 'package:chat_x/device_manager/screen_constants.dart';
 import 'dart:io';
 
 import 'package:chat_x/modules/register/controller/register_controller.dart';
+import 'package:chat_x/modules/register/model/lifestyle_options.dart';
+import 'package:chat_x/modules/register/views/widgets/tick_select_row.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -118,6 +120,8 @@ class ProfileSetupScreen extends GetView<RegisterController> {
               // _buildProfileName(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildGender(),
+              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              _buildLifestyleFields(),
               // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               // _buildDob(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -538,6 +542,38 @@ class ProfileSetupScreen extends GetView<RegisterController> {
             onTap: controller.selectGender,
           ),
         ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifestyle fields (optional single-selects, same look as gender)
+  // ---------------------------------------------------------------------------
+  Widget _buildLifestyleFields() {
+    final fields = <(String, List<String>, RxString, void Function(String))>[
+      ("Has children", LifestyleOptions.yesNo, controller.hasChildren,
+          controller.selectHasChildren),
+      ("Relationship status", LifestyleOptions.relationshipStatus,
+          controller.relationshipStatus, controller.selectRelationshipStatus),
+      ("Works", LifestyleOptions.yesNo, controller.works,
+          controller.selectWorks),
+      ("Own house", LifestyleOptions.yesNo, controller.ownHouse,
+          controller.selectOwnHouse),
+      ("Car", LifestyleOptions.yesNo, controller.hasCar,
+          controller.selectHasCar),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < fields.length; i++) ...[
+          if (i > 0) SizedBox(height: ScreenConstant.sizeSmall),
+          TickSelectRow(
+            label: fields[i].$1,
+            options: fields[i].$2,
+            selected: () => fields[i].$3.value,
+            onSelect: fields[i].$4,
+          ),
+        ],
       ],
     );
   }

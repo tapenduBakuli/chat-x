@@ -121,6 +121,7 @@ class ProfileScreen extends GetView<ProfileController> {
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     _buildAboutMeCard(),
                     SizedBox(height: ScreenConstant.sizeMedium),
+                    _buildLifestyleCard(),
                     _buildInterestsCard(),
                     SizedBox(height: ScreenConstant.sizeMedium),
                     _buildLocationCard(),
@@ -619,6 +620,36 @@ class ProfileScreen extends GetView<ProfileController> {
         ),
       ),
     );
+  }
+
+  /// Lifestyle values; only fields with a value are shown and the whole
+  /// card (with its trailing gap) is hidden when none has one.
+  Widget _buildLifestyleCard() {
+    return Obx(() {
+      final List<MapEntry<String, String>> rows = [
+        MapEntry('Has children:', controller.hasChildren.value),
+        MapEntry('Relationship status:', controller.relationshipStatus.value),
+        MapEntry('Works:', controller.works.value),
+        MapEntry('Own house:', controller.ownHouse.value),
+        MapEntry('Car:', controller.hasCar.value),
+      ].where((e) => e.value.isNotEmpty).toList();
+      if (rows.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: EdgeInsets.only(bottom: ScreenConstant.sizeMedium),
+        child: _profileCard(
+          icon: Icons.favorite_border,
+          title: "Lifestyle",
+          child: Column(
+            children: [
+              for (int i = 0; i < rows.length; i++) ...[
+                if (i > 0) SizedBox(height: ScreenConstant.sizeExtraSmall),
+                _detailRow(rows[i].key, rows[i].value),
+              ],
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildInterestsCard() {

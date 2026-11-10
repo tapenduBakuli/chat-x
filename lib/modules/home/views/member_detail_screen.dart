@@ -122,75 +122,82 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
                                         ScreenConstant.defaultHeightTwentyThree,
                                   ),
                                   _locationCard(member),
-                                  Container(
-                                    padding: EdgeInsets.fromLTRB(
-                                      ScreenConstant.defaultWidthTen,
-                                      ScreenConstant.sizeSmall,
-                                      ScreenConstant.defaultWidthTen,
-                                      ScreenConstant.sizeSmall,
+                                  if (member.isFriendshipNone) ...[
+                                    SizedBox(
+                                      height:
+                                          ScreenConstant.defaultHeightTwentyThree,
                                     ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      color: CustomColor.colorWhite,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: CustomColor.color717B96
-                                              .withOpacity(0.12),
-                                          blurRadius: 16,
-                                          spreadRadius: -4,
-                                          offset: const Offset(0, -4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () =>
-                                              home.onPassFromDetail(member),
-                                          child: Container(
-                                            height: ScreenConstant
-                                                .defaultHeightSixty,
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal:
-                                                  ScreenConstant.sizeLarge,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(100),
-                                              border: Border.all(
-                                                color: CustomColor.colorE2E8F0,
+                                    Container(
+                                      padding: EdgeInsets.fromLTRB(
+                                        ScreenConstant.defaultWidthTen,
+                                        ScreenConstant.sizeSmall,
+                                        ScreenConstant.defaultWidthTen,
+                                        ScreenConstant.sizeSmall,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        color: CustomColor.colorWhite,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: CustomColor.color717B96
+                                                .withOpacity(0.12),
+                                            blurRadius: 16,
+                                            spreadRadius: -4,
+                                            offset: const Offset(0, -4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: () =>
+                                                home.onPassFromDetail(member),
+                                            child: Container(
+                                              height: ScreenConstant
+                                                  .defaultHeightSixty,
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal:
+                                                    ScreenConstant.sizeLarge,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(100),
+                                                border: Border.all(
+                                                  color: CustomColor.colorE2E8F0,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.close,
+                                                    size: ScreenConstant
+                                                        .smallIconSize,
+                                                    color:
+                                                        CustomColor.color64748B,
+                                                  ),
+                                                  SizedBox(
+                                                    width: ScreenConstant
+                                                        .sizeExtraSmall,
+                                                  ),
+                                                  Text(
+                                                    "Pass",
+                                                    style: TextStyles
+                                                        .browseToggleLabel,
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.close,
-                                                  size: ScreenConstant
-                                                      .smallIconSize,
-                                                  color:
-                                                      CustomColor.color64748B,
-                                                ),
-                                                SizedBox(
-                                                  width: ScreenConstant
-                                                      .sizeExtraSmall,
-                                                ),
-                                                Text(
-                                                  "Pass",
-                                                  style: TextStyles
-                                                      .browseToggleLabel,
-                                                ),
-                                              ],
-                                            ),
                                           ),
-                                        ),
-                                        SizedBox(
-                                          width: ScreenConstant.sizeMedium,
-                                        ),
-                                        Expanded(child: _connectButton(member)),
-                                      ],
+                                          SizedBox(
+                                            width: ScreenConstant.sizeMedium,
+                                          ),
+                                          Expanded(
+                                              child: _connectButton(member)),
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ),

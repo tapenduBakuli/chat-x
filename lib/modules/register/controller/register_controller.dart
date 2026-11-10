@@ -18,6 +18,7 @@ import '../../home/controller/home_controller.dart';
 import '../../login/model/login_response_model.dart';
 import '../model/gallery_photo_model.dart';
 import '../model/onboarding_args.dart';
+import '../model/lifestyle_options.dart';
 import '../model/update_profile_response_model.dart';
 import '../services/gallery_photo_services.dart';
 import '../services/payment_services.dart';
@@ -362,6 +363,12 @@ class RegisterController extends GetxController {
   /// Profile setup state
   final RxString selectedGender = ''.obs;
 
+  /// Lifestyle single-selects ('' = unset; otherwise the display label).
+  final RxString hasChildren = ''.obs;
+  final RxString relationshipStatus = ''.obs;
+  final RxString works = ''.obs;
+  final RxString ownHouse = ''.obs;
+  final RxString hasCar = ''.obs;
   final RxnInt selectedDobDay = RxnInt();
   final RxnInt selectedDobMonth = RxnInt();
   final RxnInt selectedDobYear = RxnInt();
@@ -487,6 +494,20 @@ class RegisterController extends GetxController {
     selectedGender.value = gender;
   }
 
+  void selectHasChildren(String v) => hasChildren.value = v;
+  void selectRelationshipStatus(String v) => relationshipStatus.value = v;
+  void selectWorks(String v) => works.value = v;
+  void selectOwnHouse(String v) => ownHouse.value = v;
+  void selectHasCar(String v) => hasCar.value = v;
+
+  /// Current lifestyle selections keyed by (placeholder) payload key.
+  Map<String, String> get _lifestyleValues => <String, String>{
+        LifestyleOptions.keyHasChildren: hasChildren.value,
+        LifestyleOptions.keyRelationshipStatus: relationshipStatus.value,
+        LifestyleOptions.keyWorks: works.value,
+        LifestyleOptions.keyOwnHouse: ownHouse.value,
+        LifestyleOptions.keyHasCar: hasCar.value,
+      };
   void setDobDay(int? day) {
     selectedDobDay.value = day;
   }
@@ -989,6 +1010,11 @@ class RegisterController extends GetxController {
     selectedGender.value = ProfileSetupHydration.matchGender(p.gender) ?? '';
     selectedOrientation.value =
         ProfileSetupHydration.matchOrientation(p.orientation) ?? '';
+    hasChildren.value = p.hasChildren;
+    relationshipStatus.value = p.relationshipStatus;
+    works.value = p.works;
+    ownHouse.value = p.ownHouse;
+    hasCar.value = p.hasCar;
     selectedLookingFor
         .assignAll(ProfileSetupHydration.matchLookingFor(p.lookingFor));
     selectedProfileCity.value = ProfileSetupHydration.matchCity(
@@ -1467,6 +1493,10 @@ class RegisterController extends GetxController {
       'personal_and_safety_information': personalSafetyInfo.value,
       'has_std_or_sti': stiStatus.value,
       'preference_visibility_mode': visibilityMode.value,
+      // TODO(api): enable once backend adds these keys to UserUpdate (additionalProperties:false today)
+      // Value format: display label ('Yes'/'No'/'Single'/...), unset omitted.
+      if (kSendLifestyleFields)
+        ...LifestyleOptions.payloadEntries(_lifestyleValues),
       // `photos` is deliberately omitted: the gallery is managed by the
       // users/me/photos endpoints (upload/delete/reorder), and GET /users/me
       // returns profile.photos in the same {id,url,position} shape, so a
@@ -1669,6 +1699,7 @@ class RegisterController extends GetxController {
       personalSafetyInfo: personalSafetyInfo.value,
       hasStdOrSti: stiStatus.value,
       preferenceVisibilityMode: visibilityMode.value,
+      lifestyle: _lifestyleValues,
     );
   }
 

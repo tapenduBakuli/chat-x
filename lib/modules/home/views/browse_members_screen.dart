@@ -2261,6 +2261,65 @@ class BrowseMembersScreen extends GetView<HomeController> {
                   ),
                   SizedBox(height: ScreenConstant.sizeLarge),
 
+                  // Search only active members toggle.
+                  Obx(
+                    () => Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ScreenConstant.sizeMedium,
+                        vertical: ScreenConstant.sizeSmall,
+                      ),
+                      decoration: BoxDecoration(
+                        color: CustomColor.colorF8FAFC,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: CustomColor.colorE2E8F0),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: CustomColor.color10B981,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: ScreenConstant.sizeSmall),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Search only active members",
+                                  style: TextStyles.registerFieldLabel.copyWith(
+                                    fontSize: FontSize.s14,
+                                    color: CustomColor.color0F172A,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "Filter members currently online or active",
+                                  style: TextStyles.registerFieldNote.copyWith(
+                                    fontSize: FontSize.s11,
+                                    color: CustomColor.color64748B,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: controller.draftSearchOnlyActiveMembers.value,
+                            activeTrackColor: CustomColor.colorBE185D,
+                            activeColor: CustomColor.colorWhite,
+                            onChanged: (val) {
+                              controller.draftSearchOnlyActiveMembers.value = val;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: ScreenConstant.sizeLarge),
+
                   Divider(color: CustomColor.colorE2E8F0),
                   SizedBox(height: ScreenConstant.sizeSmall),
 

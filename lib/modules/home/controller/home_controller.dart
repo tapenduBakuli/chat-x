@@ -235,6 +235,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// ANY selected chip (OR). Empty = no filter.
   final RxList<String> selectedInterests = <String>[].obs;
 
+  /// Search only active members filter toggle.
+  final RxBool searchOnlyActiveMembers = false.obs;
+
   // --- DRAFT filter state (edited inside the filter sheet) -----------------
   // The sheet controls bind to these drafts so changes do NOT affect the list
   // until the user taps "Apply Criteria" (which copies drafts -> applied).
@@ -244,6 +247,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   final Rx<RangeValues> draftAgeRange = defaultAgeRange.obs;
   final RxDouble draftSearchRadiusKm = 30.0.obs;
   final RxList<String> draftSelectedInterests = <String>[].obs;
+  final RxBool draftSearchOnlyActiveMembers = false.obs;
 
   /// Fixed city filter options (mirrors the web dropdown).
   final List<String> cities = const [
@@ -827,6 +831,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     draftAgeRange.value = ageRange.value;
     draftSearchRadiusKm.value = searchRadiusKm.value;
     draftSelectedInterests.assignAll(selectedInterests);
+    draftSearchOnlyActiveMembers.value = searchOnlyActiveMembers.value;
   }
 
   /// Update the DRAFT gender filter (applied on [applyFilters]).
@@ -856,6 +861,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _ageFilterActive = draftAgeRange.value != defaultAgeRange;
     searchRadiusKm.value = draftSearchRadiusKm.value;
     selectedInterests.assignAll(draftSelectedInterests);
+    searchOnlyActiveMembers.value = draftSearchOnlyActiveMembers.value;
     deckIndex.value = 0;
     // Gender/age are server-side: re-query with the new params.
     fetchFirstPage();
@@ -920,11 +926,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _ageFilterActive = false;
     searchRadiusKm.value = 30;
     selectedInterests.clear();
+    searchOnlyActiveMembers.value = false;
 
     draftGenderFilter.value = 'All';
     draftAgeRange.value = defaultAgeRange;
     draftSearchRadiusKm.value = 30;
     draftSelectedInterests.clear();
+    draftSearchOnlyActiveMembers.value = false;
 
     deckIndex.value = 0;
     // Back to the default query (no gender/age params).

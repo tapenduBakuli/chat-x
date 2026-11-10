@@ -6,8 +6,14 @@ import 'package:get/get.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../routes/routes.dart';
+import '../../home/controller/blocked_controller.dart';
 import '../../home/controller/conversations_controller.dart';
+import '../../home/controller/friends_controller.dart';
+import '../../home/controller/home_controller.dart';
 import '../../home/model/friend.dart';
+import '../../home/model/member.dart';
+import '../../home/services/block_services.dart';
 import '../model/chat_message.dart';
 import '../model/conversation_model.dart';
 import '../services/chat_websocket_service.dart';
@@ -793,24 +799,133 @@ class ChatController extends GetxController {
     });
   }
 
-  // --- Header / menu actions (DEMO) ----------------------------------------
-  /// TODO(api): open the peer's profile once a FriendUser → Member lookup
-  /// exists.
-  void viewProfile() => comingSoon('Profile');
+  // --- Header / menu actions ------------------------------------------------
+  /// True while POST users/{id}/block is in flight (ignores repeat taps).
+  final RxBool isBlocking = false.obs;
 
-  /// TODO(api): call the block-user endpoint, then leave the chat.
+  /// Opens the peer's Member Details screen. The list-style [Member] built
+  /// from the peer renders instantly; the screen then fetches the full
+  /// profile (GET users/{id}) and availability itself.
+  void viewProfile() {
+    final FriendUser? p = peer.value;
+    if (p == null || p.id.isEmpty) {
+      comingSoon('Profile');
+      return;
+    }
+    Get.toNamed(
+      Routes.MEMBER_DETAIL,
+      arguments: Member(
+        id: p.id,
+        displayName: p.displayName,
+        age: p.age,
+        role: '',
+        avatarUrl: p.avatarUrl,
+        profile: MemberProfile.empty,
+      ),
+    );
+  }
+
+  /// Confirm, then POST users/{id}/block. On success: snackbar, sync the
+  /// other tabs, and leave the chat. On failure: error snackbar, stay here.
   void blockUser() {
-    final name = peer.value?.displayName ?? 'This user';
-    Get.snackbar('Blocked', '$name has been blocked (demo).',
-        snackPosition: SnackPosition.BOTTOM);
+    final FriendUser? p = peer.value;
+    if (p == null || p.id.isEmpty) return;
+    if (isBlocking.value) return;
+    final String name = p.displayName.isNotEmpty ? p.displayName : 'this user';
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: CustomColor.colorWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Block $name?',
+          style: TextStyles.registerSectionTitle.copyWith(
+            color: CustomColor.color0F172A,
+          ),
+        ),
+        content: Text(
+          'They won\'t be able to message you, and this chat will close.',
+          style: TextStyles.registerFieldNote.copyWith(
+            color: CustomColor.color64748B,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              'Cancel',
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              _doBlock(p);
+            },
+            child: Text(
+              'Block',
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.colorBE123C,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  /// TODO(api): call the report-user endpoint.
-  void reportUser() {
-    final name = peer.value?.displayName ?? 'this user';
-    Get.snackbar('Reported', 'Thanks, we\'ll review $name (demo).',
-        snackPosition: SnackPosition.BOTTOM);
+  Future<void> _doBlock(FriendUser p) async {
+    if (isBlocking.value) return;
+    isBlocking.value = true;
+    try {
+      final res = await BlockService.instance.blockUser(p.id);
+      if (!res.success) {
+        Get.snackbar('Could not block', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      Get.snackbar(
+        'Blocked',
+        res.message.isNotEmpty ? res.message : '${p.displayName} blocked',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      _syncAfterBlock(p.id);
+      if (isClosed) return;
+      // Leave the chat (pop the CHAT route itself; Get.back() would only
+      // close the snackbar shown above in get 4.7.3).
+      Get.until((route) => route.settings.name != Routes.CHAT);
+    } finally {
+      if (!isClosed) isBlocking.value = false;
+    }
   }
+
+  /// Keeps Browse / Blocked / Friends / Chats current after a block. Each is
+  /// optional (skip when not registered or only "prepared"); not awaited.
+  void _syncAfterBlock(String userId) {
+    if (Get.isRegistered<HomeController>()) {
+      final home = Get.find<HomeController>();
+      home.blockStates[userId] = true;
+      home.onRefresh();
+    }
+    if (Get.isRegistered<BlockedController>() &&
+        !Get.isPrepared<BlockedController>()) {
+      Get.find<BlockedController>().refreshBlocked(showError: false);
+    }
+    if (Get.isRegistered<FriendsController>() &&
+        !Get.isPrepared<FriendsController>()) {
+      Get.find<FriendsController>().loadAll();
+    }
+    if (Get.isRegistered<ConversationsController>() &&
+        !Get.isPrepared<ConversationsController>()) {
+      Get.find<ConversationsController>().loadFirstPage(quiet: true);
+    }
+  }
+
+  /// TODO(api): call the report-user endpoint once the backend provides it.
+  /// Until then no fake "Reported" confirmation is shown.
+  void reportUser() => comingSoon('Reporting');
 
   void comingSoon(String feature) {
     Get.snackbar('Coming soon', '$feature is coming soon.',

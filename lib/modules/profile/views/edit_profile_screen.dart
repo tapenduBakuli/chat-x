@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:chat_x/device_manager/screen_constants.dart';
 import 'package:chat_x/modules/register/controller/register_controller.dart';
+import 'package:chat_x/modules/register/model/lifestyle_options.dart';
+import 'package:chat_x/modules/register/views/widgets/tick_select_row.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -114,6 +116,8 @@ class EditProfileScreen extends GetView<RegisterController> {
                           _buildProfileNameField(),
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                           _buildGenderField(),
+                          SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                          _buildLifestyleFields(),
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                           _buildDobField(),
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -871,56 +875,102 @@ class EditProfileScreen extends GetView<RegisterController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label("Gender"),
-        Obx(() {
-          final String selected = controller.selectedGender.value;
-          return Wrap(
-            spacing: ScreenConstant.sizeSmall,
-            runSpacing: ScreenConstant.sizeSmall,
-            children: _genders.map((o) {
-              final bool isSelected = selected == o;
-              return Semantics(
-                button: true,
-                selected: isSelected,
-                label: "Gender: $o",
-                excludeSemantics: true,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(100),
-                  onTap: () => controller.selectGender(o),
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: ScreenConstant.sizeMedium,
-                      vertical: ScreenConstant.sizeExtraSmall + 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? CustomColor.colorFFF1F2
-                          : CustomColor.colorF8FAFC,
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: isSelected
-                            ? CustomColor.colorBE123C
-                            : CustomColor.colorE2E8F0,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Text(
-                      o,
-                      style: TextStyles.policiesPillText.copyWith(
-                        color: isSelected
-                            ? CustomColor.colorBE123C
-                            : CustomColor.color334155,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          );
-        }),
+        _singleSelectChips(
+          semanticsPrefix: "Gender",
+          options: _genders,
+          selected: () => controller.selectedGender.value,
+          onSelect: controller.selectGender,
+        ),
       ],
     );
+  }
+
+  /// Editable lifestyle single-selects, pre-selected from state.
+  Widget _buildLifestyleFields() {
+    final fields = <(String, List<String>, RxString, void Function(String))>[
+      ("Has children", LifestyleOptions.yesNo, controller.hasChildren,
+          controller.selectHasChildren),
+      ("Relationship status", LifestyleOptions.relationshipStatus,
+          controller.relationshipStatus, controller.selectRelationshipStatus),
+      ("Works", LifestyleOptions.yesNo, controller.works,
+          controller.selectWorks),
+      ("Own house", LifestyleOptions.yesNo, controller.ownHouse,
+          controller.selectOwnHouse),
+      ("Car", LifestyleOptions.yesNo, controller.hasCar,
+          controller.selectHasCar),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < fields.length; i++) ...[
+          if (i > 0) SizedBox(height: ScreenConstant.sizeSmall),
+          TickSelectRow(
+            label: fields[i].$1,
+            options: fields[i].$2,
+            selected: () => fields[i].$3.value,
+            onSelect: fields[i].$4,
+            labelStyle: TextStyles.loginFieldLabel,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Reusable editable single-select chips. [selected] must read an
+  /// observable so the wrapping Obx rebuilds.
+  Widget _singleSelectChips({
+    required String semanticsPrefix,
+    required List<String> options,
+    required String Function() selected,
+    required void Function(String) onSelect,
+  }) {
+    return Obx(() {
+      final String current = selected();
+      return Wrap(
+        spacing: ScreenConstant.sizeSmall,
+        runSpacing: ScreenConstant.sizeSmall,
+        children: options.map((o) {
+          final bool isSelected = current == o;
+          return Semantics(
+            button: true,
+            selected: isSelected,
+            label: "$semanticsPrefix: $o",
+            excludeSemantics: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(100),
+              onTap: () => onSelect(o),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: ScreenConstant.sizeMedium,
+                  vertical: ScreenConstant.sizeExtraSmall + 2,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? CustomColor.colorFFF1F2
+                      : CustomColor.colorF8FAFC,
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(
+                    color: isSelected
+                        ? CustomColor.colorBE123C
+                        : CustomColor.colorE2E8F0,
+                    width: 1.5,
+                  ),
+                ),
+                child: Text(
+                  o,
+                  style: TextStyles.policiesPillText.copyWith(
+                    color: isSelected
+                        ? CustomColor.colorBE123C
+                        : CustomColor.color334155,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      );
+    });
   }
 
   /// Read-only single-select chips (gender / orientation): dimmed, taps

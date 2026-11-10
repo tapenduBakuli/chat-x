@@ -93,6 +93,8 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Container(padding:EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium,horizontal: ScreenConstant.sizeMedium,),decoration: BoxDecoration(color: CustomColor.colorWhite,borderRadius: BorderRadius.circular(15)), child: _buildAboutMe()),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              _previewCard(_buildLifestyle()),
+              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _previewCard(_buildLookingFor()),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Container(padding:EdgeInsets.symmetric(vertical: ScreenConstant.sizeMedium,horizontal: ScreenConstant.sizeMedium,),decoration: BoxDecoration(color: CustomColor.colorWhite,borderRadius: BorderRadius.circular(15)), child: _buildSeekingDynamics()),
@@ -106,6 +108,8 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
               _buildSafetyStandards(),
               SizedBox(height: ScreenConstant.defaultHeightThirty),
               _buildActionRow(),
+              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+              Center(child: _buildSkipToLoginRow()),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               Center(child: _buildFooter()),
             ],
@@ -588,6 +592,71 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
   }
 
   // ---------------------------------------------------------------------------
+  // Lifestyle (Profile Setup single-selects): has children, relationship
+  // status, works, own house, car. Unset values show "Not specified".
+  // ---------------------------------------------------------------------------
+  Widget _buildLifestyle() {
+    return Obx(() {
+      final List<MapEntry<String, String>> rows = [
+        MapEntry('Has children', controller.hasChildren.value),
+        MapEntry('Relationship status', controller.relationshipStatus.value),
+        MapEntry('Works', controller.works.value),
+        MapEntry('Own house', controller.ownHouse.value),
+        MapEntry('Car', controller.hasCar.value),
+      ];
+      final int answered = rows.where((r) => r.value.isNotEmpty).length;
+      return _buildSection(
+        icon: Icons.home_outlined,
+        label: "LIFESTYLE",
+        textStyle: TextStyles.registerSectionTitle.copyWith(
+          letterSpacing: 0.5,
+          color: CustomColor.colorBE185D,
+        ),
+        iconColor: CustomColor.colorBE185D,
+        rightPillText: "$answered of ${rows.length}",
+        child: Column(
+          children: rows.map((r) {
+            final bool empty = r.value.isEmpty;
+            return Semantics(
+              label: '${r.key}: ${empty ? 'Not specified' : r.value}',
+              excludeSemantics: true,
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  vertical: ScreenConstant.sizeExtraSmall,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        r.key,
+                        style: TextStyles.registerFieldNote.copyWith(
+                          fontSize: FontSize.s14,
+                          color: CustomColor.color64748B,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      empty ? 'Not specified' : r.value,
+                      style: TextStyles.registerFieldNote.copyWith(
+                        fontSize: FontSize.s14,
+                        color: empty
+                            ? CustomColor.color94A3B8
+                            : CustomColor.color334155,
+                        fontWeight:
+                            empty ? FontWeight.normal : FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      );
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // (6) Seeking / Dynamics
   // ---------------------------------------------------------------------------
   Widget _buildSeekingDynamics() {
@@ -1010,6 +1079,27 @@ class ProfilePreviewScreen extends GetView<RegisterController> {
               ),
             );
           }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkipToLoginRow() {
+    if (controller.isLoginOnboarding) return const Offstage();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "Skip completing profile? ",
+          style: TextStyles.loginFooterText,
+        ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: controller.onLoginTap,
+          child: Text(
+            "Login",
+            style: TextStyles.loginFooterLink,
+          ),
         ),
       ],
     );

@@ -1,3 +1,6 @@
+import 'lifestyle_options.dart';
+
+
 /// Response for PUT /users/me (update my profile) and GET /users/me (get my
 /// account — see [MyProfileResponse]); both share the same `data` shape.
 ///
@@ -121,6 +124,12 @@ class UpdateProfileDetails {
   final String avatarUrl;
   final List<UpdateProfilePhoto> photos;
   final bool isComplete;
+  // TODO(api): confirm key names/values with backend (lifestyle fields).
+  final String hasChildren;
+  final String relationshipStatus;
+  final String works;
+  final String ownHouse;
+  final String hasCar;
 
   const UpdateProfileDetails({
     required this.gender,
@@ -139,6 +148,11 @@ class UpdateProfileDetails {
     required this.avatarUrl,
     required this.photos,
     required this.isComplete,
+    this.hasChildren = '',
+    this.relationshipStatus = '',
+    this.works = '',
+    this.ownHouse = '',
+    this.hasCar = '',
   });
 
   factory UpdateProfileDetails.fromJson(Map<String, dynamic> json) {
@@ -162,6 +176,13 @@ class UpdateProfileDetails {
       avatarUrl: _str(json['avatar_url']),
       photos: _photoList(json['photos']),
       isComplete: json['is_complete'] == true,
+      // TODO(api): confirm key names/values with backend
+      hasChildren: LifestyleOptions.parseYesNo(json['has_children']),
+      relationshipStatus: LifestyleOptions.parseRelationshipStatus(
+          json['relationship_status']),
+      works: LifestyleOptions.parseYesNo(json['works']),
+      ownHouse: LifestyleOptions.parseYesNo(json['own_house']),
+      hasCar: LifestyleOptions.parseYesNo(json['has_car']),
     );
   }
 }

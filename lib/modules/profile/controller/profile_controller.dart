@@ -24,6 +24,12 @@ class ProfileController extends GetxController {
   final RxString orientation = ''.obs;
   final RxString bio = ''.obs;
 
+  // --- Lifestyle (display labels; '' = no value) -----------------------------
+  final RxString hasChildren = ''.obs;
+  final RxString relationshipStatus = ''.obs;
+  final RxString works = ''.obs;
+  final RxString ownHouse = ''.obs;
+  final RxString hasCar = ''.obs;
   final RxList<String> photoUrls = <String>[].obs;
   final RxInt currentPhotoIndex = 0.obs;
 
@@ -139,7 +145,11 @@ class ProfileController extends GetxController {
     gender.value = p?.gender ?? '';
     orientation.value = (p?.orientation ?? const <String>[]).join(', ');
     bio.value = p?.aboutMe ?? '';
-
+    hasChildren.value = p?.hasChildren ?? '';
+    relationshipStatus.value = p?.relationshipStatus ?? '';
+    works.value = p?.works ?? '';
+    ownHouse.value = p?.ownHouse ?? '';
+    hasCar.value = p?.hasCar ?? '';
     interests.assignAll(p?.interestAndPassion ?? const <String>[]);
     lookingFor.assignAll(p?.lookingFor ?? const <String>[]);
     relationshipTypes.assignAll(p?.relationshipPreferences ?? const <String>[]);

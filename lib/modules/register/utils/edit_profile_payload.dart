@@ -1,3 +1,4 @@
+import '../model/lifestyle_options.dart';
 import '../model/update_profile_response_model.dart';
 
 /// Immutable copy of the server values loaded by GET /users/me when Edit
@@ -30,7 +31,12 @@ class EditProfileOriginal {
   final String hasStdOrSti;
   final String preferenceVisibilityMode;
 
+  /// Original lifestyle values keyed by payload key ('' = unset). Only used
+  /// behind [kSendLifestyleFields].
+  final Map<String, String> lifestyle;
+
   const EditProfileOriginal({
+    this.lifestyle = const <String, String>{},
     required this.displayName,
     required this.gender,
     required this.orientation,
@@ -87,6 +93,13 @@ class EditProfileOriginal {
       personalSafetyInfo: p?.personalSafetyInfo ?? '',
       hasStdOrSti: p?.hasStdOrSti ?? '',
       preferenceVisibilityMode: p?.preferenceVisibilityMode ?? '',
+      lifestyle: <String, String>{
+        LifestyleOptions.keyHasChildren: p?.hasChildren ?? '',
+        LifestyleOptions.keyRelationshipStatus: p?.relationshipStatus ?? '',
+        LifestyleOptions.keyWorks: p?.works ?? '',
+        LifestyleOptions.keyOwnHouse: p?.ownHouse ?? '',
+        LifestyleOptions.keyHasCar: p?.hasCar ?? '',
+      },
     );
   }
 }
@@ -143,6 +156,9 @@ class EditProfilePayload {
     required String personalSafetyInfo,
     required String hasStdOrSti,
     required String preferenceVisibilityMode,
+    // Current lifestyle selections keyed by payload key. Not sent while
+    // [kSendLifestyleFields] is false.
+    Map<String, String> lifestyle = const <String, String>{},
   }) {
     final Map<String, dynamic>? location = newLocation ?? original.location;
     final String? safety =
@@ -172,6 +188,14 @@ class EditProfilePayload {
       'personal_and_safety_information': ?safety,
       'has_std_or_sti': ?sti,
       'preference_visibility_mode': ?visibility,
+      // TODO(api): enable once backend adds these keys to UserUpdate (additionalProperties:false today)
+      // Value format: display label ('Yes'/'No'/'Single'/...); unselected
+      // falls back to the original value, else the key is omitted.
+      if (kSendLifestyleFields)
+        for (final String key in original.lifestyle.keys)
+          if (_singleSelect(lifestyle[key] ?? '', original.lifestyle[key] ?? '')
+              case final String v)
+            key: v,
       // `photos` deliberately omitted (gallery has its own endpoints).
     };
   }
