@@ -108,10 +108,13 @@ class Urls {
   static String deleteFriendRequest(String requestId) =>
       "$friendRequests$requestId";
 
-  /// GET — paginated list of my friends; query: limit, offset.
+  /// GET — paginated list of saved profiles; query: limit, offset.
   static const String friends = "${apiBase}friends";
 
-  /// DELETE — removes a friend: friends/{user_id}
+  /// POST — saves a member: friends/{user_id}
+  static String saveProfile(String userId) => "$friends/$userId";
+
+  /// DELETE — removes a saved profile: friends/{user_id}
   /// (the FRIEND'S USER id `items[].user.id`, not the friendship id).
   static String removeFriend(String userId) => "$friends/$userId";
 

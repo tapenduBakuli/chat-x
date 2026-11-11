@@ -121,15 +121,19 @@ class BrowseMembersScreen extends GetView<HomeController> {
     return FriendsTab(emptyState: _buildFriendsEmptyState());
   }
 
-  /// Shown by [FriendsTab] when there are no requests and no friends.
+  /// Shown by [FriendsTab] when there are no saved profiles.
   Widget _buildFriendsEmptyState() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(Icons.people_outline_outlined,color: CustomColor.color64748B,size: ScreenConstant.miniIconSize,),
-        Text("No friends yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
-        Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        // [OLD FLOW – friend requests, disabled 2026-11]
+        // Text("No friends yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        // Text("Start conversation directly by browsing members in search.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
+        // [/OLD FLOW]
+        Text("No saved profiles yet.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s16),),
+        Text("Save members from Browse to message them here.",  style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s12,color: CustomColor.color64748B),),
         SizedBox(height: ScreenConstant.defaultHeightTwentyThree,),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: ScreenConstant.defaultWidthNinetyEight),
@@ -1301,7 +1305,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
             child: _navNavItem(
               index: 2,
               icon: Icons.people_outline,
-              label: "Friends",
+              label: "Saved",
               isSelected: selectedIndex == 2,
             ),
           ),
@@ -2879,8 +2883,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
           ),
         ),
         SizedBox(width: ScreenConstant.sizeLarge),
-        // Sends a friend request; shows a white spinner + ignores taps while
-        // the request for this member is in flight.
+        // Saves the top member (POST friends/{id}) and advances the deck; shows
+        // a white spinner + ignores taps while the save is in flight.
         Obx(() {
           final busy = controller.isSendingRequest(member.id);
           return _circleAction(

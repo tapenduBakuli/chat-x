@@ -4,8 +4,11 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../model/friend.dart';
 import '../model/member.dart';
 import '../services/member_services.dart';
+import 'friends_controller.dart';
+import 'home_controller.dart';
 
 /// State for one Member Detail screen. Created per entry by
 /// MemberDetailBinding. Accepts a list [Member] (shown immediately) or just a
@@ -26,6 +29,54 @@ class MemberDetailController extends GetxController {
 
   /// True while the profile fetch is in flight (drives the thin loader).
   final RxBool isLoading = false.obs;
+
+  /// True while DELETE friends/{id} is in flight (Remove button spinner).
+  final RxBool isRemoving = false.obs;
+
+  /// True while POST conversations is in flight (Message button spinner).
+  final RxBool isOpeningChat = false.obs;
+
+  HomeController get _home => Get.find<HomeController>();
+
+  FriendsController get _friends => Get.isRegistered<FriendsController>()
+      ? Get.find<FriendsController>()
+      : Get.put(FriendsController());
+
+  /// Reactive: read inside Obx (HomeController.savedStates). A session
+  /// override (saved/removed) wins over the server `is_saved`.
+  bool isSaved(Member m) => _home.isSaved(m);
+
+  bool isBlocked(Member m) => _home.isBlocked(m);
+
+  /// DELETE friends/{id}. On success HomeController.savedStates flips to
+  /// false, so the bar returns to Pass + Save without leaving the screen.
+  Future<void> removeSaved() async {
+    final Member m = member.value;
+    if (isRemoving.value || m.id.isEmpty) return;
+    isRemoving.value = true;
+    try {
+      await _friends.removeSavedByUserId(m.id, displayName: m.displayName);
+    } finally {
+      if (!isClosed) isRemoving.value = false;
+    }
+  }
+
+  /// POST conversations -> Routes.CHAT (reuses FriendsController.openChat).
+  Future<void> openChat() async {
+    final Member m = member.value;
+    if (isOpeningChat.value || m.id.isEmpty) return;
+    isOpeningChat.value = true;
+    try {
+      await _friends.openChat(FriendUser(
+        id: m.id,
+        displayName: m.displayName,
+        age: m.age,
+        avatarUrl: m.avatarUrl,
+      ));
+    } finally {
+      if (!isClosed) isOpeningChat.value = false;
+    }
+  }
 
   @override
   void onInit() {
@@ -56,6 +107,14 @@ class MemberDetailController extends GetxController {
                   profile: MemberProfile.empty,
                 ))
             .obs;
+    // Opened as saved (e.g. from the Friends tab): mirror it into the session
+    // state so every screen agrees.
+    if (isValid && member.value.isSaved) {
+      final home = Get.find<HomeController>();
+      if (!home.savedStates.containsKey(member.value.id)) {
+        home.savedStates[member.value.id] = true;
+      }
+    }
     if (isValid) load();
   }
 

@@ -198,6 +198,16 @@ class MemberProfile {
 }
 
 /// A browsable member: identity fields plus the nested [MemberProfile].
+bool _bool(dynamic v) {
+  if (v is bool) return v;
+  if (v is String) {
+    final t = v.trim().toLowerCase();
+    return t == 'true' || t == '1';
+  }
+  if (v is num) return v == 1;
+  return false;
+}
+
 class Member {
   final String id;
   final String displayName;
@@ -209,6 +219,9 @@ class Member {
   /// as "none" so the member still shows if the API omits the field.
   final String friendshipStatus;
 
+  /// `is_saved` (Saved profiles flow); false when missing/unparseable.
+  final bool isSaved;
+
   /// Top-level `avatar_url` ('' when null).
   final String avatarUrl;
   final MemberProfile profile;
@@ -218,6 +231,7 @@ class Member {
     required this.displayName,
     required this.age,
     this.friendshipStatus = 'none',
+    this.isSaved = false,
     required this.role,
     required this.avatarUrl,
     required this.profile,
@@ -236,6 +250,7 @@ class Member {
       age: _int(json['age']),
       role: _str(json['role']),
       friendshipStatus: status.isEmpty ? 'none' : status,
+      isSaved: _bool(json['is_saved']),
       avatarUrl: _str(json['avatar_url']),
       profile: profile,
     );
@@ -251,6 +266,7 @@ class Member {
       age: detail.age > 0 ? detail.age : age,
       role: s(detail.role, role),
       friendshipStatus: detail.friendshipStatus,
+      isSaved: detail.isSaved || isSaved,
       avatarUrl: s(detail.avatarUrl, avatarUrl),
       profile: profile.mergeWith(detail.profile),
     );

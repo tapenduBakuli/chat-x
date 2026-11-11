@@ -683,7 +683,10 @@ class ChatController extends GetxController {
     // Chats tab: a quiet page-1 refresh updates the last-message snippet and
     // time right away (it also refreshes on return, but this keeps the tab
     // correct if it is visible underneath). Errors are silent when quiet.
-    if (Get.isRegistered<ConversationsController>()) {
+    // Skip while only "prepared": creating it here would bind it to the Chat
+    // route; a fresh one loads when the tab opens.
+    if (Get.isRegistered<ConversationsController>() &&
+        !Get.isPrepared<ConversationsController>()) {
       Get.find<ConversationsController>().loadFirstPage(quiet: true);
     }
   }
@@ -915,6 +918,7 @@ class ChatController extends GetxController {
     }
     if (Get.isRegistered<FriendsController>() &&
         !Get.isPrepared<FriendsController>()) {
+      // loadAll() now refreshes Saved profiles (no friend-request APIs).
       Get.find<FriendsController>().loadAll();
     }
     if (Get.isRegistered<ConversationsController>() &&

@@ -122,82 +122,60 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
                                         ScreenConstant.defaultHeightTwentyThree,
                                   ),
                                   _locationCard(member),
-                                  if (member.isFriendshipNone) ...[
-                                    SizedBox(
-                                      height:
-                                          ScreenConstant.defaultHeightTwentyThree,
-                                    ),
-                                    Container(
-                                      padding: EdgeInsets.fromLTRB(
-                                        ScreenConstant.defaultWidthTen,
-                                        ScreenConstant.sizeSmall,
-                                        ScreenConstant.defaultWidthTen,
-                                        ScreenConstant.sizeSmall,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        color: CustomColor.colorWhite,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: CustomColor.color717B96
-                                                .withOpacity(0.12),
-                                            blurRadius: 16,
-                                            spreadRadius: -4,
-                                            offset: const Offset(0, -4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          GestureDetector(
-                                            behavior: HitTestBehavior.opaque,
-                                            onTap: () =>
-                                                home.onPassFromDetail(member),
-                                            child: Container(
-                                              height: ScreenConstant
-                                                  .defaultHeightSixty,
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal:
-                                                    ScreenConstant.sizeLarge,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(100),
-                                                border: Border.all(
-                                                  color: CustomColor.colorE2E8F0,
-                                                ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.close,
-                                                    size: ScreenConstant
-                                                        .smallIconSize,
-                                                    color:
-                                                        CustomColor.color64748B,
-                                                  ),
-                                                  SizedBox(
-                                                    width: ScreenConstant
-                                                        .sizeExtraSmall,
-                                                  ),
-                                                  Text(
-                                                    "Pass",
-                                                    style: TextStyles
-                                                        .browseToggleLabel,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: ScreenConstant.sizeMedium,
-                                          ),
-                                          Expanded(
-                                              child: _connectButton(member)),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                  // [OLD FLOW – friend requests, disabled 2026-11]
+                                  // if (member.isFriendshipNone) ...[
+                                  // [/OLD FLOW]
+                                  // [SUPERSEDED DRAFT – saved-card-details]
+                                  // Obx(() {
+                                    // final bool isSaved =
+                                        // member.friendshipStatus == 'saved' ||
+                                            // controller.detailSavedProfile.value != null ||
+                                            // controller.isSaved(member);
+
+                                    // if (isSaved) {
+                                      // return Column(
+                                        // children: [
+                                          // SizedBox(
+                                            // height: ScreenConstant
+                                                // .defaultHeightTwentyThree,
+                                          // ),
+                                          // _savedActionBar(member),
+                                        // ],
+                                      // );
+                                    // }
+                                    // if (member.isFriendshipNone &&
+                                        // !controller.isBlocked(member)) {
+                                      // return Column(
+                                        // children: [
+                                          // SizedBox(
+                                            // height: ScreenConstant
+                                                // .defaultHeightTwentyThree,
+                                          // ),
+                                          // _defaultBrowseActionBar(member),
+                                        // ],
+                                      // );
+                                    // }
+                                    // return const SizedBox.shrink();
+                                  // }),
+                                  // [/SUPERSEDED DRAFT]
+                                  // Single action bar: saved -> Remove | Saved |
+                                  // Message, otherwise Pass | Save. Blocked: none.
+                                  Obx(() {
+                                    if (controller.isBlocked(member)) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return Column(
+                                      children: [
+                                        SizedBox(
+                                          height: ScreenConstant
+                                              .defaultHeightTwentyThree,
+                                        ),
+                                        controller.isSaved(member)
+                                            ? _savedActionBar(member)
+                                            : _defaultBrowseActionBar(member),
+                                      ],
+                                    );
+                                  }),
                                 ],
                               ),
                             ),
@@ -356,6 +334,414 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
   // ---------------------------------------------------------------------------
   // Bottom action bar
   // ---------------------------------------------------------------------------
+  // [SUPERSEDED DRAFT – saved-card-details]
+  // Widget _savedActionBar(Member member) {
+    // return Container(
+      // padding: EdgeInsets.fromLTRB(
+        // ScreenConstant.defaultWidthTen,
+        // ScreenConstant.sizeSmall,
+        // ScreenConstant.defaultWidthTen,
+        // ScreenConstant.sizeSmall,
+      // ),
+      // decoration: BoxDecoration(
+        // borderRadius: BorderRadius.circular(20),
+        // color: CustomColor.colorWhite,
+        // boxShadow: [
+          // BoxShadow(
+            // color: CustomColor.color717B96.withOpacity(0.12),
+            // blurRadius: 16,
+            // spreadRadius: -4,
+            // offset: const Offset(0, -4),
+          // ),
+        // ],
+      // ),
+      // child: Row(
+        // children: [
+          // // 1. Remove
+          // Expanded(
+            // child: GestureDetector(
+              // behavior: HitTestBehavior.opaque,
+              // onTap: () => controller.removeSavedProfile(member.id,
+                  // displayName: member.displayName),
+              // child: Container(
+                // height: ScreenConstant.defaultHeightFifty,
+                // decoration: BoxDecoration(
+                  // borderRadius: BorderRadius.circular(100),
+                  // border: Border.all(color: CustomColor.colorE2E8F0),
+                  // color: CustomColor.colorWhite,
+                // ),
+                // child: Row(
+                  // mainAxisAlignment: MainAxisAlignment.center,
+                  // children: [
+                    // Icon(
+                      // Icons.delete_outline,
+                      // size: ScreenConstant.smallIconSize,
+                      // color: CustomColor.colorE11D48,
+                    // ),
+                    // SizedBox(width: ScreenConstant.sizeExtraSmall),
+                    // Text(
+                      // "Remove",
+                      // style: TextStyles.browseToggleLabel.copyWith(
+                        // color: CustomColor.colorE11D48,
+                        // fontWeight: FontWeight.w600,
+                      // ),
+                    // ),
+                  // ],
+                // ),
+              // ),
+            // ),
+          // ),
+          // SizedBox(width: ScreenConstant.sizeSmall),
+          // // 2. Saved (Indicator)
+          // Expanded(
+            // child: Container(
+              // height: ScreenConstant.defaultHeightFifty,
+              // decoration: BoxDecoration(
+                // borderRadius: BorderRadius.circular(100),
+                // color: CustomColor.colorF1F5F9,
+                // border: Border.all(color: CustomColor.colorCBD5E1),
+              // ),
+              // child: Row(
+                // mainAxisAlignment: MainAxisAlignment.center,
+                // children: [
+                  // Icon(
+                    // Icons.bookmark_added,
+                    // size: ScreenConstant.smallIconSize,
+                    // color: CustomColor.colorBE185D,
+                  // ),
+                  // SizedBox(width: ScreenConstant.sizeExtraSmall),
+                  // Text(
+                    // "Saved",
+                    // style: TextStyles.browseToggleLabel.copyWith(
+                      // color: CustomColor.colorBE185D,
+                      // fontWeight: FontWeight.bold,
+                    // ),
+                  // ),
+                // ],
+              // ),
+            // ),
+          // ),
+          // SizedBox(width: ScreenConstant.sizeSmall),
+          // // 3. Message
+          // Expanded(
+            // child: GestureDetector(
+              // behavior: HitTestBehavior.opaque,
+              // onTap: () => controller.openChatFromDetail(member.id),
+              // child: Container(
+                // height: ScreenConstant.defaultHeightFifty,
+                // decoration: BoxDecoration(
+                  // borderRadius: BorderRadius.circular(100),
+                  // gradient: const LinearGradient(
+                    // begin: Alignment.centerLeft,
+                    // end: Alignment.centerRight,
+                    // colors: [
+                      // CustomColor.colorBE185D,
+                      // CustomColor.color581C87,
+                    // ],
+                  // ),
+                // ),
+                // child: Row(
+                  // mainAxisAlignment: MainAxisAlignment.center,
+                  // children: [
+                    // Icon(
+                      // Icons.chat_bubble_outline,
+                      // size: ScreenConstant.smallIconSize,
+                      // color: CustomColor.colorWhite,
+                    // ),
+                    // SizedBox(width: ScreenConstant.sizeExtraSmall),
+                    // Text(
+                      // "Message",
+                      // style: TextStyles.loginButtonText.copyWith(
+                        // color: CustomColor.colorWhite,
+                        // fontSize: FontSize.s13,
+                      // ),
+                    // ),
+                  // ],
+                // ),
+              // ),
+            // ),
+          // ),
+        // ],
+      // ),
+    // );
+  // }
+  // [/SUPERSEDED DRAFT]
+
+  Widget _savedActionBar(Member member) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: CustomColor.colorWhite,
+        boxShadow: [
+          BoxShadow(
+            color: CustomColor.color717B96.withOpacity(0.12),
+            blurRadius: 16,
+            spreadRadius: -4,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // 1. Remove (confirm, DELETE friends/{id})
+          Obx(() {
+            final bool removing = controller.isRemoving.value;
+            return _outlinedBarButton(
+              label: "Remove",
+              semanticLabel: "Remove ${member.displayName} from saved",
+              color: CustomColor.colorE11D48,
+              icon: Icons.bookmark_remove_outlined,
+              busy: removing,
+              onTap: removing ? null : () => _confirmRemove(member),
+            );
+          }),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          // 2. Saved (state indicator, not tappable)
+          Expanded(
+            child: Semantics(
+              button: false,
+              enabled: false,
+              label: "Saved",
+              excludeSemantics: true,
+              child: Container(
+                height: ScreenConstant.defaultHeightSixty,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(100),
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [CustomColor.colorBE185D, CustomColor.color581C87],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.bookmark,
+                        size: ScreenConstant.smallIconSize,
+                        color: CustomColor.colorWhite,
+                      ),
+                      SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      Text(
+                        "Saved",
+                        style: TextStyles.loginButtonText.copyWith(
+                          color: CustomColor.colorWhite,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          // 3. Message (POST conversations -> chat)
+          Obx(() {
+            final bool opening = controller.isOpeningChat.value;
+            return _outlinedBarButton(
+              label: "Message",
+              semanticLabel: "Message ${member.displayName}",
+              color: CustomColor.colorBE185D,
+              icon: Icons.chat_bubble_outline,
+              busy: opening,
+              onTap: opening ? null : controller.openChat,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Outlined pill used by Remove / Message: same height and radius as Pass.
+  /// Shows a spinner while [busy]; a null [onTap] ignores taps.
+  Widget _outlinedBarButton({
+    required String label,
+    required String semanticLabel,
+    required Color color,
+    required IconData icon,
+    required bool busy,
+    required VoidCallback? onTap,
+  }) {
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: ScreenConstant.defaultHeightSixty,
+          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: CustomColor.colorE2E8F0),
+            color: CustomColor.colorWhite,
+          ),
+          // The icon + label stay laid out (just invisible) while busy and the
+          // spinner is drawn on top, so the button keeps the exact same width
+          // and the neighbouring buttons don't shift.
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Visibility(
+                visible: !busy,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: ScreenConstant.smallIconSize, color: color),
+                      SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      Text(
+                        label,
+                        style: TextStyles.browseToggleLabel.copyWith(
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (busy)
+                SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Confirm dialog (same "Remove friend?" wording as the Friends tab).
+  Future<void> _confirmRemove(Member member) async {
+    await Get.dialog<void>(
+      AlertDialog(
+        backgroundColor: CustomColor.colorWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "Remove friend?",
+          style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+        ),
+        content: Text(
+          "${member.displayName} will be removed from your saved profiles.",
+          style: TextStyles.loginWelcomeSubtitle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              "Cancel",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              controller.removeSaved();
+            },
+            child: Text(
+              "Remove",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.colorE11D48,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _defaultBrowseActionBar(Member member) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: CustomColor.colorWhite,
+        boxShadow: [
+          BoxShadow(
+            color: CustomColor.color717B96.withOpacity(0.12),
+            blurRadius: 16,
+            spreadRadius: -4,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => home.onPassFromDetail(member),
+            child: Container(
+              height: ScreenConstant.defaultHeightSixty,
+              padding: EdgeInsets.symmetric(
+                horizontal: ScreenConstant.sizeLarge,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: CustomColor.colorE2E8F0),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.close,
+                    size: ScreenConstant.smallIconSize,
+                    color: CustomColor.color64748B,
+                  ),
+                  SizedBox(width: ScreenConstant.sizeExtraSmall),
+                  Text("Pass", style: TextStyles.browseToggleLabel),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(width: ScreenConstant.sizeMedium),
+          Expanded(child: _connectButton(member)),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          // 3. Message (POST conversations -> chat)
+          Obx(() {
+            final bool opening = controller.isOpeningChat.value;
+            return _outlinedBarButton(
+              label: "Message",
+              semanticLabel: "Message ${member.displayName}",
+              color: CustomColor.colorBE185D,
+              icon: Icons.chat_bubble_outline,
+              busy: opening,
+              onTap: opening ? null : controller.openChat,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _actionBar(Member member) {
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -412,8 +798,9 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
     );
   }
 
-  /// Connect CTA: sends a friend request. While it's in flight the pill shows
-  /// a white spinner (same style as the Login button) and ignores taps.
+  /// Save CTA: saves the member (POST friends/{id}). While it's in flight the
+  /// pill shows a white spinner (same style as the Login button) and ignores
+  /// taps. Once saved (this session or `is_saved`) it shows a disabled "Saved".
   Widget _connectButton(Member member) {
     return Obx(() {
       if (home.isSendingRequest(member.id)) {
@@ -438,23 +825,22 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
           ),
         );
       }
-      // Blocked members can't be connected with: dimmed and non-interactive.
+      // Blocked or already-saved members: dimmed and non-interactive.
       final bool blocked = home.isBlocked(member);
-      // A fetched friendship_status other than 'none' (request sent/received,
-      // friends…) means Connect no longer applies.
-      final String status = member.friendshipStatus;
-      final bool related = status != 'none' && status != 'blocked';
-      final bool disabled = blocked || related;
+      final bool saved = home.isSaved(member);
+      final bool disabled = blocked || saved;
       return Semantics(
         button: true,
         enabled: !disabled,
-        label: blocked ? "Connect unavailable, member is blocked" : null,
+        label: blocked
+            ? "Save unavailable, member is blocked"
+            : (saved ? "Saved" : null),
         child: IgnorePointer(
           ignoring: disabled,
           child: Opacity(
             opacity: disabled ? 0.4 : 1,
             child: buildLoginButton(
-              related ? _relationLabel(status) : "Connect",
+              saved ? "Saved" : "Save",
               true,
               () => home.onConnect(member),
               Icons.favorite,
@@ -465,18 +851,23 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
     });
   }
 
-  String _relationLabel(String status) {
-    switch (status) {
-      case 'request_sent':
-        return "Request sent";
-      case 'request_received':
-        return "Request received";
-      case 'friends':
-        return "Friends";
-      default:
-        return "Connect";
-    }
-  }
+  // [OLD FLOW – friend requests, disabled 2026-11]
+  // /// Connect CTA: sends a friend request (replaced by the Save CTA above).
+  // /// Relation labels were: request_sent → "Request sent", request_received →
+  // /// "Request received", friends → "Friends", otherwise "Connect".
+  // String _relationLabel(String status) {
+  //   switch (status) {
+  //     case 'request_sent':
+  //       return "Request sent";
+  //     case 'request_received':
+  //       return "Request received";
+  //     case 'friends':
+  //       return "Friends";
+  //     default:
+  //       return "Connect";
+  //   }
+  // }
+  // [/OLD FLOW]
 
   // ---------------------------------------------------------------------------
   // Not-found fallback

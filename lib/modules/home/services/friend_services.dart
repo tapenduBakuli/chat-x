@@ -49,6 +49,74 @@ class FriendService {
     }
   }
 
+  /// POST /friends/{userId} — saves a member (Saved profiles flow).
+  /// Success is decided by status code only (200/201/204) — the body may be
+  /// empty.
+  Future<({bool success, String message})> saveContact(String userId) async {
+    if (userId.isEmpty) {
+      return (success: false, message: 'Could not save contact.');
+    }
+    try {
+      final http.Response response = await BaseClient.instance.post(
+        Urls.saveProfile(userId),
+        <String, dynamic>{},
+      );
+      final code = response.statusCode;
+      if (code == 200 || code == 201 || code == 204) {
+        final body = _decode(response);
+        final serverMsg = body is Map && body['message'] != null
+            ? body['message'].toString()
+            : '';
+        return (success: true, message: serverMsg);
+      }
+      return (
+        success: false,
+        message: _extractMessage(
+          _decode(response),
+          'Could not save contact ($code).',
+        ),
+      );
+    } on AppException catch (e) {
+      return (success: false, message: _offlineMessage(e));
+    } catch (e) {
+      debugPrint('FriendService.saveContact error: $e');
+      return (success: false, message: 'Something went wrong. Please try again.');
+    }
+  }
+
+  /// GET /friends?limit=&offset= — my saved profiles. Never throws; failures
+  /// come back with `success: false`.
+  Future<SavedProfileListResponse> fetchSavedProfiles({
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final http.Response response = await BaseClient.instance.get(
+        Urls.friends,
+        query: <String, dynamic>{'limit': limit, 'offset': offset},
+      );
+      final code = response.statusCode;
+      final body = _decode(response);
+      if (code == 200 && body is Map<String, dynamic>) {
+        return SavedProfileListResponse.fromJson(body);
+      }
+      return SavedProfileListResponse(
+        success: false,
+        message:
+            _extractMessage(body, 'Could not load saved profiles ($code).'),
+      );
+    } on AppException catch (e) {
+      return SavedProfileListResponse(
+          success: false, message: _offlineMessage(e));
+    } catch (e) {
+      debugPrint('FriendService.fetchSavedProfiles error: $e');
+      return const SavedProfileListResponse(
+        success: false,
+        message: 'Something went wrong. Please try again.',
+      );
+    }
+  }
+
   /// GET /friends/requests/sent?limit=&offset= — requests I sent that are
   /// still pending. Never throws; failures come back with `success: false`.
   Future<SentFriendRequestListResponse> fetchSentRequests({

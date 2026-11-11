@@ -2,6 +2,9 @@
 /// sections are API-backed: incoming requests (GET friends/requests →
 /// [IncomingFriendRequest]), My Friends (GET friends → [Friendship]) and
 /// Sent Requests (GET friends/requests/sent → [SentFriendRequest]).
+/// Saved profiles flow (current): GET friends → [SavedProfileListResponse] of
+/// [SavedProfile] (`saved_at` / `user.is_saved` replace `friends_since` /
+/// `friendship_status`).
 /// Every `fromJson` is defensive: missing/null/wrong-typed values fall back to
 /// safe defaults so a malformed entry never throws.
 library;
@@ -429,6 +432,81 @@ class BlockedUserListResponse {
       success: json['success'] is bool ? json['success'] as bool : true,
       message: _str(json['message']),
       items: List<BlockedUser>.unmodifiable(items),
+      total: total,
+      limit: limit,
+      offset: offset,
+    );
+  }
+}
+
+/// One item of GET friends (Saved profiles): `{id, user, saved_at}`.
+/// [itemId] is the save record id; use `user.id` for chat / DELETE friends/{id}.
+class SavedProfile {
+  final String itemId;
+  final FriendUser user;
+  final DateTime? savedAt;
+
+  const SavedProfile({
+    required this.itemId,
+    required this.user,
+    this.savedAt,
+  });
+
+  factory SavedProfile.fromJson(Map<String, dynamic> json) {
+    final savedAt = _date(json['saved_at']);
+    final u = _map(json['user']);
+    final String subtitle =
+        savedAt != null ? 'Saved ${_formatDate(savedAt)}' : 'Saved';
+    return SavedProfile(
+      itemId: _str(json['id']),
+      user: FriendUser.fromUserJson(u, subtitle: subtitle, since: savedAt),
+      savedAt: savedAt,
+    );
+  }
+}
+
+/// Wrapper for GET friends (Saved profiles): `{success, message, data:
+/// {items, total, limit, offset}}`.
+class SavedProfileListResponse {
+  final bool success;
+  final String message;
+  final List<SavedProfile> items;
+  final int total;
+  final int limit;
+  final int offset;
+
+  const SavedProfileListResponse({
+    required this.success,
+    this.message = '',
+    this.items = const <SavedProfile>[],
+    this.total = 0,
+    this.limit = 0,
+    this.offset = 0,
+  });
+
+  factory SavedProfileListResponse.fromJson(Map<String, dynamic> json) {
+    final data = json['data'];
+    final items = <SavedProfile>[];
+    int total = 0, limit = 0, offset = 0;
+    if (data is Map) {
+      final rawItems = data['items'];
+      if (rawItems is List) {
+        for (final i in rawItems) {
+          if (i is! Map) continue;
+          final s = SavedProfile.fromJson(Map<String, dynamic>.from(i));
+          // Without a user id the row can't be messaged/removed — skip it.
+          if (s.user.id.isNotEmpty) items.add(s);
+        }
+      }
+      total = _int(data['total']);
+      limit = _int(data['limit']);
+      offset = _int(data['offset']);
+    }
+    return SavedProfileListResponse(
+      // Treat a missing `success` on a 200 as success.
+      success: json['success'] is bool ? json['success'] as bool : true,
+      message: _str(json['message']),
+      items: List<SavedProfile>.unmodifiable(items),
       total: total,
       limit: limit,
       offset: offset,

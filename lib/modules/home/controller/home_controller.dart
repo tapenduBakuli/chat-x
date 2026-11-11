@@ -6,10 +6,14 @@ import 'package:get/get.dart';
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/lib/otp_text_field.dart';
+// [SUPERSEDED DRAFT – saved-card-details] import '../../chat/model/conversation_model.dart'; // [/SUPERSEDED DRAFT]
+// [SUPERSEDED DRAFT – saved-card-details] import '../../chat/services/chat_websocket_service.dart'; // [/SUPERSEDED DRAFT]
+// [SUPERSEDED DRAFT – saved-card-details] import '../../chat/services/conversation_services.dart'; // [/SUPERSEDED DRAFT]
 import '../../login/controller/login_controller.dart';
 import '../../login/services/login_services.dart';
 import '../../notification/services/notification_services.dart';
 import '../../register/services/profile_services.dart';
+// [SUPERSEDED DRAFT – saved-card-details] import '../model/friend.dart'; // [/SUPERSEDED DRAFT]
 import '../model/member.dart';
 import '../services/block_services.dart';
 import 'blocked_controller.dart';
@@ -965,14 +969,32 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     return list[deckIndex.value];
   }
 
-  /// Deck heart / swipe-right: sends a friend request to the current top
-  /// member. On success that member is removed locally and the list is
-  /// re-fetched (their friendship_status becomes "request_sent", so they stay
-  /// hidden), which also resets the deck cursor to 0.
+  // [OLD FLOW – friend requests, disabled 2026-11]
+  // /// Deck heart / swipe-right: sends a friend request to the current top
+  // /// member. On success that member is removed locally and the list is
+  // /// re-fetched (their friendship_status becomes "request_sent", so they stay
+  // /// hidden), which also resets the deck cursor to 0.
+  // Future<void> likeCurrent() async {
+  //   final m = currentDeckMember;
+  //   if (m == null) return;
+  //   await sendFriendRequest(m);
+  // }
+  // [/OLD FLOW]
+  /// Deck heart / swipe-right: SAVES the current top member (POST friends/{id}),
+  /// then advances to the next card. The member is NOT removed from the list
+  /// and NOT added to the passed ids (still in the grid). Failure: error
+  /// snackbar, no advance.
   Future<void> likeCurrent() async {
     final m = currentDeckMember;
     if (m == null) return;
-    await sendFriendRequest(m);
+    final ok = await saveMember(m);
+    if (!ok) return;
+    // Advance only if the user did not swipe away while the call was in flight.
+    if (currentDeckMember?.id == m.id) {
+      deckIndex.value =
+          (deckIndex.value + 1).clamp(0, filteredMembers.length).toInt();
+      _maybeAutoLoadMore();
+    }
   }
 
   /// Deck X / swipe-left: pass on the current top member (removed locally;
@@ -1017,53 +1039,202 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Reset the deck cursor back to the first member.
   void resetDeck() => deckIndex.value = 0;
 
-  /// Open the full profile for [m]. The detail screen's own controller
-  /// (MemberDetailController) fetches GET users/{id} + availability.
+  // [SUPERSEDED DRAFT – saved-card-details]
+  // /// Member Detail screen state
+  // final Rxn<Member> detailMember = Rxn<Member>();
+  // final Rxn<UserAvailability> detailAvailability = Rxn<UserAvailability>();
+  // final RxInt detailPhotoIndex = 0.obs;
+  // final RxBool isLoadingDetail = false.obs;
+  // final Rxn<SavedProfile> detailSavedProfile = Rxn<SavedProfile>();
+  //
+  // /// Fetches GET /users/{id} and GET /users/{id}/availability.
+  // Future<void> fetchMemberDetail(String userId) async {
+  //   isLoadingDetail.value = true;
+  //   try {
+  //     final resMember = await MemberService.instance.fetchMemberById(userId);
+  //     if (resMember.success && resMember.member != null) {
+  //       detailMember.value = resMember.member;
+  //     }
+  //     final resAvailability =
+  //         await MemberService.instance.fetchUserAvailability(userId);
+  //     if (resAvailability.success && resAvailability.availability != null) {
+  //       detailAvailability.value = resAvailability.availability;
+  //     }
+  //   } finally {
+  //     isLoadingDetail.value = false;
+  //   }
+  // }
+  //
+  // void setDetailPhotoIndex(int index) {
+  //   detailPhotoIndex.value = index;
+  // }
+  //
+  // /// Open the full profile for [m].
+  // void openMemberDetail(Member m, {SavedProfile? savedProfile}) {
+  //   detailMember.value = m;
+  //   detailSavedProfile.value = savedProfile;
+  //   detailAvailability.value = null;
+  //   detailPhotoIndex.value = 0;
+  //   fetchMemberDetail(m.id);
+  //   Get.toNamed(Routes.MEMBER_DETAIL, arguments: m);
+  // }
+  //
+  // /// Removes a saved profile by user id (DELETE friends/{user_id}).
+  // Future<bool> removeSavedProfile(String userId, {String? displayName}) async {
+  //   if (userId.isEmpty) return false;
+  //   final res = await FriendService.instance.removeFriend(userId);
+  //   if (res.success) {
+  //     savedStates[userId] = false;
+  //     detailSavedProfile.value = null;
+  //     if (detailMember.value != null && detailMember.value!.id == userId) {
+  //       detailMember.value = Member(
+  //         id: detailMember.value!.id,
+  //         displayName: detailMember.value!.displayName,
+  //         age: detailMember.value!.age,
+  //         role: detailMember.value!.role,
+  //         friendshipStatus: 'none',
+  //         avatarUrl: detailMember.value!.avatarUrl,
+  //         profile: detailMember.value!.profile,
+  //       );
+  //     }
+  //     if (Get.isRegistered<FriendsController>()) {
+  //       Get.find<FriendsController>().refreshSaved(showError: false);
+  //     }
+  //     Get.snackbar(
+  //       'Profile removed',
+  //       '${displayName ?? "Profile"} was removed from your saved profiles.',
+  //       snackPosition: SnackPosition.BOTTOM,
+  //     );
+  //     return true;
+  //   } else {
+  //     Get.snackbar(
+  //       'Could not remove profile',
+  //       res.message,
+  //       snackPosition: SnackPosition.BOTTOM,
+  //     );
+  //     return false;
+  //   }
+  // }
+  //
+  // /// Opens 1:1 chat from the MemberDetailScreen.
+  // Future<void> openChatFromDetail(String userId) async {
+  //   if (userId.isEmpty) return;
+  //   final res = await ConversationService.instance.openConversation(userId);
+  //   if (res.success && res.conversation != null) {
+  //     if (Get.isRegistered<ConversationsController>()) {
+  //       Get.find<ConversationsController>().invalidate();
+  //     }
+  //     await ChatWebSocketService.instance.reconnect().timeout(
+  //       const Duration(seconds: 2),
+  //       onTimeout: () {},
+  //     );
+  //     ChatWebSocketService.instance.markConversationKnown(res.conversation!.id);
+  //     Get.toNamed(Routes.CHAT, arguments: ChatArgs(res.conversation!));
+  //   } else {
+  //     Get.snackbar(
+  //       'Could not open chat',
+  //       res.message,
+  //       snackPosition: SnackPosition.BOTTOM,
+  //     );
+  //   }
+  // }
+  // [/SUPERSEDED DRAFT]
+
+  /// Open the full profile for [m]. MemberDetailController loads the rest.
   void openMemberDetail(Member m) =>
       Get.toNamed(Routes.MEMBER_DETAIL, arguments: m);
 
-  /// Ids of members whose friend request is in flight. Drives the Connect /
-  /// deck-heart loaders and blocks double taps per member.
+
+  /// Ids of members whose save call is in flight. Drives the Save / deck-heart
+  /// loaders and blocks double taps per member.
   final RxSet<String> sendingRequestIds = <String>{}.obs;
 
   bool isSendingRequest(String memberId) =>
       sendingRequestIds.contains(memberId);
 
-  /// POST friends/requests/{id}. On success: snackbar, immediate local
-  /// removal, then re-fetch page 1 with
-  /// the current filters (same as pull-to-refresh). On failure: error
-  /// snackbar, no re-fetch. Returns true on success.
-  Future<bool> sendFriendRequest(Member m) async {
-    if (m.id.isEmpty || sendingRequestIds.contains(m.id)) return false;
+  /// Members saved (true) or un-saved (false) during this session, keyed by
+  /// user id. Overrides the server-reported [Member.isSaved]; reactive so the
+  /// detail screen's Save button rebuilds.
+  final RxMap<String, bool> savedStates = <String, bool>{}.obs;
+
+  /// Whether [m] is saved (session override, else the API `is_saved`).
+  bool isSaved(Member m) => savedStates[m.id] ?? m.isSaved;
+
+  /// Called by FriendsController after a saved profile is removed, so the
+  /// member's Save button is enabled again.
+  void onSavedRemoved(String userId) {
+    if (userId.isNotEmpty) savedStates[userId] = false;
+  }
+
+  /// POST friends/{id} (Saved profiles). Busy-guarded per member. On success:
+  /// marks saved, snackbar, refreshes the Friends tab list (if it is already
+  /// built). The member stays in Browse (no local removal, no refetch).
+  /// Returns true on success (also when already saved; no API call then).
+  Future<bool> saveMember(Member m) async {
+    if (m.id.isEmpty || sendingRequestIds.contains(m.id) || isBlocked(m)) {
+      return false;
+    }
+    if (isSaved(m)) return true;
     sendingRequestIds.add(m.id);
     try {
-      final res = await FriendService.instance.sendFriendRequest(m.id);
+      final res = await FriendService.instance.saveContact(m.id);
       if (!res.success) {
-        Get.snackbar('Could not send request', res.message,
+        Get.snackbar('Could not save', res.message,
             snackPosition: SnackPosition.BOTTOM);
         return false;
       }
-      Get.snackbar('Request sent', 'Friend request sent to ${m.displayName}',
+      savedStates[m.id] = true;
+      Get.snackbar('Saved', '${m.displayName} saved',
           snackPosition: SnackPosition.BOTTOM);
-      // Hide them right away (status is now request_sent) so they vanish
-      // before the refetch lands, and stay hidden if a stale response races.
-      _requestedIds.add(m.id);
-      if (_removeLocally(m)) _hiddenByStatusIds.add(m.id);
-      // This creates a Friends > "Sent Requests" entry: refresh page 1 there.
-      // FriendsController is lazyPut, so skip it while only "prepared" — its
-      // own onInit loads fresh data when the tab first opens (Get.find would
-      // instantiate it and fetch twice). Not awaited: must not delay the pop.
+      // FriendsController is lazyPut: skip while only "prepared" (its own
+      // onInit loads fresh data on first open). Not awaited.
       if (Get.isRegistered<FriendsController>() &&
           !Get.isPrepared<FriendsController>()) {
-        Get.find<FriendsController>().refreshSentRequests();
+        Get.find<FriendsController>().refreshSaved(showError: false);
       }
-      await onRefresh();
       return true;
     } finally {
       sendingRequestIds.remove(m.id);
     }
   }
 
+  // [OLD FLOW – friend requests, disabled 2026-11]
+  // /// POST friends/requests/{id}. On success: snackbar, immediate local
+  // /// removal, then re-fetch page 1 with
+  // /// the current filters (same as pull-to-refresh). On failure: error
+  // /// snackbar, no re-fetch. Returns true on success.
+  // Future<bool> sendFriendRequest(Member m) async {
+  //   if (m.id.isEmpty || sendingRequestIds.contains(m.id)) return false;
+  //   sendingRequestIds.add(m.id);
+  //   try {
+  //     final res = await FriendService.instance.sendFriendRequest(m.id);
+  //     if (!res.success) {
+  //       Get.snackbar('Could not send request', res.message,
+  //           snackPosition: SnackPosition.BOTTOM);
+  //       return false;
+  //     }
+  //     Get.snackbar('Request sent', 'Friend request sent to ${m.displayName}',
+  //         snackPosition: SnackPosition.BOTTOM);
+  //     // Hide them right away (status is now request_sent) so they vanish
+  //     // before the refetch lands, and stay hidden if a stale response races.
+  //     _requestedIds.add(m.id);
+  //     if (_removeLocally(m)) _hiddenByStatusIds.add(m.id);
+  //     // This creates a Friends > "Sent Requests" entry: refresh page 1 there.
+  //     // FriendsController is lazyPut, so skip it while only "prepared" — its
+  //     // own onInit loads fresh data when the tab first opens (Get.find would
+  //     // instantiate it and fetch twice). Not awaited: must not delay the pop.
+  //     if (Get.isRegistered<FriendsController>() &&
+  //         !Get.isPrepared<FriendsController>()) {
+  //       Get.find<FriendsController>().refreshSentRequests();
+  //     }
+  //     await onRefresh();
+  //     return true;
+  //   } finally {
+  //     sendingRequestIds.remove(m.id);
+  //   }
+  // }
+  // [/OLD FLOW]
+  /// [Saved profiles flow: no callers; kept for the commented OLD FLOW.]
   /// Called by FriendsController after a sent request is cancelled: forget
   /// the session-sticky hide so the member can reappear in Browse, then
   /// refetch page 1 (fire-and-forget).
@@ -1072,18 +1243,26 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     onRefresh();
   }
 
-  /// Connect from the detail screen: send the request and, on success, pop
-  /// back to Browse Members once the refreshed list is loaded.
-  /// NOTE: Get.back() would only dismiss the success snackbar (GetX 4 compat
-  /// behaviour), so pop the detail route via the navigator instead. No-op if
-  /// the user already left the detail screen.
+  /// Save from the detail screen. The screen stays open (no pop); the button
+  /// turns into the disabled "Saved" state.
   Future<void> onConnect(Member m) async {
-    if (sendingRequestIds.contains(m.id) || isBlocked(m)) return;
-    final ok = await sendFriendRequest(m);
-    if (ok) {
-      Get.until((route) => route.settings.name != Routes.MEMBER_DETAIL);
-    }
+    await saveMember(m);
   }
+
+  // [OLD FLOW – friend requests, disabled 2026-11]
+  // /// Connect from the detail screen: send the request and, on success, pop
+  // /// back to Browse Members once the refreshed list is loaded.
+  // /// NOTE: Get.back() would only dismiss the success snackbar (GetX 4 compat
+  // /// behaviour), so pop the detail route via the navigator instead. No-op if
+  // /// the user already left the detail screen.
+  // Future<void> onConnect(Member m) async {
+  //   if (sendingRequestIds.contains(m.id) || isBlocked(m)) return;
+  //   final ok = await sendFriendRequest(m);
+  //   if (ok) {
+  //     Get.until((route) => route.settings.name != Routes.MEMBER_DETAIL);
+  //   }
+  // }
+  // [/OLD FLOW]
 
   // --- Block / unblock -------------------------------------------------------
 
