@@ -34,7 +34,7 @@ class ChatScreen extends GetView<ChatController> {
         child: Scaffold(
           backgroundColor: CustomColor.colorAF5FF,
           resizeToAvoidBottomInset: true,
-          appBar: _appBar(peer),
+          appBar: _appBar(context, peer),
           body: Column(
             children: [
               Expanded(child: _messageList(peer)),
@@ -50,7 +50,7 @@ class ChatScreen extends GetView<ChatController> {
   // ---------------------------------------------------------------------------
   // Header
   // ---------------------------------------------------------------------------
-  PreferredSizeWidget _appBar(FriendUser peer) {
+  PreferredSizeWidget _appBar(BuildContext context, FriendUser peer) {
     return AppBar(
       scrolledUnderElevation: 0,
       backgroundColor: CustomColor.colorWhite,
@@ -135,7 +135,10 @@ class ChatScreen extends GetView<ChatController> {
                 controller.blockUser();
                 break;
               case 'report':
-                controller.reportUser();
+                controller.reportUser(context);
+                break;
+              case 'Clear chat':
+                controller.clearChat();
                 break;
             }
           },
@@ -151,6 +154,12 @@ class ChatScreen extends GetView<ChatController> {
               'report',
               Icons.flag_outlined,
               'Report',
+              CustomColor.colorE11D48,
+            ),
+            _menuItem(
+              'Clear chat',
+              Icons.delete_outline_outlined,
+              'Clear chat',
               CustomColor.colorE11D48,
             ),
           ],

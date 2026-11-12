@@ -500,7 +500,20 @@ class RegisterController extends GetxController {
   void selectOwnHouse(String v) => ownHouse.value = v;
   void selectHasCar(String v) => hasCar.value = v;
 
-  /// Current lifestyle selections keyed by (placeholder) payload key.
+  /// Device coordinates stored by LocationService (Keys.LATITUDE/LONGITUDE,
+  /// saved as strings at app start / Home open). null when missing, not a
+  /// number, or outside the API's valid range.
+  ({double lat, double lng})? _deviceCoordinates() {
+    final double? lat =
+        double.tryParse(_store.getStringQuiet(Keys.LATITUDE).trim());
+    final double? lng =
+        double.tryParse(_store.getStringQuiet(Keys.LONGITUDE).trim());
+    if (lat == null || lng == null) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return (lat: lat, lng: lng);
+  }
+
+  /// Current lifestyle selections keyed by API key.
   Map<String, String> get _lifestyleValues => <String, String>{
         LifestyleOptions.keyHasChildren: hasChildren.value,
         LifestyleOptions.keyRelationshipStatus: relationshipStatus.value,
@@ -555,16 +568,26 @@ class RegisterController extends GetxController {
     safetyExpanded.value = !safetyExpanded.value;
   }
 
+  /// Relationship Preferences is SINGLE-select (same rule as Core Physical &
+  /// Intimate below): tap selects and replaces, tapping the selected one
+  /// again clears it. Sent as an array with 0 or 1 item.
   void toggleRelationshipPref(String value) {
-    relationshipPrefs.contains(value)
-        ? relationshipPrefs.remove(value)
-        : relationshipPrefs.add(value);
+    if (relationshipPrefs.length == 1 && relationshipPrefs.first == value) {
+      relationshipPrefs.clear();
+    } else {
+      relationshipPrefs.assignAll(<String>[value]);
+    }
   }
 
+  /// Core Physical & Intimate is SINGLE-select: tapping an option selects it
+  /// and replaces any other; tapping the selected one again clears it. It
+  /// stays a list because the API field is an array (sent with 0 or 1 item).
   void togglePhysicalPref(String value) {
-    physicalPrefs.contains(value)
-        ? physicalPrefs.remove(value)
-        : physicalPrefs.add(value);
+    if (physicalPrefs.length == 1 && physicalPrefs.first == value) {
+      physicalPrefs.clear();
+    } else {
+      physicalPrefs.assignAll(<String>[value]);
+    }
   }
 
   void toggleKinkPref(String value) {
@@ -1068,13 +1091,29 @@ class RegisterController extends GetxController {
     'Visible to ID-Verified Belgian Profiles',
   ];
 
-  /// Canonical option for [value] (case-insensitive), or null if unknown.
+  /// Lowercase with spaces/punctuation removed: "In-life friendship" and
+  /// "in life friendship" both become "inlifefriendship".
+  static String _norm(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// Canonical option for [value], or null if unknown. Exact match ignoring
+  /// case first; then ignoring spaces/punctuation (e.g. "One-time" →
+  /// "One time"); then a unique prefix match (e.g. "Other" →
+  /// "Other - optional").
   String? _matchOption(String value, List<String> options) {
     final String v = value.trim().toLowerCase();
+    if (v.isEmpty) return null;
     for (final String o in options) {
       if (o.toLowerCase() == v) return o;
     }
-    return null;
+    final String nv = _norm(v);
+    if (nv.isEmpty) return null;
+    for (final String o in options) {
+      if (_norm(o) == nv) return o;
+    }
+    final List<String> prefix =
+        options.where((o) => _norm(o).startsWith(nv)).toList();
+    return prefix.length == 1 ? prefix.first : null;
   }
 
   List<String> _matchOptions(List<String> values, List<String> options) {
@@ -1089,9 +1128,16 @@ class RegisterController extends GetxController {
   /// Pre-fills the Intimate Desires state from GET /users/me. Only called from
   /// [onEditProfileEnter], so onboarding flows are untouched.
   void _hydrateIntimateDesires(UpdateProfileDetails? p) {
-    if (p == null) return;
+    if (p == null) {
+      debugPrint('EDIT PROFILE hydrate -> profile is null, nothing to pre-select');
+      return;
+    }
     relationshipPrefs
         .assignAll(_matchOptions(p.relationshipPreferences, _relationshipOptions));
+    // Shows the raw server value next to what matched a chip; a value with no
+    // match here is spelled differently from every option on screen.
+    debugPrint('EDIT PROFILE hydrate relationship -> server: '
+        '${p.relationshipPreferences} | matched: ${relationshipPrefs.toList()}');
 
     // core_physical_intimate / exploration_kink are authoritative; fall back to
     // the combined sexual_preferences list when both are empty.
@@ -1101,7 +1147,11 @@ class RegisterController extends GetxController {
       core = _matchOptions(p.sexualPreferences, _physicalOptions);
       kink = _matchOptions(p.sexualPreferences, _kinkOptions);
     }
-    physicalPrefs.assignAll(core);
+    // Relationship Preferences and Core Physical & Intimate are single-select:
+    // keep only the first matched value (older profiles may have saved
+    // several). (.toList() first: assignAll clears the list before reading.)
+    relationshipPrefs.assignAll(relationshipPrefs.take(1).toList());
+    physicalPrefs.assignAll(core.take(1).toList());
     kinkPrefs.assignAll(kink);
     interests.assignAll(_matchOptions(p.interestAndPassion, _interestOptions));
 
@@ -1465,6 +1515,20 @@ class RegisterController extends GetxController {
         : registeredCountry;
     final String aboutMe = aboutMeController.text.trim();
     final city = _cityCoordinates[selectedProfileCity.value];
+    final ({double lat, double lng})? device = _deviceCoordinates();
+
+    // Location: real device lat/lng (captured at startup by LocationService)
+    // when available, else the picked city's approximate centre. City/region
+    // come from the dropdown (null when none picked). Omitted when neither.
+    Map<String, dynamic>? location;
+    if (device != null || city != null) {
+      location = <String, dynamic>{
+        'latitude': device?.lat ?? city!.lat,
+        'longitude': device?.lng ?? city!.lng,
+        'city': city?.city,
+        'region': city != null ? 'Belgium' : null,
+      };
+    }
 
     final String displayName = previewDisplayName;
 
@@ -1477,14 +1541,7 @@ class RegisterController extends GetxController {
       'gender': selectedGender.value,
       'orientation': <String>[selectedOrientation.value],
       if (aboutMe.isNotEmpty) 'about_me': aboutMe,
-      // Only sent when the user picked a city (approximate coordinates).
-      if (city != null)
-        'location': <String, dynamic>{
-          'latitude': city.lat,
-          'longitude': city.lng,
-          'city': city.city,
-          'region': 'Belgium',
-        },
+      'location': ?location,
       'looking_for': selectedLookingFor.toList(),
       'relationship_preferences': relationshipPrefs.toList(),
       'core_physical_intimate': physicalPrefs.toList(),
@@ -1493,8 +1550,8 @@ class RegisterController extends GetxController {
       'personal_and_safety_information': personalSafetyInfo.value,
       'has_std_or_sti': stiStatus.value,
       'preference_visibility_mode': visibilityMode.value,
-      // TODO(api): enable once backend adds these keys to UserUpdate (additionalProperties:false today)
-      // Value format: display label ('Yes'/'No'/'Single'/...), unset omitted.
+      // Lifestyle: bools for has_children/works/own_house/car, lowercase
+      // relation_status ('single'/'married'/'divorced'); unset omitted.
       if (kSendLifestyleFields)
         ...LifestyleOptions.payloadEntries(_lifestyleValues),
       // `photos` is deliberately omitted: the gallery is managed by the
@@ -1663,10 +1720,24 @@ class RegisterController extends GetxController {
         };
       }
     }
+    // Real device lat/lng (LocationService) override the coordinates, keeping
+    // the chosen/original city and region. Without device coordinates the
+    // behaviour above is unchanged.
+    final ({double lat, double lng})? device = _deviceCoordinates();
+    if (device != null) {
+      final Map<String, dynamic>? base = newLocation ?? original.location;
+      newLocation = <String, dynamic>{
+        'latitude': device.lat,
+        'longitude': device.lng,
+        'city': base?['city'],
+        'region': base?['region'],
+      };
+    }
 
     return EditProfilePayload.build(
       original: original,
       gender: selectedGender.value.trim(),
+      orientation: selectedOrientation.value.trim(),
       dateOfBirth: dateOfBirth,
       country: country,
       aboutMe: aboutMeController.text.trim(),
@@ -1676,12 +1747,14 @@ class RegisterController extends GetxController {
         original: original.lookingFor,
         options: ProfileSetupHydration.lookingFor,
       ),
-      relationshipPreferences: EditProfilePayload.withUnmatched(
+      // Relationship Preferences and Core Physical & Intimate are
+      // single-select: at most one item each.
+      relationshipPreferences: EditProfilePayload.singleWithUnmatched(
         selected: relationshipPrefs.toList(),
         original: original.relationshipPreferences,
         options: _relationshipOptions,
       ),
-      corePhysicalIntimate: EditProfilePayload.withUnmatched(
+      corePhysicalIntimate: EditProfilePayload.singleWithUnmatched(
         selected: physicalPrefs.toList(),
         original: original.corePhysicalIntimate,
         options: _physicalOptions,
@@ -1733,10 +1806,23 @@ class RegisterController extends GetxController {
 
       final payload = _buildEditProfilePayload();
       debugPrint('================= EDIT PROFILE PAYLOAD =================');
-      debugPrint(const JsonEncoder.withIndent('  ').convert(payload));
+      // Printed line by line: one long debugPrint can be cut off in the
+      // console, which would hide keys near the end of the map.
+      for (final String line
+          in const JsonEncoder.withIndent('  ').convert(payload).split('\n')) {
+        debugPrint(line);
+      }
       debugPrint('==========================================================');
+      // Relationship Preferences trace: UI state -> server original -> sent.
+      debugPrint('EDIT PROFILE relationship -> selected: '
+          '${relationshipPrefs.toList()} | original: '
+          '${_editOriginal?.relationshipPreferences} | sent: '
+          '${payload['relationship_preferences']}');
 
       final res = await ProfileService.instance.updateProfile(payload);
+      debugPrint('EDIT PROFILE relationship -> PUT success: ${res.success} | '
+          'server returned: ${res.data?.profile?.relationshipPreferences} | '
+          'message: ${res.message}');
       if (!res.success) {
         Get.snackbar(
           'Could not save profile',
@@ -1757,6 +1843,8 @@ class RegisterController extends GetxController {
       // non-blocking: still go back, Profile's refetch will retry.
       try {
         final fresh = await ProfileService.instance.getMyProfile();
+        debugPrint('EDIT PROFILE relationship -> GET /users/me after save: '
+            '${fresh.data?.profile?.relationshipPreferences}');
         if (fresh.success && fresh.data != null) {
           _syncSessionIdentity(
             fresh.data,

@@ -223,13 +223,26 @@ class BaseClient {
    if (query != null) {
       path = "$path?";
       query.forEach((key, value) {
-        path += "$key=$value&";
+        if (value != null) {
+          if (value is List) {
+            for (final item in value) {
+              if (item != null && item.toString().isNotEmpty) {
+                path += "$key=${Uri.encodeComponent(item.toString())}&";
+              }
+            }
+          } else {
+            path += "$key=${Uri.encodeComponent(value.toString())}&";
+          }
+        }
       });
     }
 
     try {
       await _ensureConnected(path);
       final String url = path;
+      debugPrint('====================================================');
+      debugPrint('BaseClient.get URL -> $url');
+      debugPrint('====================================================');
       var response = await _sendWithRefresh(
         url,
         (token) => http.get(

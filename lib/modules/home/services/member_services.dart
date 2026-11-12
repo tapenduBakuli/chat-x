@@ -26,16 +26,27 @@ class MemberService {
     String? gender,
     int? minAge,
     int? maxAge,
+    String? region,
+    int? radius,
+    List<String>? interests,
+    bool? onlyOnline,
   }) async {
     try {
       final query = <String, dynamic>{
         'limit': limit,
         'offset': offset,
-        // Null-aware entries: omitted entirely when the value is null.
-        'gender': ?gender,
-        'min_age': ?minAge,
-        'max_age': ?maxAge,
+        if (gender != null && gender.isNotEmpty && gender.toLowerCase() != 'all')
+          'gender': gender.toLowerCase(),
+        if (minAge != null) 'min_age': minAge,
+        if (maxAge != null) 'max_age': maxAge,
+        if (region != null && region.isNotEmpty && region != 'All Belgium')
+          'region': region,
+        if (radius != null) 'radius': radius,
+        if (interests != null && interests.isNotEmpty) 'interests': interests,
+        if (onlyOnline != null && onlyOnline) 'only_online': onlyOnline,
       };
+
+      debugPrint('MemberService.fetchMembers: Executing filter fetch with params -> $query');
 
       final http.Response response =
           await BaseClient.instance.get(Urls.users, query: query);

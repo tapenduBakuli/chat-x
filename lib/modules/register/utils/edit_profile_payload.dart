@@ -128,6 +128,25 @@ class EditProfilePayload {
     return out;
   }
 
+  /// Single-select variant of [withUnmatched] (Relationship Preferences and
+  /// Core Physical & Intimate):
+  /// exactly the [selected] option when there is one; otherwise the
+  /// first [original] value the UI can't show (so an unknown server value is
+  /// not silently erased); otherwise empty. Never more than one item.
+  static List<String> singleWithUnmatched({
+    required List<String> selected,
+    required List<String> original,
+    required List<String> options,
+  }) {
+    if (selected.isNotEmpty) return <String>[selected.first];
+    final List<String> lowerOptions =
+        options.map((o) => o.toLowerCase()).toList();
+    for (final String v in original) {
+      if (!lowerOptions.contains(v.trim().toLowerCase())) return <String>[v];
+    }
+    return <String>[];
+  }
+
   /// Current value, else the original server value, else null (key omitted).
   static String? _singleSelect(String current, String original) {
     if (current.trim().isNotEmpty) return current;
@@ -144,6 +163,7 @@ class EditProfilePayload {
   static Map<String, dynamic> build({
     required EditProfileOriginal original,
     String gender = '',
+    String orientation = '',
     required String dateOfBirth,
     required String country,
     required String aboutMe,
@@ -167,6 +187,14 @@ class EditProfilePayload {
     final String? visibility = _singleSelect(
         preferenceVisibilityMode, original.preferenceVisibilityMode);
     final String? genderValue = _singleSelect(gender, original.gender);
+    final String? orientationValue = _singleSelect(
+      orientation,
+      original.orientation.isNotEmpty ? original.orientation.first : '',
+    );
+    final List<String> orientationList =
+        orientationValue != null && orientationValue.isNotEmpty
+            ? <String>[orientationValue]
+            : List<String>.of(original.orientation);
 
     return <String, dynamic>{
       // Not editable here: always the original server values, never empty.
@@ -176,8 +204,7 @@ class EditProfilePayload {
       if (country.isNotEmpty) 'country': country,
       // Editable: the current selection, else the original server value.
       'gender': ?genderValue,
-      if (original.orientation.isNotEmpty)
-        'orientation': List<String>.of(original.orientation),
+      if (orientationList.isNotEmpty) 'orientation': orientationList,
       'about_me': aboutMe,
       'location': ?location,
       'looking_for': List<String>.of(lookingFor),
@@ -188,14 +215,14 @@ class EditProfilePayload {
       'personal_and_safety_information': ?safety,
       'has_std_or_sti': ?sti,
       'preference_visibility_mode': ?visibility,
-      // TODO(api): enable once backend adds these keys to UserUpdate (additionalProperties:false today)
-      // Value format: display label ('Yes'/'No'/'Single'/...); unselected
-      // falls back to the original value, else the key is omitted.
+      // Lifestyle: current selection, else the original server value, else
+      // omitted. Sent in the API format (bools; lowercase relation_status).
       if (kSendLifestyleFields)
         for (final String key in original.lifestyle.keys)
           if (_singleSelect(lifestyle[key] ?? '', original.lifestyle[key] ?? '')
-              case final String v)
-            key: v,
+              case final String label)
+            if (LifestyleOptions.toApiValue(key, label) case final Object v)
+              key: v,
       // `photos` deliberately omitted (gallery has its own endpoints).
     };
   }

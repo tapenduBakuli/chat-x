@@ -234,6 +234,41 @@ class ConversationService {
     }
   }
 
+  /// POST conversations/{conversationId}/clear — clears all messages for me
+  /// and keeps the conversation in the list. Success is decided by status
+  /// code only (200/202/204; the body may be empty). Never throws; failures
+  /// come back with `success: false`.
+  Future<({bool success, String message})> clearConversation(
+    String conversationId,
+  ) async {
+    try {
+      final http.Response response = await BaseClient.instance.post(
+        Urls.clearConversation(conversationId),
+        <String, dynamic>{},
+      );
+      // [OLD – was DELETE conversations/{id}, which also hid the chat]
+      // final http.Response response = await BaseClient.instance.delete(
+      //   Urls.clearConversation(conversationId),
+      //   <String, dynamic>{},
+      // );
+      final int code = response.statusCode;
+      final dynamic body = _decode(response);
+      if (code == 200 || code == 202 || code == 204) {
+        return (success: true, message: _extractMessage(body, ''));
+      }
+      debugPrint('ConversationService.clearConversation -> $code');
+      return (
+        success: false,
+        message: _extractMessage(body, 'Could not clear the chat ($code).'),
+      );
+    } on AppException catch (e) {
+      return (success: false, message: _offlineMessage(e));
+    } catch (e) {
+      debugPrint('ConversationService.clearConversation error: $e');
+      return (success: false, message: 'Something went wrong. Please try again.');
+    }
+  }
+
   String _offlineMessage(AppException e) =>
       e.message == AppStrings.noInternetConnection
           ? 'No internet connection. Please check your network and try again.'

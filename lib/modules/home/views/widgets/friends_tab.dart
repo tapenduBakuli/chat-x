@@ -50,6 +50,10 @@ class FriendsTab extends StatelessWidget {
       final int savedCount =
           math.max(controller.savedTotal.value, saved.length);
       final bool allEmpty = saved.isEmpty;
+      final bool grouped = controller.groupByStatus.value;
+      // Online first (stable); in grouped mode split into two sections.
+      final List<SavedProfile> sorted = sortSavedByOnline(saved);
+      final split = splitSavedByOnline(saved);
 
       // First load: same spinner as the Explore tab.
       if (loading && allEmpty) {
@@ -81,7 +85,7 @@ class FriendsTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Friends",
+                "Saved members",
                 style: TextStyles.registerTitle.copyWith(
                   fontSize: FontSize.s24,
                 ),
@@ -148,28 +152,65 @@ class FriendsTab extends StatelessWidget {
               //     ),
               //   ),
               // [/OLD FLOW]
-              Semantics(
-                header: true,
-                label: "Saved profiles, $savedCount",
-                excludeSemantics: true,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    vertical: ScreenConstant.sizeExtraSmall,
+              Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      label: "Saved profiles, $savedCount",
+                      excludeSemantics: true,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: ScreenConstant.sizeExtraSmall,
+                        ),
+                        child: _sectionTitleRow(
+                          Icons.bookmark_border,
+                          "Saved profiles",
+                          savedCount,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: _sectionTitleRow(
-                    Icons.bookmark_border,
-                    "Saved profiles",
-                    savedCount,
-                  ),
-                ),
+                  _groupToggle(grouped),
+                ],
               ),
               SizedBox(height: ScreenConstant.sizeSmall),
-              ...saved.map(
-                (p) => Padding(
-                  padding: EdgeInsets.only(bottom: ScreenConstant.sizeSmall),
-                  child: _savedCard(context, p),
+              if (grouped) ...[
+                // Section pills count LOADED items only; unloaded pages
+                // (behind "Load more") are not counted.
+                // Always shown when grouped; an empty group shows a short
+                // "No active members" note instead of disappearing.
+                _section(
+                  icon: Icons.circle,
+                  title: "Active members",
+                  count: split.active.length,
+                  expanded: controller.activeExpanded,
+                  cards: split.active.isEmpty
+                      ? [Center(child: _groupEmptyNote("No active members"))]
+                      : split.active
+                          .map((p) => _savedCard(context, p))
+                          .toList(),
                 ),
-              ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                _section(
+                  icon: Icons.circle_outlined,
+                  title: "Inactive members",
+                  count: split.inactive.length,
+                  expanded: controller.inactiveExpanded,
+                  cards: split.inactive.isEmpty
+                      ? [Center(child: _groupEmptyNote("No inactive members"))]
+                      : split.inactive
+                          .map((p) => _savedCard(context, p))
+                          .toList(),
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+              ] else
+                ...sorted.map(
+                  (p) => Padding(
+                    padding: EdgeInsets.only(bottom: ScreenConstant.sizeSmall),
+                    child: _savedCard(context, p),
+                  ),
+                ),
               _loadMoreFooter(
                 loading: controller.isLoadingMoreSaved,
                 hasMore: () => controller.hasMoreSaved,
@@ -331,6 +372,149 @@ class FriendsTab extends StatelessWidget {
   //   );
   // }
   // [/OLD FLOW]
+
+  /// Collapsible section (same look as the old friends sections): tappable
+  /// header with count pill + rotating chevron, AnimatedSize body.
+  /// [expanded] lives on the controller so it survives tab switches.
+  Widget _section({
+    required IconData icon,
+    required String title,
+    required int count,
+    required RxBool expanded,
+    required List<Widget> cards,
+  }) {
+    return Obx(() {
+      final bool isExpanded = expanded.value;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(
+            icon,
+            title,
+            count,
+            expanded: isExpanded,
+            onToggle: expanded.toggle,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: ScreenConstant.sizeSmall),
+                      ...cards.map(
+                        (c) => Padding(
+                          padding: EdgeInsets.only(
+                            bottom: ScreenConstant.sizeSmall,
+                          ),
+                          child: c,
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _sectionHeader(
+    IconData icon,
+    String title,
+    int count, {
+    required bool expanded,
+    required VoidCallback onToggle,
+  }) {
+    final String action = expanded ? "Collapse" : "Expand";
+    return Semantics(
+      button: true,
+      expanded: expanded,
+      label: "$title, $count. $action",
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: ScreenConstant.sizeExtraSmall,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _sectionTitleRow(icon, title, count)),
+                Tooltip(
+                  message: action,
+                  child: AnimatedRotation(
+                    turns: expanded ? 0 : -0.25,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      size: ScreenConstant.smallIconSize,
+                      color: CustomColor.color64748B,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Muted one-line note shown inside a grouped section with no members.
+  Widget _groupEmptyNote(String text) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        vertical: ScreenConstant.sizeSmall,
+        horizontal: ScreenConstant.sizeExtraSmall,
+      ),
+      child: Text(
+        text,
+        style: TextStyles.registerFieldNote.copyWith(
+          color: CustomColor.color94A3B8,
+        ),
+      ),
+    );
+  }
+
+  /// "Group by status" switch for the Saved profiles header.
+  Widget _groupToggle(bool grouped) {
+    return Semantics(
+      toggled: grouped,
+      label: "Group by status",
+      excludeSemantics: true,
+      child: Tooltip(
+        message: "Group by status",
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Show Active",
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.color64748B,
+              ),
+            ),
+            Transform.scale(
+              scale: 0.8,
+              child: Switch(
+                value: grouped,
+                onChanged: (v) => controller.groupByStatus.value = v,
+                activeThumbColor: CustomColor.colorWhite,
+                activeTrackColor: CustomColor.colorBE185D,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _sectionTitleRow(IconData icon, String title, int count) {
     return Row(
@@ -1155,7 +1339,7 @@ class FriendsTab extends StatelessWidget {
               ),
               SizedBox(width: ScreenConstant.sizeSmall),
               Text(
-                "Remove friend",
+                "Remove",
                 style: TextStyles.loginWelcome.copyWith(
                   fontSize: FontSize.s14,
                   color: CustomColor.colorE11D48,

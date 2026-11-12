@@ -18,6 +18,7 @@ import '../model/chat_message.dart';
 import '../model/conversation_model.dart';
 import '../services/chat_websocket_service.dart';
 import '../services/conversation_services.dart';
+import '../views/widgets/report_user_sheet.dart';
 
 /// Drives the 1:1 chat screen. The peer ([FriendUser]) is passed via
 /// [Get.arguments]. Uses DEMO data until the chat APIs/socket are provided —
@@ -927,9 +928,109 @@ class ChatController extends GetxController {
     }
   }
 
-  /// TODO(api): call the report-user endpoint once the backend provides it.
-  /// Until then no fake "Reported" confirmation is shown.
-  void reportUser() => comingSoon('Reporting');
+  /// Opens the Report User modal bottom sheet.
+  void reportUser(BuildContext context) {
+    final String peerId = peer.value?.id ?? '';
+    final String name = peer.value?.displayName ?? 'this user';
+    if (peerId.isEmpty) return;
+    showReportUserBottomSheet(
+      context: context,
+      reportedUserId: peerId,
+      displayName: name,
+    );
+  }
+
+  /// True while DELETE conversations/{id} is in flight (ignores repeat taps).
+  final RxBool isClearing = false.obs;
+
+  /// Confirm, then DELETE conversations/{id} ("Clear this conversation for
+  /// me"). On success (status 200/202/204): empties this chat locally, resets
+  /// paging, and refreshes the Chats tab. On failure: error snackbar, the
+  /// messages stay.
+  void clearChat() {
+    final String? id = conversationId;
+    if (id == null || id.isEmpty) {
+      comingSoon('Clear chat');
+      return;
+    }
+    if (isClearing.value) return;
+    final String name = peer.value?.displayName ?? 'this user';
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: CustomColor.colorWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Clear chat?',
+          style: TextStyles.registerSectionTitle.copyWith(
+            color: CustomColor.color0F172A,
+          ),
+        ),
+        content: Text(
+          'All messages with $name will be removed from this chat for you.',
+          style: TextStyles.registerFieldNote.copyWith(
+            color: CustomColor.color64748B,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              'Cancel',
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              _doClearChat(id);
+            },
+            child: Text(
+              'Clear',
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.colorE11D48,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _doClearChat(String id) async {
+    if (isClearing.value) return;
+    isClearing.value = true;
+    try {
+      final res = await ConversationService.instance.clearConversation(id);
+      if (isClosed) return;
+      if (!res.success) {
+        Get.snackbar('Could not clear chat', res.message,
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      // Drop everything shown, including unsent/failed local bubbles, and
+      // reset paging so older pages aren't fetched back in.
+      _sendQueue.clear();
+      messages.clear();
+      _offset = 0;
+      _hasMore = false;
+      loadFailed.value = false;
+      Get.snackbar(
+        'Chat cleared',
+        res.message.isNotEmpty ? res.message : 'All messages were cleared.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      // Chats tab: last-message snippet / unread count change.
+      if (Get.isRegistered<ConversationsController>() &&
+          !Get.isPrepared<ConversationsController>()) {
+        Get.find<ConversationsController>().loadFirstPage(quiet: true);
+      }
+    } finally {
+      if (!isClosed) isClearing.value = false;
+    }
+  }
 
   void comingSoon(String feature) {
     Get.snackbar('Coming soon', '$feature is coming soon.',

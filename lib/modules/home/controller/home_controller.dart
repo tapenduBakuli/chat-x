@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/location_service.dart';
 import '../../../utils/lib/otp_text_field.dart';
 // [SUPERSEDED DRAFT – saved-card-details] import '../../chat/model/conversation_model.dart'; // [/SUPERSEDED DRAFT]
 // [SUPERSEDED DRAFT – saved-card-details] import '../../chat/services/chat_websocket_service.dart'; // [/SUPERSEDED DRAFT]
@@ -615,6 +616,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   void onInit() {
     super.onInit();
     loadUserData();
+    LocationService.fetchAndStoreLocation();
     // Unread badge: check now (post-login / app launch), then poll while home
     // is open, and re-check when the app returns to the foreground.
     WidgetsBinding.instance.addObserver(this);
@@ -650,32 +652,55 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// dropped, so pages from different queries never mix.
   int _membersGen = 0;
 
-  /// UI gender → backend `gender` param. 'All' (or unknown) → null = not sent.
-  /// ASSUMPTION: the backend accepts lowercase "male"/"female"/"other" even
-  /// though stored data mixes "Man"/"Woman"; change the values here if the API
-  /// expects a different vocabulary.
+  /// UI gender → backend `gender` param ('female', 'male', 'other'). 'All' → null.
   String? get _apiGender {
-    switch (genderFilter.value) {
-      case 'Male':
-        return 'male';
-      case 'Female':
+    final g = genderFilter.value.trim().toLowerCase();
+    if (g.isEmpty || g == 'all') return null;
+    switch (g) {
+      case 'woman':
+      case 'female':
         return 'female';
-      case 'Other':
-        return 'other';
+      case 'man':
+      case 'male':
+        return 'male';
+      case 'trans-man':
+      case 'trans-woman':
+      case 'other':
       default:
-        return null;
+        return 'other';
     }
   }
 
-  /// min_age to send, or null when the age filter isn't active.
-  int? get _apiMinAge => _ageFilterActive
-      ? ageRange.value.start.round().clamp(18, 120).toInt()
-      : null;
+  /// Always returns min_age (default 18).
+  int get _apiMinAge => ageRange.value.start.round();
 
-  /// max_age to send, or null when the age filter isn't active.
-  int? get _apiMaxAge => _ageFilterActive
-      ? ageRange.value.end.round().clamp(18, 120).toInt()
-      : null;
+  /// Always returns max_age (default 55).
+  int get _apiMaxAge => ageRange.value.end.round();
+
+  /// Always returns region ('Belgium' when 'All Belgium', or specific city).
+  String get _apiRegion =>
+      selectedCity.value == 'All Belgium' ? 'Belgium' : selectedCity.value;
+
+  /// Always returns radius in km (default 30).
+  int get _apiRadius => searchRadiusKm.value.round();
+
+  /// True when any non-default filter is currently applied.
+  bool get hasActiveFilters {
+    final String g = genderFilter.value.trim().toLowerCase();
+    final bool hasGender = g.isNotEmpty && g != 'all';
+    final bool hasCity =
+        selectedCity.value.isNotEmpty && selectedCity.value != 'All Belgium';
+    final bool hasInterests = selectedInterests.isNotEmpty;
+    final bool hasOnlyOnline = searchOnlyActiveMembers.value;
+    final bool hasRadius = searchRadiusKm.value != 30.0;
+    final bool hasAge = ageRange.value != defaultAgeRange;
+    return hasGender ||
+        hasAge ||
+        hasCity ||
+        hasInterests ||
+        hasOnlyOnline ||
+        hasRadius;
+  }
 
   /// Loads page 1 (offset 0) for the current gender/age filters. Used on open,
   /// by the header refresh, pull-to-refresh, Retry, and Apply/Reset filters.
@@ -694,6 +719,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         gender: _apiGender,
         minAge: _apiMinAge,
         maxAge: _apiMaxAge,
+        region: _apiRegion,
+        radius: _apiRadius,
+        interests: selectedInterests.isNotEmpty ? selectedInterests.toList() : null,
+        onlyOnline: searchOnlyActiveMembers.value ? true : null,
       );
       if (gen != _membersGen) return; // superseded
       if (res.success) {
@@ -740,6 +769,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         gender: _apiGender,
         minAge: _apiMinAge,
         maxAge: _apiMaxAge,
+        region: _apiRegion,
+        radius: _apiRadius,
+        interests: selectedInterests.isNotEmpty ? selectedInterests.toList() : null,
+        onlyOnline: searchOnlyActiveMembers.value ? true : null,
       );
       if (gen != _membersGen) return; // query changed meanwhile
       if (res.success) {

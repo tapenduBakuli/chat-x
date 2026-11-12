@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/location_service.dart';
 import '../../register/model/onboarding_args.dart';
 import '../../register/model/update_profile_response_model.dart';
 import '../../register/services/profile_services.dart';
@@ -30,10 +31,9 @@ class SplashController extends GetxController {
     // HiveStore().setString(Keys.ISFIRSTTIME,"false");
     SystemChannels.textInput.invokeMethod('TextInput.hide');
 
-    // Ask for all permissions the app needs (camera + photos/storage) up front,
-    // so later screens (e.g. Profile Setup) can open the camera/gallery
-    // directly without prompting again on the happy path.
+    // Ask for permissions and fetch device location to store lat/lng in HiveStore.
     _requestStartupPermissions();
+    LocationService.fetchAndStoreLocation();
 
     if (_hasSession()) {
       _routeWithSession();

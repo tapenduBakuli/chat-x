@@ -109,8 +109,36 @@ class FriendUser {
       avatarUrl: _resolveAvatar(json),
       subtitle: subtitle,
       since: since,
+      isOnline: _bool(json['is_online']),
     );
   }
+}
+
+/// Tolerant bool: bool, 'true'/'false' (any case), 1/0; anything else → false.
+bool _bool(dynamic v) {
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  if (v is String) return v.trim().toLowerCase() == 'true';
+  return false;
+}
+
+/// Online members first, then offline; stable (server order is kept within
+/// each group). Returns a new list.
+List<SavedProfile> sortSavedByOnline(Iterable<SavedProfile> items) {
+  final split = splitSavedByOnline(items);
+  return <SavedProfile>[...split.active, ...split.inactive];
+}
+
+/// Splits into (active = `user.isOnline`, inactive), preserving order.
+({List<SavedProfile> active, List<SavedProfile> inactive}) splitSavedByOnline(
+  Iterable<SavedProfile> items,
+) {
+  final active = <SavedProfile>[];
+  final inactive = <SavedProfile>[];
+  for (final p in items) {
+    (p.user.isOnline ? active : inactive).add(p);
+  }
+  return (active: active, inactive: inactive);
 }
 
 /// One item of GET friends/requests/sent: the request id (used by the cancel

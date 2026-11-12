@@ -176,13 +176,18 @@ class UpdateProfileDetails {
       avatarUrl: _str(json['avatar_url']),
       photos: _photoList(json['photos']),
       isComplete: json['is_complete'] == true,
-      // TODO(api): confirm key names/values with backend
-      hasChildren: LifestyleOptions.parseYesNo(json['has_children']),
+      // Lifestyle (GET /users/me profile): has_children/works/own_house/car
+      // are bools, relation_status a lowercase enum. The old placeholder keys
+      // are read only as a fallback.
+      hasChildren:
+          LifestyleOptions.parseYesNo(json[LifestyleOptions.keyHasChildren]),
       relationshipStatus: LifestyleOptions.parseRelationshipStatus(
-          json['relationship_status']),
-      works: LifestyleOptions.parseYesNo(json['works']),
-      ownHouse: LifestyleOptions.parseYesNo(json['own_house']),
-      hasCar: LifestyleOptions.parseYesNo(json['has_car']),
+          json[LifestyleOptions.keyRelationshipStatus] ??
+              json[LifestyleOptions.legacyKeyRelationshipStatus]),
+      works: LifestyleOptions.parseYesNo(json[LifestyleOptions.keyWorks]),
+      ownHouse: LifestyleOptions.parseYesNo(json[LifestyleOptions.keyOwnHouse]),
+      hasCar: LifestyleOptions.parseYesNo(json[LifestyleOptions.keyHasCar] ??
+          json[LifestyleOptions.legacyKeyHasCar]),
     );
   }
 }

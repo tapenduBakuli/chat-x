@@ -1174,13 +1174,46 @@ class EditProfileScreen extends GetView<RegisterController> {
       children: [
         _label("Orientation"),
         Obx(
-          () => _readOnlyChips(
-            semanticsLabel: "Orientation",
-            options: _orientations,
-            selected: controller.selectedOrientation.value,
+          () => Wrap(
+            spacing: ScreenConstant.sizeSmall,
+            runSpacing: ScreenConstant.sizeSmall,
+            children: _orientations.map((opt) {
+              final bool selected =
+                  controller.selectedOrientation.value == opt;
+              return GestureDetector(
+                onTap: () => controller.selectOrientation(opt),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ScreenConstant.sizeMedium,
+                    vertical: ScreenConstant.sizeExtraSmall + 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? CustomColor.colorFFF1F2
+                        : CustomColor.colorF8FAFC,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: selected
+                          ? CustomColor.colorBE123C
+                          : CustomColor.colorE2E8F0,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    opt,
+                    style: TextStyles.policiesPillText.copyWith(
+                      color: selected
+                          ? CustomColor.colorBE123C
+                          : CustomColor.color334155,
+                      fontWeight:
+                          selected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
-        _lockedNote(),
       ],
     );
   }

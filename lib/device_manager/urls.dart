@@ -123,6 +123,17 @@ class Urls {
   /// `{"other_user_id": "USER_ID"}`.
   static const String conversations = "${apiBase}conversations";
 
+  /// POST — clears all messages for me, keeping the conversation in the list:
+  /// conversations/{conversationId}/clear.
+  static String clearConversation(String conversationId) =>
+      "$conversations/${Uri.encodeComponent(conversationId)}/clear";
+
+  // [OLD – replaced by POST .../clear] DELETE conversations/{conversationId}
+  // also hides the conversation from the list, which is not what Clear chat
+  // should do.
+  // static String clearConversation(String conversationId) =>
+  //     "$conversations/${Uri.encodeComponent(conversationId)}";
+
   /// GET — paginated conversation list. Builds the exact URL
   /// conversations?limit=..&offset=.. (BaseClient.get's `query:` would add a
   /// trailing `&`, so it is not used).
@@ -152,4 +163,11 @@ class Urls {
   /// DELETE — deletes a message: messages/{messageId}?for_everyone=false
   static String deleteMessage(String messageId, {bool forEveryone = false}) =>
       "${apiBase}messages/${Uri.encodeComponent(messageId)}?for_everyone=$forEveryone";
+
+  // --- Reports -------------------------------------------------------------
+  /// GET — list report reasons: reports/reasons
+  static const String reportReasons = "${apiBase}reports/reasons";
+
+  /// POST — submit a report: reports
+  static const String reports = "${apiBase}reports";
 }

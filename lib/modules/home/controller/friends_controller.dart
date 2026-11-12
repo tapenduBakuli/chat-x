@@ -72,6 +72,13 @@ class FriendsController extends GetxController {
   // bool get hasMoreSent => _sentOffset.value < sentTotal.value;
   // [/OLD FLOW]
   // --- Saved profiles (GET friends) -----------------------------------------
+  /// "Group by status" toggle and the two section expanded states. Session
+  /// only (not persisted across app restarts); they live here so they survive
+  /// tab switches.
+  final RxBool groupByStatus = false.obs;
+  final RxBool activeExpanded = true.obs;
+  final RxBool inactiveExpanded = true.obs;
+
   final RxList<SavedProfile> saved = <SavedProfile>[].obs;
 
   /// Server `total` for saved profiles — shown in the section header.

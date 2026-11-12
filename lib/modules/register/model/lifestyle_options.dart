@@ -1,8 +1,13 @@
 /// Lifestyle profile fields (has children, relationship status, works, own
-/// house, car): shared option lists, API key placeholders, the send flag and
-/// the single tolerant parser. UI + state only until the backend supports them.
-// TODO(api): enable once backend adds these keys to UserUpdate (additionalProperties:false today)
-const bool kSendLifestyleFields = false;
+/// house, car): shared option lists, API keys, the send flag and the tolerant
+/// parsers / API converters.
+///
+/// Backend contract (UserUpdate in /openapi.json, PUT /users/me; same keys in
+/// GET /users/me `profile`):
+///   has_children, works, own_house, car : bool | null
+///   relation_status : "single" | "married" | "divorced" | null  (enum,
+///                     lowercase; any other value is rejected)
+const bool kSendLifestyleFields = true;
 
 class LifestyleOptions {
   const LifestyleOptions._();
@@ -14,16 +19,18 @@ class LifestyleOptions {
     'Divorced',
   ];
 
-  // TODO(api): confirm key names/values with backend
   static const String keyHasChildren = 'has_children';
-  static const String keyRelationshipStatus = 'relationship_status';
+  static const String keyRelationshipStatus = 'relation_status';
   static const String keyWorks = 'works';
   static const String keyOwnHouse = 'own_house';
-  static const String keyHasCar = 'has_car';
+  static const String keyHasCar = 'car';
+
+  /// Older placeholder keys, still read as a fallback when parsing.
+  static const String legacyKeyRelationshipStatus = 'relationship_status';
+  static const String legacyKeyHasCar = 'has_car';
 
   /// Tolerant parse of a Yes/No value: bool, or 'yes'/'no'/'true'/'false'
   /// (any case). Returns 'Yes' / 'No', or '' when absent/unknown.
-  // TODO(api): confirm key names/values with backend
   static String parseYesNo(dynamic v) {
     if (v is bool) return v ? 'Yes' : 'No';
     final String s = (v ?? '').toString().trim().toLowerCase();
@@ -33,7 +40,6 @@ class LifestyleOptions {
   }
 
   /// Case-insensitive match to Single / Married / Divorced; '' otherwise.
-  // TODO(api): confirm key names/values with backend
   static String parseRelationshipStatus(dynamic v) {
     final String s = (v ?? '').toString().trim().toLowerCase();
     for (final String o in relationshipStatus) {
@@ -42,11 +48,25 @@ class LifestyleOptions {
     return '';
   }
 
-  /// Payload entries for non-empty values. Value format: the display label
-  /// string ('Yes'/'No'/'Single'/...). Only used behind [kSendLifestyleFields].
-  // TODO(api): confirm key names/values with backend
-  static Map<String, String> payloadEntries(Map<String, String> values) => {
+  /// Display label → API value for [key]: bool for the yes/no fields,
+  /// lowercase enum for relation_status. null when the label is empty or not
+  /// a valid option (the key is then omitted, never sent invalid).
+  static Object? toApiValue(String key, String label) {
+    final String l = label.trim();
+    if (l.isEmpty) return null;
+    if (key == keyRelationshipStatus) {
+      final String match = parseRelationshipStatus(l);
+      return match.isEmpty ? null : match.toLowerCase();
+    }
+    final String yn = parseYesNo(l);
+    if (yn.isEmpty) return null;
+    return yn == 'Yes';
+  }
+
+  /// Payload entries for the set values, already converted to the API format
+  /// ({has_children: true, relation_status: 'single', ...}). Unset omitted.
+  static Map<String, Object> payloadEntries(Map<String, String> values) => {
         for (final MapEntry<String, String> e in values.entries)
-          if (e.value.trim().isNotEmpty) e.key: e.value,
+          if (toApiValue(e.key, e.value) case final Object v) e.key: v,
       };
 }

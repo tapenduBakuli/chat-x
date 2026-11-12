@@ -1975,28 +1975,37 @@ class BrowseMembersScreen extends GetView<HomeController> {
       child: Container(
         height: ScreenConstant.defaultHeightForty,
         padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeSmall),
-        // decoration: BoxDecoration(
-        //   color: CustomColor.colorWhite,
-        //   borderRadius: BorderRadius.circular(100),
-        //   border: Border.all(color: CustomColor.colorE2E8F0),
-        // ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.tune,
-              size: ScreenConstant.minimumIconSize,
-              color: CustomColor.colorBE185D,
-            ),
-            // SizedBox(width: ScreenConstant.sizeExtraSmall),
-            // Text(
-            //   "Filters",
-            //   style: TextStyles.browseToggleLabel.copyWith(
-            //     color: CustomColor.colorBE123C,
-            //   ),
-            // ),
-          ],
-        ),
+        child: Obx(() {
+          final bool active = controller.hasActiveFilters;
+          return Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                Icons.tune,
+                size: ScreenConstant.minimumIconSize,
+                color: CustomColor.colorBE185D,
+              ),
+              if (active)
+                Positioned(
+                  top: 2,
+                  right: -3,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: CustomColor.colorBE185D,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: CustomColor.colorWhite,
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -2194,7 +2203,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
                     () => Wrap(
                       spacing: ScreenConstant.sizeSmall,
                       runSpacing: ScreenConstant.sizeSmall,
-                      children: const ['All', 'Female', 'Male', 'Other']
+                      children: const ['Woman', 'Man', 'Trans-man', 'trans-woman']
                           .map(
                             (g) => _genderFilterPill(
                               g,
