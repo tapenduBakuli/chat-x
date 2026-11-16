@@ -41,7 +41,7 @@ class OnboardingArgs {
       dateOfBirth: (user?.dateOfBirth ?? '').trim(),
       country: (user?.country ?? '').trim(),
       avatarUrl: _firstNonEmpty(<String?>[
-        user?.profileAvatarUrl,
+        user?.profileAvatar,
         user?.avatar_url,
         data.avatarUrl,
       ]),

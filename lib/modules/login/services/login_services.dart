@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 
 import '../../../device_manager/urls.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/auth_payload_builders.dart';
 import '../../../utils/base_client.dart';
+import '../../../utils/device_coordinates.dart';
 import '../../../utils/exception_handler.dart';
 import '../../../utils/text_utils/app_strings.dart';
 import '../model/login_response_model.dart';
@@ -39,9 +41,20 @@ class LoginService {
     required String password,
   }) async {
     try {
+      // Optional blocks; never block login (helpers don't throw).
+      final Map<String, dynamic>? location = currentLoginLocation();
+      final Map<String, dynamic>? device = await currentDeviceBlock();
+      // [OLD – body without location/device]
+      // {"email": email, "password": password},
+      // [/OLD]
       final http.Response response = await BaseClient.instance.post(
         Urls.login,
-        {"email": email, "password": password},
+        {
+          "email": email,
+          "password": password,
+          "location": location,
+          "device": device,
+        },
         isAuth: true,
       );
 
@@ -334,7 +347,8 @@ class LoginService {
       final err = body['error'];
       if (err is Map && err['message'] != null &&
           err['message'].toString().trim().isNotEmpty) {
-        return err['message'].toString();
+        // 422 validation_error: add the failing field(s) from details[].field.
+        return appendErrorDetails(body, err['message'].toString());
       }
       if (err is String && err.trim().isNotEmpty) {
         return err;

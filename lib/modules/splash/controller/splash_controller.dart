@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/device_info_service.dart';
 import '../../../utils/location_service.dart';
 import '../../register/model/onboarding_args.dart';
 import '../../register/model/update_profile_response_model.dart';
@@ -34,6 +35,8 @@ class SplashController extends GetxController {
     // Ask for permissions and fetch device location to store lat/lng in HiveStore.
     _requestStartupPermissions();
     LocationService.fetchAndStoreLocation();
+    // Fetch + save device id/type (fire-and-forget; never throws).
+    DeviceInfoService.instance.init();
 
     if (_hasSession()) {
       _routeWithSession();
@@ -81,6 +84,12 @@ class SplashController extends GetxController {
     }
 
     final UpdateProfileUser? user = res?.data;
+    if (user != null) {
+      HiveStore().setBool(
+        Keys.ISPROFILECOMPLETE,
+        user.profile?.isComplete ?? true,
+      );
+    }
     if (res != null &&
         res.success &&
         user != null &&

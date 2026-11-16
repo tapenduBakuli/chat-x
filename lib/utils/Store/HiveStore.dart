@@ -30,6 +30,13 @@ class Keys {
   // Token saved after register so onboarding calls can authenticate without
   // establishing a logged-in session.
   static const String REGISTRATIONTOKEN = "registrationToken";
+  static const String ISPROFILECOMPLETE = "isProfileComplete";
+
+  // Device info (kept on logout).
+  static const String DEVICEID = "deviceId";
+  static const String DEVICETYPE = "deviceType";
+  // Android: stable per-install UUID used as device id.
+  static const String DEVICEINSTALLID = "deviceInstallId";
 }
 
 class HiveStore {
@@ -117,6 +124,7 @@ class HiveStore {
     defBox.delete(Keys.SESSIONEMAIL);
     defBox.delete(Keys.SESSIONDISPLAYNAME);
     defBox.delete(Keys.REGISTRATIONTOKEN);
+    defBox.delete(Keys.ISPROFILECOMPLETE);
   }
 
   Future openBox() async {

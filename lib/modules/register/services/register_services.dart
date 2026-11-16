@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../device_manager/urls.dart';
+import '../../../utils/auth_payload_builders.dart';
 import '../../../utils/base_client.dart';
 import '../../../utils/exception_handler.dart';
 import '../../../utils/text_utils/app_strings.dart';
@@ -31,6 +32,8 @@ class RegisterService {
     required String confirmPassword,
     required String country,
     required String promoCode,
+    Map<String, dynamic>? location,
+    Map<String, dynamic>? device,
   }) async {
     try {
       final http.Response response = await BaseClient.instance.post(
@@ -43,6 +46,8 @@ class RegisterService {
           "confirm_password": confirmPassword,
           "country": country,
           "promo_code": promoCode,
+          "location": location,
+          "device": device,
         },
         isAuth: true,
       );
@@ -139,7 +144,8 @@ class RegisterService {
       final err = body['error'];
       if (err is Map && err['message'] != null &&
           err['message'].toString().trim().isNotEmpty) {
-        return err['message'].toString();
+        // 422 validation_error: add the failing field(s) from details[].field.
+        return appendErrorDetails(body, err['message'].toString());
       }
       if (err is String && err.trim().isNotEmpty) {
         return err;

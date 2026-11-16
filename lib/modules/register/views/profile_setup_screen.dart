@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:chat_x/modules/register/model/lifestyle_options.dart';
+import 'package:chat_x/modules/register/views/widgets/setup_state_city_dropdowns.dart';
 import 'package:chat_x/modules/register/views/widgets/tick_select_row.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
@@ -126,8 +127,6 @@ class ProfileSetupScreen extends GetView<RegisterController> {
               // _buildDob(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildOrientation(),
-              SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-              _buildLocationCard(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
               _buildLookingFor(),
               SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
@@ -550,17 +549,26 @@ class ProfileSetupScreen extends GetView<RegisterController> {
   // Lifestyle fields (optional single-selects, same look as gender)
   // ---------------------------------------------------------------------------
   Widget _buildLifestyleFields() {
-    final fields = <(String, List<String>, RxString, void Function(String))>[
+    // (label, options, state, onSelect, prefix icon) — icons match Edit
+    // Profile and the Profile screen's Lifestyle card.
+    final fields = <(
+      String,
+      List<String>,
+      RxString,
+      void Function(String),
+      IconData
+    )>[
       ("Has children", LifestyleOptions.yesNo, controller.hasChildren,
-          controller.selectHasChildren),
+          controller.selectHasChildren, Icons.child_care_outlined),
       ("Relationship status", LifestyleOptions.relationshipStatus,
-          controller.relationshipStatus, controller.selectRelationshipStatus),
+          controller.relationshipStatus, controller.selectRelationshipStatus,
+          Icons.people_outline),
       ("Works", LifestyleOptions.yesNo, controller.works,
-          controller.selectWorks),
+          controller.selectWorks, Icons.work_outline),
       ("Own house", LifestyleOptions.yesNo, controller.ownHouse,
-          controller.selectOwnHouse),
+          controller.selectOwnHouse, Icons.home_outlined),
       ("Car", LifestyleOptions.yesNo, controller.hasCar,
-          controller.selectHasCar),
+          controller.selectHasCar, Icons.directions_car_outlined),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,6 +580,7 @@ class ProfileSetupScreen extends GetView<RegisterController> {
             options: fields[i].$2,
             selected: () => fields[i].$3.value,
             onSelect: fields[i].$4,
+            icon: fields[i].$5,
           ),
         ],
       ],
@@ -712,106 +721,6 @@ class ProfileSetupScreen extends GetView<RegisterController> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // (8) Belgian location card
-  // ---------------------------------------------------------------------------
-  Widget _buildLocationCard() {
-    return Container(
-      padding: EdgeInsets.all(ScreenConstant.sizeMedium),
-      decoration: BoxDecoration(
-        color: CustomColor.colorF8FAFC,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                height: ScreenConstant.defaultHeightThirty,
-                width: ScreenConstant.defaultWidthThirty,
-                decoration: BoxDecoration(
-                  color: CustomColor.colorECFDF5,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
-                ),
-                child: Icon(
-                  Icons.location_on_outlined,
-                  size: ScreenConstant.minimumIconSize,
-                  color: CustomColor.color059669,
-                ),
-              ),
-              SizedBox(width: ScreenConstant.sizeExtraSmall),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Belgian Location", style: TextStyles.registerSectionTitle),
-                  Text("Regional proximity matching", style: TextStyles.registerSupportedLabel.copyWith(fontWeight: FontWeight.normal)),
-                ],
-              ),
-              const Spacer(),
-              _greenPill("Remains Hidden"),
-            ],
-          ),
-          SizedBox(height: ScreenConstant.sizeSmall),
-          Obx(
-            () => _dropdown<String>(
-              // null when no city is picked so DropdownButton shows the hint.
-              value: controller.selectedProfileCity.value.isEmpty
-                  ? null
-                  : controller.selectedProfileCity.value,
-              hint: "Select your city (optional)",
-              items: controller.belgianCities
-                  .map(
-                    (c) => DropdownMenuItem<String>(
-                      value: c,
-                      child: Text(
-                        c,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyles.loginTopText
-                            .copyWith(fontSize: FontSize.s14),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) controller.onProfileCitySelected(value);
-              },
-            ),
-          ),
-          SizedBox(height: ScreenConstant.sizeSmall),
-          Container(
-            padding: EdgeInsets.all(ScreenConstant.sizeMedium),
-            decoration: BoxDecoration(
-              color: CustomColor.colorWhite,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Image.asset(
-                  ImageUtils.cardVerificationLogo,
-                  height: ScreenConstant.minimumIconSize,
-                  color: CustomColor.colorEF4444,
-                ),
-                SizedBox(width: ScreenConstant.sizeExtraSmall),
-                Expanded(
-                  child: Text(
-                    "Privacy Shield Active: Exact GPS coordinates were not captured. "
-                    "Other members only see broad distance estimates "
-                    "(e.g. '~12 km away').",
-                    style: TextStyles.registerFieldNote.copyWith(color: CustomColor.color475569),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // (9) Looking for (multi-select)

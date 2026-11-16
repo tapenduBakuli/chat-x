@@ -1,4 +1,5 @@
 import 'package:chat_x/utils/Store/HiveStore.dart';
+import 'package:country_state_city/country_state_city.dart' as csc;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -68,6 +69,12 @@ class BrowseMembersScreen extends GetView<HomeController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(),
+        Obx(() {
+          if (!controller.showIncompleteProfileBanner) {
+            return const SizedBox.shrink();
+          }
+          return _buildIncompleteProfileBanner();
+        }),
         _buildSearchRow(),
         SizedBox(height: ScreenConstant.defaultHeightTen),
         Expanded(
@@ -91,6 +98,70 @@ class BrowseMembersScreen extends GetView<HomeController> {
         ),
         const SizedBox(height: 10),
       ],
+    );
+  }
+
+  Widget _buildIncompleteProfileBanner() {
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.fromLTRB(
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeExtraSmall,
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: ScreenConstant.sizeSmallHighest,
+        vertical: ScreenConstant.sizeSmall,
+      ),
+      decoration: BoxDecoration(
+        color: CustomColor.colorFEF3C7,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: CustomColor.colorD97706.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: ScreenConstant.smallIconSize,
+            color: CustomColor.colorD97706,
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          Expanded(
+            child: Text(
+              "You have not completed your profile yet. Want to complete now?",
+              style: TextStyles.registerFieldNote.copyWith(
+                fontSize: FontSize.s12,
+                color: CustomColor.color0F172A,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: controller.onContinueCompleteProfile,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: ScreenConstant.sizeSmall,
+                vertical: ScreenConstant.sizeExtraSmall,
+              ),
+              decoration: BoxDecoration(
+                color: CustomColor.colorD97706,
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                "Continue",
+                style: TextStyles.registerFieldNote.copyWith(
+                  fontSize: FontSize.s11,
+                  color: CustomColor.colorWhite,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1926,7 +1997,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
   Widget _cityPill(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => _openCityPicker(context),
+      // Opens the filter sheet (state + city dropdowns live there now).
+      onTap: () => _openFilterSheet(context),
       child: Container(
         height: ScreenConstant.defaultHeightForty,
         padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeSmall),
@@ -1948,7 +2020,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
               constraints: const BoxConstraints(maxWidth: 70),
               child: Obx(
                 () => Text(
-                  controller.selectedCity.value,
+                  controller.locationLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyles.browseToggleLabel.copyWith(
@@ -2010,6 +2082,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
     );
   }
 
+  // [OLD – single city dropdown, replaced by state+city]
+  /*
   // ---------------------------------------------------------------------------
   // City picker bottom-sheet (reused by the header pill and the filter sheet)
   // ---------------------------------------------------------------------------
@@ -2102,6 +2176,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
     );
   }
 
+  */
+
   // ---------------------------------------------------------------------------
   // Filter bottom-sheet: "Regional Search & Match Criteria"
   // ---------------------------------------------------------------------------
@@ -2179,7 +2255,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
                     ),
                   ),
                   SizedBox(height: ScreenConstant.sizeSmall),
-                  _sheetCityField(sheetContext),
+                  _sheetLocationFields(),
                   Obx(
                     () => Slider(
                       value: controller.draftSearchRadiusKm.value,
@@ -2377,6 +2453,186 @@ class BrowseMembersScreen extends GetView<HomeController> {
     );
   }
 
+  /// State + City dropdowns side by side (DRAFT until Apply).
+  Widget _sheetLocationFields() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _stateDropdown()),
+        SizedBox(width: ScreenConstant.sizeSmall),
+        Expanded(child: _cityDropdown()),
+      ],
+    );
+  }
+
+  Widget _dropdownShell({required String label, required Widget child}) {
+    return Semantics(
+      label: label,
+      container: true,
+      child: Container(
+        height: ScreenConstant.defaultHeightForty,
+        padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+        decoration: BoxDecoration(
+          color: CustomColor.colorF8FAFC,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: CustomColor.colorE2E8F0),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  TextStyle get _dropdownTextStyle => TextStyles.browseToggleLabel.copyWith(
+        color: CustomColor.color334155,
+      );
+
+  Widget _stateDropdown() {
+    return Obx(() {
+      final bool loading = controller.statesLoading.value;
+      final List<csc.State> states = controller.belgianStates.toList();
+      final csc.State? selected = controller.draftState.value;
+      return _dropdownShell(
+        label: 'State',
+        child: Row(
+          children: [
+            Icon(
+              Icons.location_on,
+              size: ScreenConstant.minimumIconSize,
+              color: CustomColor.colorBE185D,
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Expanded(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  value: selected?.isoCode ?? '',
+                  icon: loading
+                      ? const _TinyLoader()
+                      : Icon(
+                          Icons.keyboard_arrow_down,
+                          size: ScreenConstant.minimumIconSize,
+                          color: CustomColor.color64748B,
+                        ),
+                  style: _dropdownTextStyle,
+                  items: [
+                    DropdownMenuItem<String>(
+                      value: '',
+                      child: Text(
+                        'All Belgium',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _dropdownTextStyle,
+                      ),
+                    ),
+                    for (final csc.State st in states)
+                      DropdownMenuItem<String>(
+                        value: st.isoCode,
+                        child: Text(
+                          st.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _dropdownTextStyle,
+                        ),
+                      ),
+                  ],
+                  onChanged: loading
+                      ? null
+                      : (String? iso) => controller.setDraftState(
+                            states.firstWhereOrNull((s) => s.isoCode == iso),
+                          ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _cityDropdown() {
+    return Obx(() {
+      final csc.State? state = controller.draftState.value;
+      final bool loading = controller.citiesLoading.value;
+      final List<csc.City> cities = controller.draftStateCities.toList();
+      final csc.City? selected = controller.draftCity.value;
+      final bool enabled = state != null && !loading;
+      return Opacity(
+        opacity: state == null ? 0.5 : 1,
+        child: _dropdownShell(
+          label: 'City',
+          child: Row(
+            children: [
+              Icon(
+                Icons.location_city,
+                size: ScreenConstant.minimumIconSize,
+                color: CustomColor.colorBE185D,
+              ),
+              SizedBox(width: ScreenConstant.sizeSmall),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    menuMaxHeight: 300,
+                    value: selected?.name ?? '',
+                    hint: Text(
+                      'Select state first',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _dropdownTextStyle,
+                    ),
+                    disabledHint: Text(
+                      state == null ? 'Select state first' : 'All cities',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _dropdownTextStyle,
+                    ),
+                    icon: loading
+                        ? const _TinyLoader()
+                        : Icon(
+                            Icons.keyboard_arrow_down,
+                            size: ScreenConstant.minimumIconSize,
+                            color: CustomColor.color64748B,
+                          ),
+                    style: _dropdownTextStyle,
+                    items: [
+                      DropdownMenuItem<String>(
+                        value: '',
+                        child: Text(
+                          'All cities',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _dropdownTextStyle,
+                        ),
+                      ),
+                      for (final csc.City c in cities)
+                        DropdownMenuItem<String>(
+                          value: c.name,
+                          child: Text(
+                            c.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _dropdownTextStyle,
+                          ),
+                        ),
+                    ],
+                    onChanged: enabled
+                        ? (String? name) => controller.setDraftCity(
+                              cities.firstWhereOrNull((c) => c.name == name),
+                            )
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  // [OLD – single city dropdown, replaced by state+city]
+  /*
   /// City field inside the filter sheet; reuses the shared city picker.
   Widget _sheetCityField(BuildContext context) {
     return GestureDetector(
@@ -2420,6 +2676,8 @@ class BrowseMembersScreen extends GetView<HomeController> {
       ),
     );
   }
+
+  */
 
   /// Gender pill: selected uses the rose→purple gradient; unselected is light.
   Widget _genderFilterPill(String label, bool selected) {
@@ -3038,6 +3296,23 @@ class BrowseMembersScreen extends GetView<HomeController> {
               _loadingMoreSpinner(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Small spinner used inside dropdown fields while data loads.
+class _TinyLoader extends StatelessWidget {
+  const _TinyLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: ScreenConstant.minimumIconSize,
+      height: ScreenConstant.minimumIconSize,
+      child: const CircularProgressIndicator(
+        strokeWidth: 2,
+        color: CustomColor.colorBE185D,
       ),
     );
   }

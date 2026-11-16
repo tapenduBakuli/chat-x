@@ -1,10 +1,15 @@
 import 'dart:async';
+// [OLD – moved to utils/belgium_locations.dart] import 'dart:convert'; // [/OLD]
 
+import 'package:country_state_city/country_state_city.dart' as csc;
+// [OLD – moved to utils/belgium_locations.dart] import 'package:flutter/foundation.dart' show compute; // [/OLD]
 import 'package:flutter/material.dart';
+// [OLD – moved to utils/belgium_locations.dart] import 'package:flutter/services.dart' show rootBundle; // [/OLD]
 import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/belgium_locations.dart';
 import '../../../utils/location_service.dart';
 import '../../../utils/lib/otp_text_field.dart';
 // [SUPERSEDED DRAFT – saved-card-details] import '../../chat/model/conversation_model.dart'; // [/SUPERSEDED DRAFT]
@@ -22,6 +27,27 @@ import 'conversations_controller.dart';
 import '../services/friend_services.dart';
 import '../services/member_services.dart';
 import 'friends_controller.dart';
+
+// [OLD – moved to shared BelgiumLocations (utils/belgium_locations.dart)]
+// country_state_city's whole-world city list (~25 MB JSON). The package's
+// getStateCities() re-reads AND re-decodes this file on the UI thread on
+// every call, which froze the filter sheet. We read it once instead.
+// const String _kCscCityAsset = 'packages/country_state_city/lib/assets/city.json';
+//
+// Runs in a background isolate (compute): decodes the city JSON and keeps
+// only Belgian cities, grouped by state code. Must be top-level for compute.
+// Map<String, List<Map<String, dynamic>>> _belgianCitiesByState(String raw) {
+//   final List<dynamic> all = jsonDecode(raw) as List<dynamic>;
+//   final Map<String, List<Map<String, dynamic>>> out = {};
+//   for (final dynamic item in all) {
+//     if (item is Map && item['countryCode'] == 'BE') {
+//       final String state = (item['stateCode'] ?? '').toString();
+//       out.putIfAbsent(state, () => []).add(Map<String, dynamic>.from(item));
+//     }
+//   }
+//   return out;
+// }
+// [/OLD]
 
 /// The two ways the browse-members home renders its list.
 enum HomeViewMode { grid, deck }
@@ -110,6 +136,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final String? name = HiveStore().getString(Keys.SAVEDPROFILENAME) ??
         HiveStore().getString(Keys.SAVEDNAME) ??
         HiveStore().getString(Keys.SESSIONDISPLAYNAME);
+    final dynamic complete = HiveStore().getBool(Keys.ISPROFILECOMPLETE);
+    if (complete is bool) {
+      isProfileComplete.value = complete;
+    }
     if (avatar != null && avatar.isNotEmpty) {
       userAvatarUrl.value = avatar;
     }
@@ -119,6 +149,25 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (email != null && email.isNotEmpty) {
       userProfileEmail.value = email;
     }
+  }
+
+  /// Whether the user profile is complete (from GET /users/me or login response).
+  final RxBool isProfileComplete = true.obs;
+
+  /// Whether the incomplete profile warning banner was dismissed for this session.
+  final RxBool isCompleteBannerDismissed = false.obs;
+
+  /// Should the incomplete profile warning banner show in Explore tab?
+  bool get showIncompleteProfileBanner =>
+      !isProfileComplete.value && !isCompleteBannerDismissed.value;
+
+  void onDismissCompleteBanner() {
+    isCompleteBannerDismissed.value = true;
+  }
+
+  void onContinueCompleteProfile() {
+    isCompleteBannerDismissed.value = true;
+    Get.toNamed(Routes.EDIT_PROFILE);
   }
 
   /// Active bottom navigation bar index (0: Explore, 1: Chat, 2: Friends).
@@ -212,6 +261,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Selected city filter; 'All Belgium' means no filtering.
   final RxString selectedCity = 'All Belgium'.obs;
 
+  /// Applied state filter name; '' means no state filter. Display-only: GET
+  /// /users has no city/region/radius parameters beyond what is already sent,
+  /// so state/city stay client-side/display-only until the backend supports it.
+  final RxString selectedStateName = ''.obs;
+
+  /// Applied state/city lat/long, kept for future radius filtering (not sent).
+  double? selectedLatitude;
+  double? selectedLongitude;
+
   /// Cursor into [filteredMembers] for the deck view.
   final RxInt deckIndex = 0.obs;
 
@@ -254,6 +312,22 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   final RxList<String> draftSelectedInterests = <String>[].obs;
   final RxBool draftSearchOnlyActiveMembers = false.obs;
 
+  // --- DRAFT state/city (staged behind Apply like the other filters) ------
+  final Rxn<csc.State> draftState = Rxn<csc.State>();
+  final Rxn<csc.City> draftCity = Rxn<csc.City>();
+
+  /// Belgian states that have >= 1 city, sorted by name (lazy + cached).
+  final RxList<csc.State> belgianStates = <csc.State>[].obs;
+  final RxBool statesLoading = false.obs;
+  bool _statesLoaded = false;
+  final RxBool citiesLoading = false.obs;
+
+  /// Cities of the DRAFT state (sorted, de-duplicated by name).
+  final RxList<csc.City> draftStateCities = <csc.City>[].obs;
+  final Map<String, List<csc.City>> _cityCache = {};
+  int _cityRequestId = 0;
+
+  // [OLD – single city dropdown, replaced by state+city]
   /// Fixed city filter options (mirrors the web dropdown).
   final List<String> cities = const [
     'All Belgium',
@@ -336,6 +410,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       final res = await ProfileService.instance.getMyProfile();
       if (res.success && res.data != null) {
         isAccountInvisible.value = res.data!.isInvisible;
+        if (res.data!.profile != null) {
+          isProfileComplete.value = res.data!.profile!.isComplete;
+          HiveStore().setBool(
+            Keys.ISPROFILECOMPLETE,
+            res.data!.profile!.isComplete,
+          );
+        }
         _hasLoadedInvisible = true;
       } else {
         // Let the next tab entry retry immediately.
@@ -689,7 +770,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final String g = genderFilter.value.trim().toLowerCase();
     final bool hasGender = g.isNotEmpty && g != 'all';
     final bool hasCity =
-        selectedCity.value.isNotEmpty && selectedCity.value != 'All Belgium';
+        (selectedCity.value.isNotEmpty && selectedCity.value != 'All Belgium') ||
+            selectedStateName.value.isNotEmpty;
     final bool hasInterests = selectedInterests.isNotEmpty;
     final bool hasOnlyOnline = searchOnlyActiveMembers.value;
     final bool hasRadius = searchRadiusKm.value != 30.0;
@@ -843,6 +925,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _maybeAutoLoadMore();
   }
 
+  // [OLD – single city dropdown, replaced by state+city]
   /// Apply a city filter and reset the deck cursor to the top.
   void selectCity(String city) {
     selectedCity.value = city;
@@ -869,7 +952,169 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     draftSearchRadiusKm.value = searchRadiusKm.value;
     draftSelectedInterests.assignAll(selectedInterests);
     draftSearchOnlyActiveMembers.value = searchOnlyActiveMembers.value;
+    _seedDraftLocation();
+    loadBelgianStates();
   }
+
+  /// Label for the header pill / summaries: 'All Belgium', '<State>' or
+  /// '<City>, <State>'.
+  String get locationLabel {
+    final String city = selectedCity.value;
+    final String state = selectedStateName.value;
+    final bool hasCity = city.isNotEmpty && city != 'All Belgium';
+    if (hasCity && state.isNotEmpty) return '$city, $state';
+    if (hasCity) return city;
+    if (state.isNotEmpty) return state;
+    return 'All Belgium';
+  }
+
+  /// Restores the draft state/city from the applied names.
+  void _seedDraftLocation() {
+    draftState.value = null;
+    draftCity.value = null;
+    draftStateCities.clear();
+    final String stateName = selectedStateName.value;
+    if (stateName.isEmpty) return;
+    final csc.State? st = belgianStates.firstWhereOrNull(
+      (s) => s.name == stateName,
+    );
+    draftState.value = st;
+    if (st != null) {
+      _loadCitiesFor(st, preselect: selectedCity.value);
+    }
+  }
+
+  /// Loads Belgium's states once (cached). Only states with >= 1 city are kept,
+  /// sorted alphabetically. On error the list stays empty ("All Belgium" only).
+  Future<void> loadBelgianStates() async {
+    if (_statesLoaded || statesLoading.value) return;
+    statesLoading.value = true;
+    try {
+      // Shared single-flight loader (file read + decoded once per app run,
+      // off the UI thread). Never throws; empty lists on error.
+      await BelgiumLocations.instance.ensureLoaded();
+      final List<csc.State> withCities =
+          List<csc.State>.of(BelgiumLocations.instance.states);
+      for (final csc.State st in withCities) {
+        _cityCache[st.isoCode] = BelgiumLocations.instance.citiesOf(st.isoCode);
+      }
+      belgianStates.assignAll(withCities);
+      _statesLoaded = BelgiumLocations.instance.isLoaded.value;
+      // Re-seed in case the sheet was opened with an applied state.
+      if (draftState.value == null && selectedStateName.value.isNotEmpty) {
+        _seedDraftLocation();
+      }
+    } catch (e) {
+      debugPrint('loadBelgianStates failed: $e');
+      belgianStates.clear();
+    } finally {
+      statesLoading.value = false;
+    }
+  }
+
+  // [OLD – private loader, replaced by shared BelgiumLocations]
+  //Future<void> loadBelgianStates() async {
+  //  if (_statesLoaded || statesLoading.value) return;
+  //  statesLoading.value = true;
+  //  try {
+  //    final List<csc.State> all = await csc.getStatesOfCountry('BE');
+  //    // ONE read of the city file, decoded off the UI thread, instead of one
+  //    // full 25 MB decode per state on the UI thread (13 states → frozen UI).
+  //    final String raw = await rootBundle.loadString(_kCscCityAsset);
+  //    final Map<String, List<Map<String, dynamic>>> byState =
+  //        await compute(_belgianCitiesByState, raw);
+  //    final List<csc.State> withCities = [];
+  //    for (final csc.State st in all) {
+  //      final List<csc.City> c = (byState[st.isoCode] ?? const [])
+  //          .map(csc.City.fromJson)
+  //          .toList();
+  //      if (c.isNotEmpty) {
+  //        _cityCache[st.isoCode] = _sortedUniqueCities(c);
+  //        withCities.add(st);
+  //      }
+  //    }
+  //    // [OLD – one getStateCities() per state; each decoded 25 MB on the UI
+  //    // thread and froze the sheet]
+  //    // for (final csc.State st in all) {
+  //    //   final List<csc.City> c = await csc.getStateCities('BE', st.isoCode);
+  //    //   if (c.isNotEmpty) {
+  //    //     _cityCache[st.isoCode] = _sortedUniqueCities(c);
+  //    //     withCities.add(st);
+  //    //   }
+  //    // }
+  //    withCities.sort((a, b) => a.name.compareTo(b.name));
+  //    belgianStates.assignAll(withCities);
+  //    _statesLoaded = true;
+  //    // Re-seed in case the sheet was opened with an applied state.
+  //    if (draftState.value == null && selectedStateName.value.isNotEmpty) {
+  //      _seedDraftLocation();
+  //    }
+  //  } catch (e) {
+  //    debugPrint('loadBelgianStates failed: $e');
+  //    belgianStates.clear();
+  //  } finally {
+  //    statesLoading.value = false;
+  //  }
+  //}
+  // [/OLD]
+
+  List<csc.City> _sortedUniqueCities(List<csc.City> input) {
+    final Map<String, csc.City> byName = {};
+    for (final csc.City c in input) {
+      byName.putIfAbsent(c.name, () => c);
+    }
+    final List<csc.City> out = byName.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return out;
+  }
+
+  /// Loads the cities of [st] (cached per state) into [draftStateCities].
+  Future<void> _loadCitiesFor(csc.State st, {String? preselect}) async {
+    final int requestId = ++_cityRequestId;
+    final List<csc.City>? cached = _cityCache[st.isoCode];
+    if (cached != null) {
+      draftStateCities.assignAll(cached);
+      citiesLoading.value = false;
+    } else if (_statesLoaded) {
+      // Every Belgian city was cached by loadBelgianStates(); a state that
+      // isn't cached has none. Don't fall back to getStateCities(), which
+      // would decode the 25 MB file on the UI thread again.
+      draftStateCities.clear();
+      citiesLoading.value = false;
+    } else {
+      citiesLoading.value = true;
+      try {
+        final List<csc.City> c =
+            _sortedUniqueCities(await csc.getStateCities('BE', st.isoCode));
+        _cityCache[st.isoCode] = c;
+        if (requestId != _cityRequestId) return;
+        draftStateCities.assignAll(c);
+      } catch (e) {
+        debugPrint('load cities failed: $e');
+        if (requestId != _cityRequestId) return;
+        draftStateCities.clear();
+      } finally {
+        if (requestId == _cityRequestId) citiesLoading.value = false;
+      }
+    }
+    if (preselect != null && preselect.isNotEmpty) {
+      draftCity.value =
+          draftStateCities.firstWhereOrNull((c) => c.name == preselect);
+    }
+  }
+
+  /// DRAFT state; null = "All Belgium". Resets the city to "All cities".
+  void setDraftState(csc.State? st) {
+    draftState.value = st;
+    draftCity.value = null;
+    draftStateCities.clear();
+    _cityRequestId++;
+    citiesLoading.value = false;
+    if (st != null) _loadCitiesFor(st);
+  }
+
+  /// DRAFT city; null = "All cities".
+  void setDraftCity(csc.City? c) => draftCity.value = c;
 
   /// Update the DRAFT gender filter (applied on [applyFilters]).
   void setGenderFilter(String g) => draftGenderFilter.value = g;
@@ -899,10 +1144,21 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     searchRadiusKm.value = draftSearchRadiusKm.value;
     selectedInterests.assignAll(draftSelectedInterests);
     searchOnlyActiveMembers.value = draftSearchOnlyActiveMembers.value;
+    // State/city: names drive the (client-side/display-only) city filter;
+    // lat/long are stored for future radius filtering and never sent.
+    selectedStateName.value = draftState.value?.name ?? '';
+    selectedCity.value = draftCity.value?.name ?? 'All Belgium';
+    selectedLatitude = _toDouble(draftCity.value?.latitude) ??
+        _toDouble(draftState.value?.latitude);
+    selectedLongitude = _toDouble(draftCity.value?.longitude) ??
+        _toDouble(draftState.value?.longitude);
     deckIndex.value = 0;
     // Gender/age are server-side: re-query with the new params.
     fetchFirstPage();
   }
+
+  double? _toDouble(Object? v) =>
+      v == null ? null : double.tryParse(v.toString());
 
   /// Members matching the CLIENT-SIDE filters: city, search query, and
   /// interests. Gender and age are NOT applied here — they're sent to the API
@@ -955,6 +1211,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// sheet controls visibly reset).
   void resetFilters() {
     selectedCity.value = 'All Belgium';
+    selectedStateName.value = '';
+    selectedLatitude = null;
+    selectedLongitude = null;
+    draftState.value = null;
+    draftCity.value = null;
+    draftStateCities.clear();
     searchQuery.value = '';
     searchController.clear();
 

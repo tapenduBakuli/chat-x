@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:country_picker/country_picker.dart';
+import 'package:country_state_city/country_state_city.dart' as csc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -13,7 +14,11 @@ import '../../../device_manager/urls.dart';
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/TextStyles.dart';
+import '../../../utils/belgium_locations.dart';
+import '../../../utils/belgium_name_match.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../../utils/device_coordinates.dart';
+import '../../../utils/location_gate.dart';
 import '../../home/controller/home_controller.dart';
 import '../../login/model/login_response_model.dart';
 import '../model/gallery_photo_model.dart';
@@ -138,11 +143,21 @@ class RegisterController extends GetxController {
     "Germany (Deutschland)",
     "Luxembourg",
   ];
-  final RxString selectedCountry = ''.obs;
 
-  /// Flag emoji of the picked country (shown alongside the name on Create
-  /// Account). Empty until a country is selected.
-  final RxString selectedCountryFlag = ''.obs;
+  /// The app is Belgium-only: the country is no longer chosen by the user
+  /// (the Create Account / Edit Profile country pickers are commented out)
+  /// and every register / PUT /users/me sends this value.
+  static const String kAppCountry = 'Belgium';
+  static const String kAppCountryFlag = '🇧🇪';
+
+  // [OLD – user-picked country, replaced by fixed Belgium]
+  // final RxString selectedCountry = ''.obs;
+  // final RxString selectedCountryFlag = ''.obs;
+  // [/OLD]
+  final RxString selectedCountry = kAppCountry.obs;
+
+  /// Flag emoji of the (fixed) country.
+  final RxString selectedCountryFlag = kAppCountryFlag.obs;
 
   /// Whether a register request is in flight (drives the Continue spinner).
   final RxBool isRegistering = false.obs;
@@ -221,8 +236,11 @@ class RegisterController extends GetxController {
       registeredDobDay = dob.day;
     }
 
-    final String country = args.country.trim();
-    if (country.isNotEmpty) registeredCountry = country;
+    // [OLD – the server country is no longer kept: always Belgium]
+    // final String country = args.country.trim();
+    // if (country.isNotEmpty) registeredCountry = country;
+    // [/OLD]
+    registeredCountry = kAppCountry;
 
     final String avatar = args.avatarUrl.trim();
     if (avatar.isNotEmpty && avatarUrl.value.isEmpty) {
@@ -243,10 +261,16 @@ class RegisterController extends GetxController {
   }
 
   /// Called when a country is chosen from the country picker on Create
-  /// Account. Stores the display name and flag emoji (no dial code).
+  /// Account or Edit Profile. Stores the display name and flag emoji and resets region & city.
   void onCountryPicked(Country country) {
-    selectedCountry.value = country.name;
-    selectedCountryFlag.value = country.flagEmoji;
+    if (selectedCountry.value != country.name) {
+      selectedCountry.value = country.name;
+      selectedCountryFlag.value = country.flagEmoji;
+      setupState.value = null;
+      setupCity.value = null;
+      editState.value = null;
+      editCity.value = null;
+    }
   }
 
   void selectMethod(PaymentMethod method) {
@@ -390,6 +414,7 @@ class RegisterController extends GetxController {
   // Approximate city-centre coordinates (the app has no GPS), keyed by the
   // exact [belgianCities] entry, with the clean city name sent to the API.
   static const Map<String, ({String city, double lat, double lng})>
+      // ignore: unused_field
       _cityCoordinates = {
     'Brussels / Bruxelles (1000)': (city: 'Brussels', lat: 50.8503, lng: 4.3517),
     'Antwerp / Antwerpen (2000)': (city: 'Antwerp', lat: 51.2194, lng: 4.4025),
@@ -503,15 +528,20 @@ class RegisterController extends GetxController {
   /// Device coordinates stored by LocationService (Keys.LATITUDE/LONGITUDE,
   /// saved as strings at app start / Home open). null when missing, not a
   /// number, or outside the API's valid range.
-  ({double lat, double lng})? _deviceCoordinates() {
-    final double? lat =
-        double.tryParse(_store.getStringQuiet(Keys.LATITUDE).trim());
-    final double? lng =
-        double.tryParse(_store.getStringQuiet(Keys.LONGITUDE).trim());
-    if (lat == null || lng == null) return null;
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-    return (lat: lat, lng: lng);
-  }
+  ({double lat, double lng})? _deviceCoordinates() =>
+      storedDeviceCoordinates();
+
+  // [OLD – body moved to utils/device_coordinates.dart storedDeviceCoordinates()]
+  // ({double lat, double lng})? _deviceCoordinates() {
+  //   final double? lat =
+  //       double.tryParse(_store.getStringQuiet(Keys.LATITUDE).trim());
+  //   final double? lng =
+  //       double.tryParse(_store.getStringQuiet(Keys.LONGITUDE).trim());
+  //   if (lat == null || lng == null) return null;
+  //   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  //   return (lat: lat, lng: lng);
+  // }
+  // [/OLD]
 
   /// Current lifestyle selections keyed by API key.
   Map<String, String> get _lifestyleValues => <String, String>{
@@ -536,6 +566,70 @@ class RegisterController extends GetxController {
   /// Single choice: selecting an option replaces the previous one.
   void selectOrientation(String orientation) {
     selectedOrientation.value = orientation;
+  }
+
+  // --- Onboarding Profile Setup: State + City (Belgium), optional ------
+  final Rxn<csc.State> setupState = Rxn<csc.State>();
+  final Rxn<csc.City> setupCity = Rxn<csc.City>();
+
+  void selectSetupState(csc.State? st) {
+    setupState.value = st;
+    setupCity.value = null;
+  }
+
+  void selectSetupCity(csc.City? c) {
+    setupCity.value = c;
+  }
+
+  // --- Edit Profile only: State + City (Belgium) -----------------------
+  // (Onboarding Profile Setup has its own setupState/setupCity above.)
+  final Rxn<csc.State> editState = Rxn<csc.State>();
+  final Rxn<csc.City> editCity = Rxn<csc.City>();
+
+  /// State/city selected by hydration (null = none) to detect "unchanged".
+  String? _hydratedStateIso;
+  String? _hydratedCityName;
+
+  /// True once the user touched either dropdown (hydration must not overwrite).
+  bool _editLocationTouched = false;
+
+  /// Older profiles saved region "Belgium" with one of the 6 cities; the
+  /// alias list in [BelgiumNameMatch] maps local names (Gent, Bruxelles...).
+  void selectEditState(csc.State? st) {
+    _editLocationTouched = true;
+    editState.value = st;
+    editCity.value = null;
+  }
+
+  void selectEditCity(csc.City? c) {
+    _editLocationTouched = true;
+    editCity.value = c;
+  }
+
+  /// Preselects state+city from the server location once the shared Belgian
+  /// data is loaded. Unmatched values stay unselected (nothing is invented).
+  Future<void> _hydrateEditLocation(UpdateProfileLocation? loc) async {
+    await BelgiumLocations.instance.ensureLoaded();
+    if (_editLocationTouched || loc == null) return;
+    final BelgiumLocations data = BelgiumLocations.instance;
+    csc.State? st = data.stateByName(loc.region);
+    csc.City? city;
+    if (st != null) {
+      city = data.cityByName(st.isoCode, loc.city);
+    } else if (loc.city.trim().isNotEmpty) {
+      for (final csc.State s in data.states) {
+        final csc.City? c = data.cityByName(s.isoCode, loc.city);
+        if (c != null) {
+          st = s;
+          city = c;
+          break;
+        }
+      }
+    }
+    editState.value = st;
+    editCity.value = city;
+    _hydratedStateIso = st?.isoCode;
+    _hydratedCityName = city?.name;
   }
 
   void onProfileCitySelected(String city) {
@@ -686,14 +780,16 @@ class RegisterController extends GetxController {
       );
       return;
     }
-    if (selectedCountry.value.isEmpty) {
-      Get.snackbar(
-        'Country required',
-        'Please select your country.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
+    // [OLD – country is fixed to Belgium now, nothing to validate]
+    // if (selectedCountry.value.isEmpty) {
+    //   Get.snackbar(
+    //     'Country required',
+    //     'Please select your country.',
+    //     snackPosition: SnackPosition.BOTTOM,
+    //   );
+    //   return;
+    // }
+    // [/OLD]
 
     // Build date_of_birth as zero-padded YYYY-MM-DD.
     final String dateOfBirth =
@@ -701,16 +797,25 @@ class RegisterController extends GetxController {
         '${selectedDobMonth.value!.toString().padLeft(2, '0')}-'
         '${selectedDobDay.value!.toString().padLeft(2, '0')}';
 
+    // Final safety check: location revoked mid-flow.
     isRegistering.value = true;
     try {
+      if (!await requireLocation()) return;
       final result = await RegisterService.instance.register(
         displayName: displayName,
         email: email,
         dateOfBirth: dateOfBirth,
         password: passwordController.text,
         confirmPassword: confirmPasswordController.text,
-        country: selectedCountry.value,
+        // Belgium-only app: always Belgium (was selectedCountry.value).
+        country: kAppCountry,
         promoCode: promoController.text.trim(),
+        // Optional blocks; never block register (builders don't throw).
+        location: currentRegisterLocation(
+          city: setupCity.value?.name,
+          region: setupState.value?.name,
+        ),
+        device: await currentDeviceBlock(),
       );
 
       if (result.isSuccess) {
@@ -726,7 +831,7 @@ class RegisterController extends GetxController {
         // clearCreateAccountForm() wipes the form right after navigation.
         registeredDisplayName.value = displayName;
         registeredDateOfBirth = dateOfBirth;
-        registeredCountry = selectedCountry.value;
+        registeredCountry = kAppCountry; // was selectedCountry.value
         registeredDobYear = selectedDobYear.value;
         registeredDobMonth = selectedDobMonth.value;
         registeredDobDay = selectedDobDay.value;
@@ -798,8 +903,12 @@ class RegisterController extends GetxController {
     selectedDobDay.value = null;
     selectedDobMonth.value = null;
     selectedDobYear.value = null;
-    selectedCountry.value = '';
-    selectedCountryFlag.value = '';
+    // [OLD – country was cleared; it is fixed to Belgium now]
+    // selectedCountry.value = '';
+    // selectedCountryFlag.value = '';
+    // [/OLD]
+    selectedCountry.value = kAppCountry;
+    selectedCountryFlag.value = kAppCountryFlag;
     password.value = '';
     confirmPassword.value = '';
   }
@@ -970,6 +1079,12 @@ class RegisterController extends GetxController {
 
     // Runs in parallel with the profile request below.
     fetchGalleryPhotos(showLoader: true);
+    _editLocationTouched = false;
+    _hydratedStateIso = null;
+    _hydratedCityName = null;
+    editState.value = null;
+    editCity.value = null;
+    BelgiumLocations.instance.ensureLoaded();
 
     isProfileHydrating.value = true;
     try {
@@ -982,6 +1097,7 @@ class RegisterController extends GetxController {
 
       _hydrateProfileSetup(res.data!);
       _hydrateIntimateDesires(res.data!.profile);
+      _editLocation = res.data!.profile?.location;
       _editOriginal = EditProfileOriginal.fromUser(
         res.data!,
         hydratedCity: selectedProfileCity.value,
@@ -989,7 +1105,12 @@ class RegisterController extends GetxController {
     } finally {
       isProfileHydrating.value = false;
     }
+    // Waits for the (single-flight) Belgian data; skipped if the user already
+    // changed a dropdown meanwhile.
+    if (_editOriginal != null) await _hydrateEditLocation(_editLocation);
   }
+
+  UpdateProfileLocation? _editLocation;
 
   /// True while Edit Profile waits for GET /users/me (drives a subtle loader
   /// above the Profile Setup fields).
@@ -1023,10 +1144,14 @@ class RegisterController extends GetxController {
       registeredDobDay = dob.day;
     }
 
-    if (user.country.isNotEmpty) {
-      selectedCountry.value = user.country;
-      registeredCountry = user.country;
-    }
+    // [OLD – the server country is no longer shown/kept: always Belgium]
+    // if (user.country.isNotEmpty) {
+    //   selectedCountry.value = user.country;
+    //   registeredCountry = user.country;
+    // }
+    // [/OLD]
+    selectedCountry.value = kAppCountry;
+    registeredCountry = kAppCountry;
 
     if (p == null) return;
 
@@ -1431,7 +1556,8 @@ class RegisterController extends GetxController {
       'dob: ${selectedDobDay.value}/${selectedDobMonth.value}/'
       '${selectedDobYear.value}, '
       'orientation: ${selectedOrientation.value}, '
-      'city: ${selectedProfileCity.value}, '
+      // 'city: ${selectedProfileCity.value}, ' // [OLD – 6-city dropdown]
+      'state: ${setupState.value?.name}, city: ${setupCity.value?.name}, '
       'lookingFor: ${selectedLookingFor.toList()}, '
       'aboutMe length: ${aboutMeLength.value}',
     );
@@ -1510,26 +1636,33 @@ class RegisterController extends GetxController {
       dateOfBirth = registeredDateOfBirth;
     }
 
-    final String country = selectedCountry.value.isNotEmpty
-        ? selectedCountry.value
-        : registeredCountry;
+    // [OLD – picked/registered country]
+    // final String country = selectedCountry.value.isNotEmpty
+    //     ? selectedCountry.value
+    //     : registeredCountry;
+    // [/OLD]
+    // Belgium-only app: Publish always sends Belgium.
+    const String country = kAppCountry;
     final String aboutMe = aboutMeController.text.trim();
-    final city = _cityCoordinates[selectedProfileCity.value];
-    final ({double lat, double lng})? device = _deviceCoordinates();
+    // [OLD – 6-city dropdown, replaced by state+city]
+    // final city = _cityCoordinates[selectedProfileCity.value];
+    // final ({double lat, double lng})? device = _deviceCoordinates();
 
-    // Location: real device lat/lng (captured at startup by LocationService)
-    // when available, else the picked city's approximate centre. City/region
-    // come from the dropdown (null when none picked). Omitted when neither.
-    Map<String, dynamic>? location;
-    if (device != null || city != null) {
-      location = <String, dynamic>{
-        'latitude': device?.lat ?? city!.lat,
-        'longitude': device?.lng ?? city!.lng,
-        'city': city?.city,
-        'region': city != null ? 'Belgium' : null,
-      };
-    }
-
+    // // Location: real device lat/lng (captured at startup by LocationService)
+    // // when available, else the picked city's approximate centre. City/region
+    // // come from the dropdown (null when none picked). Omitted when neither.
+    // Map<String, dynamic>? location;
+    // if (device != null || city != null) {
+    //   location = <String, dynamic>{
+    //     'latitude': device?.lat ?? city!.lat,
+    //     'longitude': device?.lng ?? city!.lng,
+    //     'city': city?.city,
+    //     'region': city != null ? 'Belgium' : null,
+    //   };
+    // }
+    // [/OLD]
+    // State -> region, city -> city. Coordinates: device, else city, else
+    // state. No state: device coordinates only (city/region null), else omitted.
     final String displayName = previewDisplayName;
 
     return <String, dynamic>{
@@ -1541,7 +1674,6 @@ class RegisterController extends GetxController {
       'gender': selectedGender.value,
       'orientation': <String>[selectedOrientation.value],
       if (aboutMe.isNotEmpty) 'about_me': aboutMe,
-      'location': ?location,
       'looking_for': selectedLookingFor.toList(),
       'relationship_preferences': relationshipPrefs.toList(),
       'core_physical_intimate': physicalPrefs.toList(),
@@ -1701,38 +1833,68 @@ class RegisterController extends GetxController {
           '${m.toString().padLeft(2, '0')}-'
           '${d.toString().padLeft(2, '0')}';
     }
-    final String country =
-        selectedCountry.value.isNotEmpty ? selectedCountry.value : original.country;
+    // [OLD – picked country, else the original server country]
+    // final String country =
+    //     selectedCountry.value.isNotEmpty ? selectedCountry.value : original.country;
+    // [/OLD]
+    // Belgium-only app: Edit Profile always sends Belgium. countryChanged
+    // below is then true only for an older profile saved with another
+    // country, whose non-Belgian city/region is dropped (kept coordinates).
+    const String country = kAppCountry;
 
-    // Only build a new location when the city dropdown changed from what
-    // hydration selected; otherwise keep sending the original server object
-    // (covers a server city outside the 6 Belgian cities too, since that
-    // case leaves selectedProfileCity at '' == hydratedCity).
-    Map<String, dynamic>? newLocation;
-    if (selectedProfileCity.value != original.hydratedCity) {
-      final city = _cityCoordinates[selectedProfileCity.value];
-      if (city != null) {
-        newLocation = <String, dynamic>{
-          'latitude': city.lat,
-          'longitude': city.lng,
-          'city': city.city,
-          'region': 'Belgium',
-        };
-      }
-    }
-    // Real device lat/lng (LocationService) override the coordinates, keeping
-    // the chosen/original city and region. Without device coordinates the
-    // behaviour above is unchanged.
-    final ({double lat, double lng})? device = _deviceCoordinates();
-    if (device != null) {
-      final Map<String, dynamic>? base = newLocation ?? original.location;
-      newLocation = <String, dynamic>{
-        'latitude': device.lat,
-        'longitude': device.lng,
-        'city': base?['city'],
-        'region': base?['region'],
-      };
-    }
+    // New rules: state -> region, city -> city. Unchanged (or state cleared)
+    // keeps the original server location; device coordinates still override
+    // lat/lng. See EditProfilePayload.location.
+    final csc.State? st = editState.value;
+    final csc.City? ct = editCity.value;
+    final bool countryChanged =
+        original.country.trim().toLowerCase() != kAppCountry.toLowerCase();
+    final bool locationChanged = st?.isoCode != _hydratedStateIso ||
+        ct?.name != _hydratedCityName;
+    final Map<String, dynamic>? newLocation = EditProfilePayload.location(
+      original: original.location,
+      countryChanged: countryChanged,
+      locationChanged: locationChanged,
+      stateName: st?.name,
+      cityName: ct?.name,
+      cityLat: double.tryParse(ct?.latitude ?? ''),
+      cityLng: double.tryParse(ct?.longitude ?? ''),
+      stateLat: double.tryParse(st?.latitude ?? ''),
+      stateLng: double.tryParse(st?.longitude ?? ''),
+      device: _deviceCoordinates(),
+    );
+
+    // [OLD – 6-city dropdown, replaced by state+city]
+    // // Only build a new location when the city dropdown changed from what
+    // // hydration selected; otherwise keep sending the original server object
+    // // (covers a server city outside the 6 Belgian cities too, since that
+    // // case leaves selectedProfileCity at '' == hydratedCity).
+    // Map<String, dynamic>? newLocation;
+    // if (selectedProfileCity.value != original.hydratedCity) {
+    //   final city = _cityCoordinates[selectedProfileCity.value];
+    //   if (city != null) {
+    //     newLocation = <String, dynamic>{
+    //       'latitude': city.lat,
+    //       'longitude': city.lng,
+    //       'city': city.city,
+    //       'region': 'Belgium',
+    //     };
+    //   }
+    // }
+    // // Real device lat/lng (LocationService) override the coordinates, keeping
+    // // the chosen/original city and region. Without device coordinates the
+    // // behaviour above is unchanged.
+    // final ({double lat, double lng})? device = _deviceCoordinates();
+    // if (device != null) {
+    //   final Map<String, dynamic>? base = newLocation ?? original.location;
+    //   newLocation = <String, dynamic>{
+    //     'latitude': device.lat,
+    //     'longitude': device.lng,
+    //     'city': base?['city'],
+    //     'region': base?['region'],
+    //   };
+    // }
+    // [/OLD]
 
     return EditProfilePayload.build(
       original: original,

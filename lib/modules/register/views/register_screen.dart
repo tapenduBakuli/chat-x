@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:chat_x/device_manager/screen_constants.dart';
 import 'package:chat_x/modules/register/controller/register_controller.dart';
+import 'package:chat_x/modules/register/views/widgets/setup_state_city_dropdowns.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
@@ -79,8 +80,12 @@ class RegisterScreen extends GetView<RegisterController> {
                     _buildConfirmPasswordField(),
                     // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     // _buildBankingCard(),
+                    // [OLD – country picker removed: the app is Belgium-only]
+                    // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
+                    // _buildCountryField(context),
+                    // [/OLD]
                     SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                    _buildCountryField(context),
+                    _buildLocationCard(),
                     // SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                     // _buildPromoField(),
                     SizedBox(height: ScreenConstant.defaultHeightThirty),
@@ -1093,6 +1098,8 @@ class RegisterScreen extends GetView<RegisterController> {
   // ---------------------------------------------------------------------------
   // Country dropdown
   // ---------------------------------------------------------------------------
+  // Kept for reference; no longer shown (Belgium-only app).
+  // ignore: unused_element
   Widget _buildCountryField(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1296,6 +1303,112 @@ class RegisterScreen extends GetView<RegisterController> {
         SizedBox(width: ScreenConstant.sizeExtraSmall),
         Text(text, style: TextStyles.registerFooterStrip),
       ],
+    );
+  }
+
+  Widget _buildLocationCard() {
+    return Container(
+      padding: EdgeInsets.all(ScreenConstant.sizeMedium),
+      decoration: BoxDecoration(
+        color: CustomColor.colorF8FAFC,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                height: ScreenConstant.defaultHeightThirty,
+                width: ScreenConstant.defaultWidthThirty,
+                decoration: BoxDecoration(
+                  color: CustomColor.colorECFDF5,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+                ),
+                child: Icon(
+                  Icons.location_on_outlined,
+                  size: ScreenConstant.minimumIconSize,
+                  color: CustomColor.color059669,
+                ),
+              ),
+              SizedBox(width: ScreenConstant.sizeExtraSmall),
+              // Expanded (instead of a Spacer) so a long country name
+              // ellipsizes rather than overflowing into the pill.
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // [OLD – fixed title, replaced by the picked country]
+                    // Text("Belgian Location", style: TextStyles.registerSectionTitle),
+                    // [/OLD]
+                    // [OLD – title followed the picked country; the country
+                    // is fixed to Belgium now]
+                    // Obx(() {
+                    //   final String country =
+                    //       controller.selectedCountry.value.trim();
+                    //   return Text(
+                    //     country.isEmpty
+                    //         ? "Choose a Location"
+                    //         : "$country Location",
+                    //     maxLines: 1,
+                    //     overflow: TextOverflow.ellipsis,
+                    //     style: TextStyles.registerSectionTitle,
+                    //   );
+                    // }),
+                    // [/OLD]
+                    Text(
+                      "Belgian Location",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyles.registerSectionTitle,
+                    ),
+                    Text("Regional proximity matching",
+                        style: TextStyles.registerSupportedLabel
+                            .copyWith(fontWeight: FontWeight.normal)),
+                  ],
+                ),
+              ),
+              SizedBox(width: ScreenConstant.sizeExtraSmall),
+              _greenPill("Remains Hidden"),
+            ],
+          ),
+          SizedBox(height: ScreenConstant.sizeSmall),
+          const SetupStateCityDropdowns(),
+          SizedBox(height: ScreenConstant.sizeSmall),
+          Container(
+            padding: EdgeInsets.all(ScreenConstant.sizeMedium),
+            decoration: BoxDecoration(
+              color: CustomColor.colorWhite,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.asset(
+                  ImageUtils.cardVerificationLogo,
+                  height: ScreenConstant.minimumIconSize,
+                  color: CustomColor.colorEF4444,
+                ),
+                SizedBox(width: ScreenConstant.sizeExtraSmall),
+                Expanded(
+                  child: Text(
+                    "Privacy Shield Active: Exact GPS coordinates were not captured. "
+                    "Other members only see broad distance estimates "
+                    "(e.g. '~12 km away').",
+                    style: TextStyles.registerFieldNote.copyWith(
+                      color: CustomColor.color475569,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        ],
+      ),
     );
   }
 }

@@ -55,6 +55,10 @@ dependencies:
   local_auth: ^2.3.0
   #Country picker for the Create Account screen (flag + name, no dial code)
   country_picker: ^2.0.27
+  #Belgian states + cities for the Browse filter sheet (import with `as csc`: State clashes with Flutter's)
+  country_state_city: 0.1.6
+  #Device id + type (saved on app open)
+  device_info_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:

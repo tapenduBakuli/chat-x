@@ -147,6 +147,85 @@ class EditProfilePayload {
     return <String>[];
   }
 
+  static double? _validLat(double? v) =>
+      v != null && v >= -90 && v <= 90 ? v : null;
+  static double? _validLng(double? v) =>
+      v != null && v >= -180 && v <= 180 ? v : null;
+  static String _max100(String v) => v.length > 100 ? v.substring(0, 100) : v;
+
+  /// Location object for PUT /users/me on Edit Profile.
+  ///
+  /// - [changed] && [stateName] non-empty: `{latitude, longitude, city,
+  ///   region}` with region = state name, city = city name (null if none).
+  ///   Coordinates: [device] if available, else the city's, else the state's
+  ///   (each only if within the API range), else the original server ones.
+  /// - Otherwise (unchanged, or the user cleared the state – never wipe the
+  ///   saved location): the [original] server location, with the [device]
+  ///   coordinates overriding lat/lng when available (existing behaviour).
+  static Map<String, dynamic>? location({
+    required Map<String, dynamic>? original,
+    bool countryChanged = false,
+    bool locationChanged = false,
+    String? stateName,
+    String? cityName,
+    double? cityLat,
+    double? cityLng,
+    double? stateLat,
+    double? stateLng,
+    ({double lat, double lng})? device,
+  }) {
+    final String state = (stateName ?? '').trim();
+
+    if (countryChanged && state.isEmpty) {
+      final double? lat =
+          device?.lat ?? _validLat((original?['latitude'] as num?)?.toDouble());
+      final double? lng =
+          device?.lng ?? _validLng((original?['longitude'] as num?)?.toDouble());
+      return <String, dynamic>{
+        'latitude': ?lat,
+        'longitude': ?lng,
+        'city': '',
+        'region': '',
+      };
+    }
+
+    if ((countryChanged || locationChanged) && state.isNotEmpty) {
+      final String city = (cityName ?? '').trim();
+      double? lat;
+      double? lng;
+      if (device != null) {
+        lat = device.lat;
+        lng = device.lng;
+      } else if (_validLat(cityLat) != null && _validLng(cityLng) != null) {
+        lat = cityLat;
+        lng = cityLng;
+      } else if (_validLat(stateLat) != null && _validLng(stateLng) != null) {
+        lat = stateLat;
+        lng = stateLng;
+      } else {
+        lat = _validLat((original?['latitude'] as num?)?.toDouble());
+        lng = _validLng((original?['longitude'] as num?)?.toDouble());
+      }
+      return <String, dynamic>{
+        'latitude': ?lat,
+        'longitude': ?lng,
+        'city': city.isEmpty ? '' : _max100(city),
+        'region': _max100(state),
+      };
+    }
+
+    final Map<String, dynamic>? base = original;
+    if (device != null && base != null) {
+      return <String, dynamic>{
+        'latitude': device.lat,
+        'longitude': device.lng,
+        'city': base['city'] ?? '',
+        'region': base['region'] ?? '',
+      };
+    }
+    return base;
+  }
+
   /// Current value, else the original server value, else null (key omitted).
   static String? _singleSelect(String current, String original) {
     if (current.trim().isNotEmpty) return current;

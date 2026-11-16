@@ -5,10 +5,13 @@ import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:chat_x/modules/register/model/lifestyle_options.dart';
 import 'package:chat_x/modules/register/views/widgets/tick_select_row.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
+import 'package:country_picker/country_picker.dart';
+import 'package:country_state_city/country_state_city.dart' as csc;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
+import '../../../utils/belgium_locations.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
 import '../../../utils/image_utils/image_utils.dart';
@@ -125,7 +128,7 @@ class EditProfileScreen extends GetView<RegisterController> {
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                           _buildLookingForField(),
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
-                          _buildLocationField(),
+                          _buildLocationField(context),
                           SizedBox(height: ScreenConstant.defaultHeightTwentyThree),
                           _buildAboutMeField(),
                         ],
@@ -887,29 +890,39 @@ class EditProfileScreen extends GetView<RegisterController> {
 
   /// Editable lifestyle single-selects, pre-selected from state.
   Widget _buildLifestyleFields() {
-    final fields = <(String, List<String>, RxString, void Function(String))>[
+    // (label, options, state, onSelect, prefix icon) — icons match the
+    // Profile screen's Lifestyle card.
+    final fields = <(
+      String,
+      List<String>,
+      RxString,
+      void Function(String),
+      IconData
+    )>[
       ("Has children", LifestyleOptions.yesNo, controller.hasChildren,
-          controller.selectHasChildren),
+          controller.selectHasChildren, Icons.child_care_outlined),
       ("Relationship status", LifestyleOptions.relationshipStatus,
-          controller.relationshipStatus, controller.selectRelationshipStatus),
+          controller.relationshipStatus, controller.selectRelationshipStatus,
+          Icons.people_outline),
       ("Works", LifestyleOptions.yesNo, controller.works,
-          controller.selectWorks),
+          controller.selectWorks, Icons.work_outline),
       ("Own house", LifestyleOptions.yesNo, controller.ownHouse,
-          controller.selectOwnHouse),
+          controller.selectOwnHouse, Icons.home_outlined),
       ("Car", LifestyleOptions.yesNo, controller.hasCar,
-          controller.selectHasCar),
+          controller.selectHasCar, Icons.directions_car_outlined),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (int i = 0; i < fields.length; i++) ...[
-          if (i > 0) SizedBox(height: ScreenConstant.sizeSmall),
+          if (i > 0) SizedBox(height: ScreenConstant.sizeExtraSmall),
           TickSelectRow(
             label: fields[i].$1,
             options: fields[i].$2,
             selected: () => fields[i].$3.value,
             onSelect: fields[i].$4,
             labelStyle: TextStyles.loginFieldLabel,
+            icon: fields[i].$5,
           ),
         ],
       ],
@@ -1268,7 +1281,7 @@ class EditProfileScreen extends GetView<RegisterController> {
     );
   }
 
-  Widget _buildLocationField() {
+  Widget _buildLocationField(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1306,72 +1319,252 @@ class EditProfileScreen extends GetView<RegisterController> {
             ),
           ],
         ),
-        Container(
-          height: ScreenConstant.defaultHeightFifty,
-          padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
-          decoration: BoxDecoration(
-            color: CustomColor.colorF8FAFC,
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.location_on_outlined,
-                color: CustomColor.color64748B,
-                size: ScreenConstant.smallIconSize,
-              ),
-              SizedBox(width: ScreenConstant.sizeSmall),
-              Expanded(
-                child: Obx(
-                  () => DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      // null when no city is picked (value must be in items).
-                      value: controller.selectedProfileCity.value.isEmpty
-                          ? null
-                          : controller.selectedProfileCity.value,
-                      hint: Text(
-                        "Select your city (optional)",
-                        style: TextStyles.loginTopText.copyWith(
-                          fontSize: FontSize.s14,
-                          color: CustomColor.color94A3B8,
-                        ),
-                      ),
-                      icon: Icon(
-                        Icons.keyboard_arrow_down,
-                        color: CustomColor.color64748B,
-                        size: ScreenConstant.smallIconSize,
-                      ),
-                      style: TextStyles.loginTopText
-                          .copyWith(fontSize: FontSize.s14),
-                      items: controller.belgianCities
-                          .map(
-                            (c) => DropdownMenuItem<String>(
-                              value: c,
-                              child: Text(
-                                c,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyles.loginTopText
-                                    .copyWith(fontSize: FontSize.s14),
-                              ),
+        SizedBox(height: ScreenConstant.sizeSmall),
+        // [OLD – country picker removed: the app is Belgium-only]
+        // _buildCountryField(context),
+        // SizedBox(height: ScreenConstant.sizeSmall),
+        // [/OLD]
+        _locationDropdowns(),
+      ],
+    );
+  }
+
+  // Kept for reference; no longer shown (Belgium-only app).
+  // ignore: unused_element
+  Widget _buildCountryField(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label("Country"),
+        InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: () => _openCountryPicker(context),
+          child: Container(
+            height: ScreenConstant.defaultHeightFifty,
+            padding:
+                EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+            decoration: BoxDecoration(
+              color: CustomColor.colorF8FAFC,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Obx(() {
+                    final bool hasCountry =
+                        controller.selectedCountry.value.isNotEmpty;
+                    return Text(
+                      hasCountry
+                          ? "${controller.selectedCountryFlag.value}  ${controller.selectedCountry.value}"
+                          : "Select your country",
+                      overflow: TextOverflow.ellipsis,
+                      style: hasCountry
+                          ? TextStyles.loginTopText
+                              .copyWith(fontSize: FontSize.s14)
+                          : TextStyles.loginTopText.copyWith(
+                              fontSize: FontSize.s14,
+                              color: CustomColor.color94A3B8,
                             ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          controller.onProfileCitySelected(value);
-                        }
-                      },
-                    ),
-                  ),
+                    );
+                  }),
                 ),
-              ),
-            ],
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  color: CustomColor.color64748B,
+                  size: ScreenConstant.smallIconSize,
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
+  }
+
+  void _openCountryPicker(BuildContext context) {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: false,
+      countryListTheme: CountryListThemeData(
+        backgroundColor: CustomColor.colorWhite,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        inputDecoration: InputDecoration(
+          hintText: 'Search',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderSide: BorderSide(color: CustomColor.colorE2E8F0),
+          ),
+        ),
+      ),
+      onSelect: (Country c) => controller.onCountryPicked(c),
+    );
+  }
+
+  /// State + City side by side, in Edit Profile's dropdown look.
+  Widget _locationDropdowns() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _editStateDropdown()),
+        SizedBox(width: ScreenConstant.sizeSmall),
+        Expanded(child: _editCityDropdown()),
+      ],
+    );
+  }
+
+  TextStyle get _locDropdownText =>
+      TextStyles.loginTopText.copyWith(fontSize: FontSize.s14);
+
+  Widget _locHint(String text) => Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: _locDropdownText.copyWith(color: CustomColor.color94A3B8),
+      );
+
+  Widget _locShell({
+    required String label,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Semantics(
+      label: label,
+      container: true,
+      child: Container(
+        height: ScreenConstant.defaultHeightFifty,
+        padding: EdgeInsets.symmetric(horizontal: ScreenConstant.sizeMedium),
+        decoration: BoxDecoration(
+          color: CustomColor.colorF8FAFC,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: CustomColor.colorE2E8F0, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: CustomColor.color64748B,
+              size: ScreenConstant.smallIconSize,
+            ),
+            SizedBox(width: ScreenConstant.sizeSmall),
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _locArrow(bool loading) => loading
+      ? SizedBox(
+          width: ScreenConstant.smallIconSize,
+          height: ScreenConstant.smallIconSize,
+          child: const Padding(
+            padding: EdgeInsets.all(2),
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        )
+      : Icon(
+          Icons.keyboard_arrow_down,
+          color: CustomColor.color64748B,
+          size: ScreenConstant.smallIconSize,
+        );
+
+  Widget _editStateDropdown() {
+    return Obx(() {
+      final bool loading = BelgiumLocations.instance.isLoading.value;
+      BelgiumLocations.instance.isLoaded.value; // rebuild when loaded
+      final List<csc.State> states = BelgiumLocations.instance.states;
+      final csc.State? selected = controller.editState.value;
+      return _locShell(
+        label: 'State',
+        icon: Icons.location_on_outlined,
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            isExpanded: true,
+            menuMaxHeight: 300,
+            value: selected?.isoCode ?? '',
+            icon: _locArrow(loading),
+            style: _locDropdownText,
+            items: [
+              DropdownMenuItem<String>(
+                value: '',
+                child: _locHint('Select state'),
+              ),
+              for (final csc.State st in states)
+                DropdownMenuItem<String>(
+                  value: st.isoCode,
+                  child: Text(
+                    st.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _locDropdownText,
+                  ),
+                ),
+            ],
+            onChanged: loading
+                ? null
+                : (String? iso) => controller.selectEditState(
+                      states.firstWhereOrNull((s) => s.isoCode == iso),
+                    ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _editCityDropdown() {
+    return Obx(() {
+      final bool loading = BelgiumLocations.instance.isLoading.value;
+      BelgiumLocations.instance.isLoaded.value; // rebuild when loaded
+      final csc.State? state = controller.editState.value;
+      final csc.City? selected = controller.editCity.value;
+      final List<csc.City> cities = state == null
+          ? const <csc.City>[]
+          : BelgiumLocations.instance.citiesOf(state.isoCode);
+      final bool enabled = state != null && !loading;
+      return Opacity(
+        opacity: state == null ? 0.5 : 1,
+        child: _locShell(
+          label: 'City',
+          icon: Icons.location_city_outlined,
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              menuMaxHeight: 300,
+              value: selected?.name ?? '',
+              disabledHint:
+                  _locHint(state == null ? 'Select state first' : 'Select city'),
+              icon: _locArrow(loading),
+              style: _locDropdownText,
+              items: [
+                DropdownMenuItem<String>(
+                  value: '',
+                  child: _locHint('Select city'),
+                ),
+                for (final csc.City c in cities)
+                  DropdownMenuItem<String>(
+                    value: c.name,
+                    child: Text(
+                      c.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _locDropdownText,
+                    ),
+                  ),
+              ],
+              onChanged: enabled
+                  ? (String? name) => controller.selectEditCity(
+                        cities.firstWhereOrNull((c) => c.name == name),
+                      )
+                  : null,
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildAboutMeField() {

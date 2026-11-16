@@ -15,6 +15,7 @@ import '../modules/chat/services/chat_websocket_service.dart';
 import '../modules/login/model/login_response_model.dart';
 import '../routes/routes.dart';
 import 'Store/HiveStore.dart';
+import 'auth_payload_builders.dart';
 import 'exception_handler.dart';
 import 'text_utils/app_strings.dart';
 
@@ -276,7 +277,11 @@ class BaseClient {
       {bool isAuth = false, bool refreshOnUnauthorized = true}) async {
 
     var payload = jsonEncode(payloadObj);
-    print(payload);
+    // [OLD – printed the raw payload incl. passwords]
+    // print(payload);
+    // [/OLD]
+    final String maskedPayload = jsonEncode(maskSecretsForLog(payloadObj));
+    debugPrint('POST $path body: $maskedPayload');
 
     try {
       await _ensureConnected(path);
@@ -294,7 +299,9 @@ class BaseClient {
         refreshOnUnauthorized: refreshOnUnauthorized,
       );
       debugPrint(DateTime.now().toString());
-      debugPrint(payload);
+      // [OLD – printed the raw payload again]
+      // debugPrint(payload);
+      // [/OLD]
       debugPrint(response.statusCode.toString());
       debugPrint(response.body.toString());
       log(response.body.toString());

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
+import '../../register/views/widgets/intimate_desires_form.dart';
 
 class ProfileScreen extends GetView<ProfileController> {
   const ProfileScreen({super.key});
@@ -626,13 +627,16 @@ class ProfileScreen extends GetView<ProfileController> {
   /// card (with its trailing gap) is hidden when none has one.
   Widget _buildLifestyleCard() {
     return Obx(() {
-      final List<MapEntry<String, String>> rows = [
-        MapEntry('Has children:', controller.hasChildren.value),
-        MapEntry('Relationship status:', controller.relationshipStatus.value),
-        MapEntry('Works:', controller.works.value),
-        MapEntry('Own house:', controller.ownHouse.value),
-        MapEntry('Car:', controller.hasCar.value),
-      ].where((e) => e.value.isNotEmpty).toList();
+      // (label, value, icon) for each lifestyle field; unset ones are hidden.
+      final List<(String, String, IconData)> rows = [
+        ('Has children:', controller.hasChildren.value,
+            Icons.child_care_outlined),
+        ('Relationship status:', controller.relationshipStatus.value,
+            Icons.people_outline),
+        ('Works:', controller.works.value, Icons.work_outline),
+        ('Own house:', controller.ownHouse.value, Icons.home_outlined),
+        ('Car:', controller.hasCar.value, Icons.directions_car_outlined),
+      ].where((e) => e.$2.isNotEmpty).toList();
       if (rows.isEmpty) return const SizedBox.shrink();
       return Padding(
         padding: EdgeInsets.only(bottom: ScreenConstant.sizeMedium),
@@ -643,7 +647,7 @@ class ProfileScreen extends GetView<ProfileController> {
             children: [
               for (int i = 0; i < rows.length; i++) ...[
                 if (i > 0) SizedBox(height: ScreenConstant.sizeExtraSmall),
-                _detailRow(rows[i].key, rows[i].value),
+                _detailRow(rows[i].$1, rows[i].$2, icon: rows[i].$3),
               ],
             ],
           ),
@@ -660,6 +664,7 @@ class ProfileScreen extends GetView<ProfileController> {
         () => _chipWrap(
           controller.interests,
           rose: false,
+          withIcons: true,
         ),
       ),
     );
@@ -730,6 +735,7 @@ class ProfileScreen extends GetView<ProfileController> {
               ? controller.sexualPreferences.toList()
               : [...controller.coreIntimate, ...controller.explorationKink],
           rose: true,
+          withIcons: true,
         ),
       ),
     );
@@ -740,9 +746,13 @@ class ProfileScreen extends GetView<ProfileController> {
       icon: Icons.favorite_outline,
       title: "Relationship Type",
       child: Obx(
+        // Icon from the Intimate Desires form when the option has one,
+        // otherwise the previous "♦ " prefix.
         () => _chipWrap(
-          controller.relationshipTypes.map((e) => "♦ $e").toList(),
+          controller.relationshipTypes.toList(),
           rose: true,
+          withIcons: true,
+          fallbackPrefix: "♦ ",
         ),
       ),
     );
@@ -890,10 +900,20 @@ class ProfileScreen extends GetView<ProfileController> {
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  /// Label / value row. [icon] (optional) is drawn before the label; rows
+  /// without it look exactly as before.
+  Widget _detailRow(String label, String value, {IconData? icon}) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        if (icon != null) ...[
+          Icon(
+            icon,
+            size: ScreenConstant.minimumIconSize,
+            color: CustomColor.colorBE185D,
+          ),
+          SizedBox(width: ScreenConstant.sizeExtraSmall + 2),
+        ],
         Text(
           label,
           style: TextStyles.registerFieldNote.copyWith(
@@ -901,9 +921,9 @@ class ProfileScreen extends GetView<ProfileController> {
             color: CustomColor.color64748B,
           ),
         ),
-        SizedBox(width: ScreenConstant.sizeSmall),
+        Spacer(),
         // Flexible so long values (email, visibility mode) wrap, not overflow.
-        Flexible(
+        Expanded(
           child: Text(
             value,
             textAlign: TextAlign.end,
@@ -917,7 +937,15 @@ class ProfileScreen extends GetView<ProfileController> {
     );
   }
 
-  Widget _chipWrap(List<String> items, {required bool rose}) {
+  /// [withIcons]: prefix each chip with the same glyph the Intimate Desires
+  /// form uses for that option (chips without a matching icon show
+  /// [fallbackPrefix] before the label instead, if given).
+  Widget _chipWrap(
+    List<String> items, {
+    required bool rose,
+    bool withIcons = false,
+    String? fallbackPrefix,
+  }) {
     if (items.isEmpty) {
       return Text(
         "None selected",
@@ -927,11 +955,30 @@ class ProfileScreen extends GetView<ProfileController> {
     return Wrap(
       spacing: ScreenConstant.sizeSmall,
       runSpacing: ScreenConstant.sizeSmall,
-      children: items.map((e) => _chip(e, rose: rose)).toList(),
+      children: items
+          .map((e) => _chip(
+                e,
+                rose: rose,
+                withIcon: withIcons,
+                fallbackPrefix: fallbackPrefix,
+              ))
+          .toList(),
     );
   }
 
-  Widget _chip(String label, {required bool rose}) {
+  Widget _chip(
+    String label, {
+    required bool rose,
+    bool withIcon = false,
+    String? fallbackPrefix,
+  }) {
+    final Color textColor =
+        rose ? CustomColor.colorBE123C : CustomColor.color334155;
+    final Widget? glyph =
+        withIcon ? IntimateDesiresForm.chipGlyph(label, textColor) : null;
+    final String text = (glyph == null && fallbackPrefix != null)
+        ? "$fallbackPrefix$label"
+        : label;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: ScreenConstant.sizeMedium,
@@ -944,11 +991,20 @@ class ProfileScreen extends GetView<ProfileController> {
           color: rose ? CustomColor.colorFECDD3 : CustomColor.colorE2E8F0,
         ),
       ),
-      child: Text(
-        label,
-        style: TextStyles.policiesPillText.copyWith(
-          color: rose ? CustomColor.colorBE123C : CustomColor.color334155,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (glyph != null) ...[
+            ExcludeSemantics(child: glyph),
+            SizedBox(width: ScreenConstant.sizeExtraSmall),
+          ],
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyles.policiesPillText.copyWith(color: textColor),
+            ),
+          ),
+        ],
       ),
     );
   }

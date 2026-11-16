@@ -83,6 +83,27 @@ class IntimateDesiresForm extends GetView<RegisterController> {
     "Open to discuss": _ChipLeading.icon(Icons.chat_bubble_outline),
   };
 
+  /// The same default glyph this form shows for an option [label], tinted
+  /// with [color], for read-only screens (e.g. the Profile screen chips).
+  /// Matches ignoring case, spaces and punctuation, so server values like
+  /// "one_time" find "One time". Null when the option has no icon.
+  static Widget? chipGlyph(String label, Color color) {
+    _ChipLeading? leading = _chipLeadings[label];
+    if (leading == null) {
+      final String n = _normKey(label);
+      for (final MapEntry<String, _ChipLeading> e in _chipLeadings.entries) {
+        if (_normKey(e.key) == n) {
+          leading = e.value;
+          break;
+        }
+      }
+    }
+    return leading?.build(color);
+  }
+
+  static String _normKey(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   @override
   Widget build(BuildContext context) {
     return Column(

@@ -1,4 +1,3 @@
-
 class LoginResponse {
   final bool success;
   final String message;
@@ -24,8 +23,6 @@ class LoginResponse {
 class LoginData {
   final LoginUser? user;
   final AuthTokens? tokens;
-
-  /// Top-level `data.avatar_url` ('' when null/missing).
   final String avatarUrl;
 
   const LoginData({this.user, this.tokens, this.avatarUrl = ''});
@@ -55,13 +52,9 @@ class LoginUser {
   final bool isInvisible;
   final String? trialEndsAt;
   final String? createdAt;
-
-  /// `has_payment_method` from `data.user`. null when missing/not a bool, so
-  /// only an explicit `false` means "unpaid" (see requiresPaymentGate).
   final bool? hasPaymentMethod;
-
-  /// `data.user.profile.avatar_url` ('' when null/missing).
-  final String profileAvatarUrl;
+  final String profileAvatar;
+  final bool isComplete;
 
   const LoginUser({
     required this.id,
@@ -76,12 +69,15 @@ class LoginUser {
     this.trialEndsAt,
     this.createdAt,
     this.hasPaymentMethod,
-    this.profileAvatarUrl = '',
+    this.profileAvatar = '',
+    this.isComplete = true,
   });
 
   factory LoginUser.fromJson(Map<String, dynamic> json) {
     final profile = json['profile'];
     final hasPayment = json['has_payment_method'];
+    final bool complete =
+        profile is Map ? (profile['is_complete'] == true) : true;
     return LoginUser(
       id: (json['id'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
@@ -95,15 +91,13 @@ class LoginUser {
       trialEndsAt: json['trial_ends_at']?.toString(),
       createdAt: json['created_at']?.toString(),
       hasPaymentMethod: hasPayment is bool ? hasPayment : null,
-      profileAvatarUrl:
+      profileAvatar:
           profile is Map ? (profile['avatar_url'] ?? '').toString() : '',
+      isComplete: complete,
     );
   }
 }
 
-/// Response of POST /auth/refresh:
-/// `{ "success", "message", "data": { access_token, refresh_token,
-/// token_type, expires_in } }`. The refresh token rotates on every call.
 class RefreshTokenResponse {
   final bool success;
   final String message;
@@ -115,15 +109,12 @@ class RefreshTokenResponse {
     this.tokens,
   });
 
-  /// True when the call succeeded and returned a usable access token.
   bool get isValid =>
       success && tokens != null && tokens!.accessToken.isNotEmpty;
 
   factory RefreshTokenResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'];
     return RefreshTokenResponse(
-      // Only an explicit `success: false` fails; a missing key relies on the
-      // access token being present.
       success: json['success'] != false,
       message: (json['message'] ?? '').toString(),
       tokens: data is Map

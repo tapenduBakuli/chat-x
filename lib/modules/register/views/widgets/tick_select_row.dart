@@ -15,6 +15,9 @@ class TickSelectRow extends StatelessWidget {
   final bool requiredMark;
   final TextStyle? labelStyle;
 
+  /// Optional prefix icon before the label; rows without it are unchanged.
+  final IconData? icon;
+
   const TickSelectRow({
     super.key,
     required this.label,
@@ -23,6 +26,7 @@ class TickSelectRow extends StatelessWidget {
     required this.onSelect,
     this.requiredMark = false,
     this.labelStyle,
+    this.icon,
   });
 
   @override
@@ -32,10 +36,20 @@ class TickSelectRow extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            if (icon != null) ...[
+              ExcludeSemantics(
+                child: Icon(
+                  icon,
+                  size: ScreenConstant.minimumIconSize,
+                  color: CustomColor.colorBE185D,
+                ),
+              ),
+              SizedBox(width: ScreenConstant.sizeExtraSmall + 2),
+            ],
             Expanded(
               child: Text(
                 requiredMark ? "$label *" : label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: labelStyle ?? TextStyles.registerFieldLabel,
               ),

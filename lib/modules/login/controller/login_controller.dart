@@ -7,6 +7,7 @@ import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
 import '../../../utils/biometric_service.dart';
 import '../../../utils/lib/otp_text_field.dart';
+import '../../../utils/location_gate.dart';
 import '../../chat/services/chat_websocket_service.dart';
 import '../../register/model/onboarding_args.dart';
 import '../model/login_response_model.dart';
@@ -209,6 +210,9 @@ class LoginController extends GetxController {
 
     isLoading.value = true;
     try {
+      // Location gate: no login without device coordinates. The loader stays
+      // on while checking; `finally` resets it on every path.
+      if (!await requireLocation()) return;
       final result = await LoginService.instance.login(
         email: email,
         password: password,
@@ -244,6 +248,7 @@ class LoginController extends GetxController {
       _store.setString(Keys.USERID, user.id);
     }
     _store.setBool(Keys.LOGGEDIN, true);
+    _store.setBool(Keys.ISPROFILECOMPLETE, user?.isComplete ?? true);
     _store.setString(Keys.SAVEDAVATAR, user?.avatar_url ?? "");
     _store.setString(Keys.SAVEDPROFILENAME, user?.displayName ?? "");
     // Connect to WebSocket chat connection for the logged-in user
@@ -311,7 +316,10 @@ class LoginController extends GetxController {
     }
   }
 
-  void _onBiometricSuccess() {
+  Future<void> _onBiometricSuccess() async {
+    // Location gate for when biometric login is wired to a real API call
+    // (login payload needs coordinates). No navigation happens yet.
+    if (!await requireLocation()) return;
     // TODO: load the saved session/token, then navigate to your home screen,
     // e.g. Get.offAllNamed(Routes.HOME). ROOT currently maps to the splash
     // screen, so navigation is intentionally left for you to wire to the
@@ -529,10 +537,18 @@ class LoginController extends GetxController {
     return regex.hasMatch(email);
   }
 
-  void onCreateAccount() {
+  Future<void> onCreateAccount() async {
+    // Location gate: no sign-up entry without device coordinates.
+    if (!await requireLocation()) return;
     // Flow: Policies Agreement -> Register -> Payment -> Profile Setup.
     Get.toNamed(Routes.POLICIES_AGREEMENT);
   }
+
+  // [OLD – ungated navigation]
+  // void onCreateAccount() {
+  //   Get.toNamed(Routes.POLICIES_AGREEMENT);
+  // }
+  // [/OLD]
 
   @override
   void onClose() {
