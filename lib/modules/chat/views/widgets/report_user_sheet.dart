@@ -13,9 +13,14 @@ class ReportController extends GetxController {
   final String reportedUserId;
   final String displayName;
 
+  /// Called after the report API succeeded and the sheet has closed (e.g.
+  /// the chat offers to block the reported user). Optional.
+  final VoidCallback? onReported;
+
   ReportController({
     required this.reportedUserId,
     required this.displayName,
+    this.onReported,
   });
 
   final TextEditingController otherTextController = TextEditingController();
@@ -84,6 +89,8 @@ class ReportController extends GetxController {
         res.message.isNotEmpty ? res.message : 'Report submitted successfully.',
         snackPosition: SnackPosition.BOTTOM,
       );
+      // Offer the follow-up (block) only after a successful report.
+      onReported?.call();
     } else {
       Get.snackbar(
         'Could not submit report',
@@ -99,11 +106,18 @@ void showReportUserBottomSheet({
   required BuildContext context,
   required String reportedUserId,
   required String displayName,
+  VoidCallback? onReported,
 }) {
+  // A previous sheet for the same user may have left its controller behind;
+  // replace it so the new [onReported] callback is the one used.
+  if (Get.isRegistered<ReportController>(tag: reportedUserId)) {
+    Get.delete<ReportController>(tag: reportedUserId, force: true);
+  }
   final controller = Get.put(
     ReportController(
       reportedUserId: reportedUserId,
       displayName: displayName,
+      onReported: onReported,
     ),
     tag: reportedUserId,
   );

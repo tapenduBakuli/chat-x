@@ -937,6 +937,66 @@ class ChatController extends GetxController {
       context: context,
       reportedUserId: peerId,
       displayName: name,
+      // After a successful report, offer to block the same user.
+      onReported: _askBlockAfterReport,
+    );
+  }
+
+  /// "Block <name> too?" after a successful report. Yes → the same
+  /// POST users/{id}/block flow as the Block menu item ([_doBlock]: snackbar,
+  /// sync tabs, leave the chat). No → stay in the chat.
+  void _askBlockAfterReport() {
+    if (isClosed) return;
+    final FriendUser? p = peer.value;
+    if (p == null || p.id.isEmpty || isBlocking.value) return;
+    final String name = p.displayName.isNotEmpty ? p.displayName : 'this user';
+    Get.dialog(
+      // Buttons pop via the dialog's own context: the "Report Submitted"
+      // snackbar is open, and Get.back() would close that instead (get 4.7.3).
+      Builder(
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: CustomColor.colorWhite,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Block $name too?',
+            style: TextStyles.registerSectionTitle.copyWith(
+              color: CustomColor.color0F172A,
+            ),
+          ),
+          content: Text(
+            'Thanks for reporting. Do you also want to block $name? They '
+            'won\'t be able to message you, and this chat will close.',
+            style: TextStyles.registerFieldNote.copyWith(
+              color: CustomColor.color64748B,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'No',
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.color64748B,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _doBlock(p);
+              },
+              child: Text(
+                'Yes, block',
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.colorBE123C,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

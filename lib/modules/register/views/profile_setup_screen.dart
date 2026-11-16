@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:chat_x/modules/register/controller/register_controller.dart';
 import 'package:chat_x/modules/register/model/lifestyle_options.dart';
-import 'package:chat_x/modules/register/views/widgets/setup_state_city_dropdowns.dart';
+// [OLD – the location card moved to the Register screen; unused here now]
+// import 'package:chat_x/modules/register/views/widgets/setup_state_city_dropdowns.dart';
+// [/OLD]
 import 'package:chat_x/modules/register/views/widgets/tick_select_row.dart';
 import 'package:chat_x/utils/custom_text_field.dart';
 import 'package:flutter/material.dart';
