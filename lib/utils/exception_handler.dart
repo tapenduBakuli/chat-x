@@ -28,3 +28,10 @@ class UnAuthorizedException extends AppException {
   UnAuthorizedException(String message, String url)
       : super(message, '${AppStrings.UnAuthorizedException}', url);
 }
+
+/// Thrown by BaseClient after it has already ended the login session (forced
+/// logout + Login route + toast). Subclass of [UnAuthorizedException] so
+/// existing catches keep working; catch it first to avoid a second snackbar.
+class SessionEndedException extends UnAuthorizedException {
+  SessionEndedException(super.message, super.url);
+}

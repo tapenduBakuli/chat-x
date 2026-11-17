@@ -8,6 +8,7 @@ import 'package:get/get_navigation/src/routes/transitions_type.dart';
 import 'package:month_year_picker/month_year_picker.dart';
 
 import 'languages/LocalizationService.dart';
+import 'utils/activity_tracker.dart';
 List<CameraDescription> cameras = [];
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,13 @@ void main() async{
       debugShowCheckedModeBanner: false,
       initialRoute:Theme1AppPages.INITIAL,
       getPages: Theme1AppPages.routes,
+      // Feeds ActivityTracker so timer-driven calls can pause while idle.
+      builder: (context, child) => Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => ActivityTracker.instance.markActive(),
+        onPointerMove: (_) => ActivityTracker.instance.markActive(),
+        child: child,
+      ),
       localizationsDelegates: [
         MonthYearPickerLocalizations.delegate,
       ],

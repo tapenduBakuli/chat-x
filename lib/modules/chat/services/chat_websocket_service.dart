@@ -55,6 +55,9 @@ class ChatWebSocketService {
   /// Connects to the chat WebSocket server using the stored access token.
   /// Safe to call multiple times (no-op if already connected/connecting).
   Future<void> connect() async {
+    // After a forced logout nothing may reopen the socket until the next login
+    // calls [allowReconnect].
+    if (_suppressReconnect) return;
     if (_isConnected || _isConnecting) return;
 
     final String token = _getToken();
@@ -69,6 +72,15 @@ class ChatWebSocketService {
     try {
       debugPrint('ChatWebSocketService: Connecting to chat socket');
       _socket = await WebSocket.connect(wsUrl);
+      if (_suppressReconnect) {
+        // A logout raced this in-flight connect: drop the new socket.
+        try {
+          await _socket?.close();
+        } catch (_) {}
+        _socket = null;
+        _isConnecting = false;
+        return;
+      }
       _isConnected = true;
       _isConnecting = false;
       _connectedAt = DateTime.now();
@@ -94,6 +106,7 @@ class ChatWebSocketService {
   /// [_isReconnecting]; overlapping connects are guarded by [_isConnecting].
   /// Awaits until connected (or a short timeout) so callers can proceed.
   Future<void> reconnect() async {
+    if (_suppressReconnect) return;
     if (_isReconnecting) return;
     _isReconnecting = true;
     try {
@@ -129,6 +142,7 @@ class ChatWebSocketService {
     Duration timeout = const Duration(seconds: 3),
   }) async {
     if (_isConnected) return true;
+    if (_suppressReconnect) return false;
     if (!_isConnecting) {
       // Fire a connect; poll below until it resolves.
       // ignore: unawaited_futures
@@ -267,14 +281,30 @@ class ChatWebSocketService {
   }
 
   void _scheduleReconnect() {
+    if (_suppressReconnect) return;
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(const Duration(seconds: 5), () {
+      if (_suppressReconnect) return;
       if (!_isConnected && !_isConnecting) {
         debugPrint('ChatWebSocketService: Attempting auto-reconnect...');
         connect();
       }
     });
   }
+
+  /// Set by [disconnectForLogout]; blocks every (re)connect path until the next
+  /// login calls [allowReconnect].
+  bool _suppressReconnect = false;
+
+  /// Disconnects and keeps the socket (and its auto-reconnect loop) closed
+  /// until [allowReconnect] is called by the next login.
+  void disconnectForLogout() {
+    _suppressReconnect = true;
+    disconnect();
+  }
+
+  /// Clears the suppress flag. Called by the login flow before [connect].
+  void allowReconnect() => _suppressReconnect = false;
 
   /// Closes the WebSocket connection and resets timers.
   void disconnect() {

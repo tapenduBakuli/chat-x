@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/session_manager.dart';
 import '../../../utils/device_info_service.dart';
 import '../../../utils/location_service.dart';
 import '../../register/model/onboarding_args.dart';
@@ -79,6 +80,13 @@ class SplashController extends GetxController {
     if (!_hasSession()) {
       // The session was cleared meanwhile (e.g. token refresh rejected and
       // BaseClient already routed to Login).
+      // [OLD – could navigate twice after a forced logout]
+      // if (Get.currentRoute != Routes.LOGIN) _go(Routes.LOGIN);
+      // [/OLD]
+      if (SessionManager.loggedOutRecently) {
+        _navigated = true;
+        return;
+      }
       if (Get.currentRoute != Routes.LOGIN) _go(Routes.LOGIN);
       return;
     }

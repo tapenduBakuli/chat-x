@@ -6,18 +6,56 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+// [OLD – unused after _expireSession delegates to SessionManager]
+// import 'package:get/get.dart';
+// [/OLD]
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../device_manager/urls.dart';
 import '../modules/chat/services/chat_websocket_service.dart';
 import '../modules/login/model/login_response_model.dart';
-import '../routes/routes.dart';
+// [OLD – unused after _expireSession delegates to SessionManager]
+// import '../routes/routes.dart';
+// [/OLD]
 import 'Store/HiveStore.dart';
 import 'auth_payload_builders.dart';
 import 'exception_handler.dart';
+import 'session_manager.dart';
 import 'text_utils/app_strings.dart';
+
+/// Reads `error.code` from an API error body. Never throws: empty, non-JSON or
+/// differently shaped bodies give ''.
+String extractErrorCode(String body) {
+  try {
+    if (body.isEmpty) return '';
+    final dynamic decoded = jsonDecode(body);
+    if (decoded is Map) {
+      final dynamic error = decoded['error'];
+      if (error is Map) return error['code']?.toString() ?? '';
+    }
+  } catch (_) {}
+  return '';
+}
+
+/// What to do with a 401, decided by `error.code` BEFORE any refresh.
+enum UnauthorizedAction { idleLogout, forceLogout, refreshRetry, passThrough }
+
+UnauthorizedAction classifyUnauthorized(String code) {
+  switch (code) {
+    case 'session_idle_timeout':
+      return UnauthorizedAction.idleLogout;
+    case 'invalid_token':
+    case 'not_authenticated':
+      return UnauthorizedAction.forceLogout;
+    case 'invalid_current_password':
+      return UnauthorizedAction.passThrough;
+    case 'token_expired':
+    default:
+      // Missing/unknown code: refresh and retry once (previous behavior).
+      return UnauthorizedAction.refreshRetry;
+  }
+}
 
 /// Result of one POST /auth/refresh attempt.
 enum _RefreshOutcome {
@@ -31,6 +69,9 @@ enum _RefreshOutcome {
   /// The refresh call itself could not complete (offline, timeout, …). The
   /// session is kept; the caller gets [ApiNotResponding].
   networkError,
+
+  /// The refresh returned `session_idle_timeout`: log out, never refresh again.
+  idleTimeout,
 }
 
 class BaseClient {
@@ -103,7 +144,12 @@ class BaseClient {
             body: jsonEncode(<String, String>{'refresh_token': refreshToken}),
           )
           .timeout(const Duration(seconds: timeOutDuration));
-      debugPrint('Token refresh -> ${r.statusCode}');
+      // Only the error code is logged, never the body (tokens).
+      final String errCode = extractErrorCode(utf8.decode(r.bodyBytes));
+      debugPrint('Token refresh -> ${r.statusCode} code="$errCode"');
+      if (errCode == 'session_idle_timeout') {
+        return _RefreshOutcome.idleTimeout;
+      }
       if (r.statusCode < 200 || r.statusCode >= 300) {
         return _RefreshOutcome.rejected;
       }
@@ -152,14 +198,18 @@ class BaseClient {
   /// is preserved), routes to Login and tells the user. Callers only invoke
   /// this while ACCESSTOKEN is still present, so when several requests fail
   /// together only the first one gets here (clearSession runs synchronously).
+  // ignore: unused_element
   void _expireSession() {
-    HiveStore().clearSession();
-    if (Get.currentRoute != Routes.LOGIN) Get.offAllNamed(Routes.LOGIN);
-    Get.snackbar(
-      AppStrings.sessionExpiredTitle,
-      AppStrings.sessionExpiredMessage,
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    // [OLD – replaced by SessionManager.forceLogout]
+    // HiveStore().clearSession();
+    // if (Get.currentRoute != Routes.LOGIN) Get.offAllNamed(Routes.LOGIN);
+    // Get.snackbar(
+    //   AppStrings.sessionExpiredTitle,
+    //   AppStrings.sessionExpiredMessage,
+    //   snackPosition: SnackPosition.BOTTOM,
+    // );
+    // [/OLD]
+    SessionManager.forceLogout(reason: LogoutReason.expired);
   }
 
   /// Sends a request built by [send] (given the bearer token to use) and, on
@@ -200,7 +250,26 @@ class BaseClient {
 
     // Another request already expired the session meanwhile.
     if (_sessionAccessToken.isEmpty) {
-      throw UnAuthorizedException(utf8.decode(first.bodyBytes), path);
+      // [OLD – plain UnAuthorizedException made services show a 2nd snackbar]
+      // throw UnAuthorizedException(utf8.decode(first.bodyBytes), path);
+      // [/OLD]
+      throw SessionEndedException(utf8.decode(first.bodyBytes), path);
+    }
+    // Decide by error.code BEFORE any refresh.
+    final String code = extractErrorCode(utf8.decode(first.bodyBytes));
+    final UnauthorizedAction action = classifyUnauthorized(code);
+    debugPrint('401 code="$code" -> $action');
+    switch (action) {
+      case UnauthorizedAction.passThrough:
+        return first;
+      case UnauthorizedAction.idleLogout:
+        SessionManager.forceLogout(reason: LogoutReason.idleTimeout);
+        throw SessionEndedException(utf8.decode(first.bodyBytes), path);
+      case UnauthorizedAction.forceLogout:
+        SessionManager.forceLogout(reason: LogoutReason.expired);
+        throw SessionEndedException(utf8.decode(first.bodyBytes), path);
+      case UnauthorizedAction.refreshRetry:
+        break;
     }
 
     // Another request already refreshed since this one was sent: retry once
@@ -213,9 +282,18 @@ class BaseClient {
         return send(_authToken);
       case _RefreshOutcome.networkError:
         throw ApiNotResponding('${AppStrings.apiNotRespondingAtTime}', path);
+      case _RefreshOutcome.idleTimeout:
+        if (_sessionAccessToken.isNotEmpty) {
+          SessionManager.forceLogout(reason: LogoutReason.idleTimeout);
+        }
+        throw SessionEndedException(utf8.decode(first.bodyBytes), path);
       case _RefreshOutcome.rejected:
+        // [OLD – replaced by SessionManager via _expireSession]
+        // if (_sessionAccessToken.isNotEmpty) _expireSession();
+        // throw UnAuthorizedException(utf8.decode(first.bodyBytes), path);
+        // [/OLD]
         if (_sessionAccessToken.isNotEmpty) _expireSession();
-        throw UnAuthorizedException(utf8.decode(first.bodyBytes), path);
+        throw SessionEndedException(utf8.decode(first.bodyBytes), path);
     }
   }
 

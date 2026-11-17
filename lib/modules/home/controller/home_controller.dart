@@ -9,6 +9,8 @@ import 'package:get/get.dart';
 
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/activity_tracker.dart';
+import '../../../utils/session_manager.dart';
 import '../../../utils/belgium_locations.dart';
 import '../../../utils/location_service.dart';
 import '../../../utils/lib/otp_text_field.dart';
@@ -254,9 +256,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   void _startBadgePolling() {
     _badgePollTimer?.cancel();
+    // No session (e.g. after a forced logout): nothing to poll.
+    if (HiveStore().getStringQuiet(Keys.ACCESSTOKEN).isEmpty) return;
     _badgePollTimer = Timer.periodic(
       _badgePollInterval,
-      (_) => refreshUnreadNotifications(),
+      // [OLD – polled even when idle, which kept the server session alive]
+      // (_) => refreshUnreadNotifications(),
+      // [/OLD]
+      (_) {
+        if (ActivityTracker.instance.isIdle) return;
+        refreshUnreadNotifications();
+      },
     );
   }
 
@@ -265,12 +275,22 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _badgePollTimer = null;
   }
 
+  /// Public wrapper for SessionManager (forced logout).
+  void stopBadgePolling() => _stopBadgePolling();
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       refreshUnreadNotifications(force: true);
       _startBadgePolling();
-    } else if (state == AppLifecycleState.paused) {
+    // [OLD – only `paused` stopped the poll]
+    // } else if (state == AppLifecycleState.paused) {
+    //   _stopBadgePolling();
+    // }
+    // [/OLD]
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
       // Don't poll in the background.
       _stopBadgePolling();
     }
@@ -1700,8 +1720,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       if (!ok) {
         debugPrint('Logout API did not confirm; clearing session locally.');
       }
-      store.clearSession();
-      Get.offAllNamed(Routes.LOGIN);
+      // [OLD – replaced by SessionManager.forceLogout]
+      // store.clearSession();
+      // Get.offAllNamed(Routes.LOGIN);
+      // [/OLD]
+      SessionManager.forceLogout(reason: LogoutReason.manual);
     } finally {
       _isLoggingOut.value = false;
     }
@@ -1728,11 +1751,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         return false;
       }
 
-      final store = HiveStore();
-      store.clearSession();
-      store.remove(Keys.REMEMBERME);
-      store.remove(Keys.SAVEDEMAIL);
-      store.remove(Keys.SAVEDPASSWORD);
+      // [OLD – replaced by SessionManager.forceLogout(accountDeleted)]
+      // final store = HiveStore();
+      // store.clearSession();
+      // store.remove(Keys.REMEMBERME);
+      // store.remove(Keys.SAVEDEMAIL);
+      // store.remove(Keys.SAVEDPASSWORD);
+      // [/OLD]
+      SessionManager.forceLogout(reason: LogoutReason.accountDeleted);
 
       // LoginController is permanent; clear its in-memory fields too so the
       // deleted account's credentials don't reappear on the Login screen.
@@ -1743,7 +1769,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         login.rememberMe.value = false;
       }
 
-      Get.offAllNamed(Routes.LOGIN);
+      // [OLD – SessionManager.forceLogout already routes to Login]
+      // Get.offAllNamed(Routes.LOGIN);
+      // [/OLD]
       Get.snackbar('Account deleted', res.message,
           snackPosition: SnackPosition.BOTTOM);
       return true;

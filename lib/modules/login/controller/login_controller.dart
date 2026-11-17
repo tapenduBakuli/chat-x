@@ -252,6 +252,7 @@ class LoginController extends GetxController {
     _store.setString(Keys.SAVEDAVATAR, user?.avatar_url ?? "");
     _store.setString(Keys.SAVEDPROFILENAME, user?.displayName ?? "");
     // Connect to WebSocket chat connection for the logged-in user
+    ChatWebSocketService.instance.allowReconnect();
     ChatWebSocketService.instance.connect();
     // Session identity — a real login (not register) is what establishes a
     // logged-in session, keyed off these fields at startup.

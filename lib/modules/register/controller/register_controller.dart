@@ -14,6 +14,7 @@ import '../../../device_manager/screen_constants.dart';
 import '../../../device_manager/urls.dart';
 import '../../../routes/routes.dart';
 import '../../../utils/Store/HiveStore.dart';
+import '../../../utils/session_manager.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/belgium_locations.dart';
 import '../../../utils/belgium_name_match.dart';
@@ -462,12 +463,20 @@ class RegisterController extends GetxController {
   /// launch can't skip payment; on the register path only the leftover
   /// registration token is dropped.
   void onCancel() {
+    // [OLD – replaced by SessionManager.forceLogout on the login path]
+    // if (isLoginOnboarding) {
+    //   _store.clearSession();
+    // } else {
+    //   _store.remove(Keys.REGISTRATIONTOKEN);
+    // }
+    // Get.offAllNamed(Routes.LOGIN);
+    // [/OLD]
     if (isLoginOnboarding) {
-      _store.clearSession();
+      SessionManager.forceLogout(reason: LogoutReason.paymentCancel);
     } else {
       _store.remove(Keys.REGISTRATIONTOKEN);
+      Get.offAllNamed(Routes.LOGIN);
     }
-    Get.offAllNamed(Routes.LOGIN);
   }
 
   /// Policies & Safety Agreement state

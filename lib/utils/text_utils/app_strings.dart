@@ -11,4 +11,7 @@ class AppStrings {
   static const String sessionExpiredTitle = "Session expired";
   static const String sessionExpiredMessage =
       "Session expired. Please log in again.";
+  static const String sessionIdleTimeoutTitle = "Session expired";
+  static const String sessionIdleTimeoutMessage =
+      "Your session expired due to inactivity. Please log in again.";
 }
