@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,10 +21,12 @@ import '../../../utils/colors/app_colors.dart';
 import '../../../utils/device_coordinates.dart';
 import '../../../utils/location_gate.dart';
 import '../../home/controller/home_controller.dart';
+import '../../../utils/lib/otp_text_field.dart';
 import '../../login/model/login_response_model.dart';
+import '../../login/services/login_services.dart';
 import '../model/gallery_photo_model.dart';
-import '../model/onboarding_args.dart';
 import '../model/lifestyle_options.dart';
+import '../model/onboarding_args.dart';
 import '../model/update_profile_response_model.dart';
 import '../services/gallery_photo_services.dart';
 import '../services/payment_services.dart';
@@ -31,6 +34,7 @@ import '../services/profile_services.dart';
 import '../services/register_services.dart';
 import '../utils/edit_profile_payload.dart';
 import '../utils/profile_setup_hydration.dart';
+import '../views/widgets/registration_otp_sheet.dart';
 
 enum PaymentMethod { bancontact, sepa, creditCard }
 
@@ -205,6 +209,91 @@ class RegisterController extends GetxController {
   int? registeredDobMonth;
   int? registeredDobDay;
 
+  // --- OTP Verification State for Registration -----------------------------
+  final OtpFieldController registrationOtpFieldController = OtpFieldController();
+  final RxInt otpResendSeconds = 60.obs;
+  Timer? _otpResendTimer;
+  final RxBool isSendingOtp = false.obs;
+  final RxBool isVerifyingOtp = false.obs;
+  final RxString registrationOtpCode = ''.obs;
+
+  bool get canResendOtp => otpResendSeconds.value == 0;
+
+  void startOtpTimer() {
+    _otpResendTimer?.cancel();
+    otpResendSeconds.value = 60;
+    _otpResendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (otpResendSeconds.value > 0) {
+        otpResendSeconds.value--;
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  Future<bool> sendRegistrationOtp(String email) async {
+    if (isSendingOtp.value) return false;
+    isSendingOtp.value = true;
+    try {
+      final res = await LoginService.instance.sendOtp(email: email);
+      if (res.success) {
+        startOtpTimer();
+        Get.snackbar(
+          'Verification Code Sent',
+          res.message.isNotEmpty
+              ? res.message
+              : 'A verification code has been sent to $email.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return true;
+      } else {
+        Get.snackbar(
+          'Could not send code',
+          res.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return false;
+      }
+    } finally {
+      isSendingOtp.value = false;
+    }
+  }
+
+  Future<void> verifyRegistrationOtp(BuildContext context, String email) async {
+    final String code = registrationOtpCode.value.trim();
+    if (code.isEmpty || isVerifyingOtp.value) return;
+
+    final nav = Navigator.of(context);
+    isVerifyingOtp.value = true;
+    try {
+      final res = await LoginService.instance.verifyEmail(
+        email: email,
+        otp: code,
+      );
+      if (res.success) {
+        _otpResendTimer?.cancel();
+        Get.snackbar(
+          'Email Verified',
+          'Your email has been verified successfully!',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        nav.pop();
+        Get.toNamed(Routes.PAYMENT);
+        clearCreateAccountForm();
+      } else {
+        Get.snackbar(
+          'Verification Failed',
+          res.message.isNotEmpty
+              ? res.message
+              : 'Invalid verification code. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } finally {
+      isVerifyingOtp.value = false;
+    }
+  }
+
   final HiveStore _store = HiveStore();
 
   /// Where onboarding was entered from. Defaults to [OnboardingSource.register]
@@ -213,7 +302,13 @@ class RegisterController extends GetxController {
   /// (unpaid user resuming onboarding after login / relaunch).
   OnboardingSource onboardingSource = OnboardingSource.register;
 
-  bool get isLoginOnboarding => onboardingSource == OnboardingSource.login;
+  /// True on the login-resume path. Also true whenever a login session is
+  /// saved, so the Preview "Skip → Login" row and Payment's Cancel behave
+  /// correctly even if the in-memory [onboardingSource] was lost (controller
+  /// recreated). A fresh sign-up never has a login session.
+  bool get isLoginOnboarding =>
+      onboardingSource == OnboardingSource.login || _hasLoginSession();
+  // [OLD] bool get isLoginOnboarding => onboardingSource == OnboardingSource.login;
 
   /// Hydrates the register-time values (name, DOB, country, avatar) from the
   /// server so Profile Setup / Preview show them and PUT /users/me sends the
@@ -855,8 +950,11 @@ class RegisterController extends GetxController {
           }
         }
 
-        Get.toNamed(Routes.PAYMENT);
-        clearCreateAccountForm();
+        // Send OTP via Urls.sendOtp and open OTP verification sheet
+        await sendRegistrationOtp(email);
+        if (Get.context != null) {
+          showRegistrationOtpSheet(Get.context!, email);
+        }
       } else {
         Get.snackbar(
           'Registration failed',
@@ -1738,6 +1836,13 @@ class RegisterController extends GetxController {
 
       final res = await ProfileService.instance.updateProfile(payload);
       if (res.success) {
+        if (res.data?.profile != null) {
+          final bool complete = res.data!.profile!.isComplete;
+          await _store.setBool(Keys.ISPROFILECOMPLETE, complete);
+          if (Get.isRegistered<HomeController>()) {
+            Get.find<HomeController>().updateProfileCompleteness(complete);
+          }
+        }
         Get.snackbar(
           'Profile saved',
           res.message.isNotEmpty ? res.message : 'Profile updated',
@@ -1745,12 +1850,29 @@ class RegisterController extends GetxController {
         );
         // Registration-only token is no longer needed.
         await _store.remove(Keys.REGISTRATIONTOKEN);
-        if (isLoginOnboarding && _hasLoginSession()) {
-          _syncSessionIdentity(res.data);
-          Get.offAllNamed(routeAfterPublish(onboardingSource));
+        // Route by the saved LOGIN SESSION, not only the in-memory
+        // [onboardingSource] flag: the flag lives on this controller
+        // instance and is lost if the controller is ever recreated mid-flow,
+        // which sent logged-in users back to Login. A fresh sign-up never has
+        // a login session (register saves only REGISTRATIONTOKEN), so it
+        // still goes to Login.
+        final bool hasSession = _hasLoginSession();
+        debugPrint('Publish routing -> isLoginOnboarding=$isLoginOnboarding, '
+            'hasLoginSession=$hasSession');
+        if (hasSession) {
+          await _syncSessionIdentity(res.data);
+          Get.offAllNamed(Routes.HOME);
         } else {
           Get.offAllNamed(Routes.LOGIN);
         }
+        // [OLD – depended on the in-memory flag as well as the session]
+        // if (isLoginOnboarding && _hasLoginSession()) {
+        //   await _syncSessionIdentity(res.data);
+        //   Get.offAllNamed(routeAfterPublish(onboardingSource));
+        // } else {
+        //   Get.offAllNamed(Routes.LOGIN);
+        // }
+        // [/OLD]
       } else {
         Get.snackbar(
           'Could not save profile',
@@ -1777,7 +1899,15 @@ class RegisterController extends GetxController {
   /// [freshAvatar] is the absolute URL returned by the avatar upload API in
   /// this same save; when set it wins over the GET /users/me values (which can
   /// lag behind or carry a different field), because it is the newest.
-  void _syncSessionIdentity(UpdateProfileUser? data, {String? freshAvatar}) {
+  Future<void> _syncSessionIdentity(UpdateProfileUser? data, {String? freshAvatar}) async {
+    if (data?.profile != null) {
+      final bool complete = data!.profile!.isComplete;
+      await _store.setBool(Keys.ISPROFILECOMPLETE, complete);
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().updateProfileCompleteness(complete);
+      }
+    }
+
     final String serverName = (data?.displayName ?? '').trim();
     final String name = serverName.isNotEmpty ? serverName : previewDisplayName;
     if (name.isNotEmpty) {
@@ -1992,6 +2122,14 @@ class RegisterController extends GetxController {
           snackPosition: SnackPosition.BOTTOM,
         );
         return;
+      }
+
+      if (res.data?.profile != null) {
+        final bool complete = res.data!.profile!.isComplete;
+        await _store.setBool(Keys.ISPROFILECOMPLETE, complete);
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().updateProfileCompleteness(complete);
+        }
       }
 
       Get.snackbar(

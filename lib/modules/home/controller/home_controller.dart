@@ -170,6 +170,24 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     Get.toNamed(Routes.EDIT_PROFILE);
   }
 
+  /// Updates profile completeness state from login, splash, or PUT /users/me response.
+  void updateProfileCompleteness(bool complete) {
+    isProfileComplete.value = complete;
+    HiveStore().setBool(Keys.ISPROFILECOMPLETE, complete);
+  }
+
+  /// Fetches GET /users/me to ensure profile completeness state is in sync with the server.
+  Future<void> fetchMyProfileCompleteness() async {
+    try {
+      final res = await ProfileService.instance.getMyProfile();
+      if (res.success && res.data?.profile != null) {
+        updateProfileCompleteness(res.data!.profile!.isComplete);
+      }
+    } catch (e) {
+      debugPrint('HomeController.fetchMyProfileCompleteness error: $e');
+    }
+  }
+
   /// Active bottom navigation bar index (0: Explore, 1: Chat, 2: Friends).
   final RxInt selectedNavIndex = 0.obs;
 
@@ -697,6 +715,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   void onInit() {
     super.onInit();
     loadUserData();
+    fetchMyProfileCompleteness();
     LocationService.fetchAndStoreLocation();
     // Unread badge: check now (post-login / app launch), then poll while home
     // is open, and re-check when the app returns to the foreground.

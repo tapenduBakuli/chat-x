@@ -94,8 +94,8 @@ class HiveStore {
   }
 
   //Bool Storage
-  setBool(String key, bool value) async {
-    defBox.put(key, value);
+  Future<void> setBool(String key, bool value) async {
+    await defBox.put(key, value);
     print("HiveStored : Key:$key, Value:$value");
   }
 
