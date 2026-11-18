@@ -9,12 +9,16 @@ import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../../../utils/custom_text_field.dart';
 import '../../../utils/custom_widgets/universal_button.dart';
+import '../../../utils/card_input_utils.dart';
+import '../controller/account_billing_controller.dart';
 import '../controller/home_controller.dart';
+import '../model/subscription_info.dart';
 import '../model/member.dart';
 import 'widgets/blocked_tab.dart';
 import 'widgets/chats_tab.dart';
 import 'widgets/friends_tab.dart';
 import 'widgets/member_network_image.dart';
+import 'widgets/payment_method_dialogs.dart';
 import 'widgets/reset_password_dialogs.dart';
 
 /// The authenticated home: browse member profiles in a Grid or a Tinder-style
@@ -225,7 +229,14 @@ class BrowseMembersScreen extends GetView<HomeController> {
     // Navigator (same trick used by _buildSearchRow).
     return Builder(
       builder: (context) {
-        return SingleChildScrollView(
+        return RefreshIndicator(
+          color: CustomColor.colorBE185D,
+          onRefresh: () => Future.wait([
+            billing.refreshAll(force: true),
+            controller.loadInvisibleStatus(force: true),
+          ]),
+          child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
             ScreenConstant.defaultWidthTwenty,
             ScreenConstant.defaultHeightTen,
@@ -249,7 +260,10 @@ class BrowseMembersScreen extends GetView<HomeController> {
                 style: TextStyles.loginWelcomeSubtitle,
               ),
               SizedBox(height: ScreenConstant.sizeMedium),
-              _accountsBankingCard(),
+              // [OLD – zero-arg call]
+              // _accountsBankingCard(),
+              // [/OLD]
+              _accountsBankingCard(context),
               SizedBox(height: ScreenConstant.sizeMedium),
               _accountsSubscriptionCard(),
               SizedBox(height: ScreenConstant.sizeMedium),
@@ -259,6 +273,7 @@ class BrowseMembersScreen extends GetView<HomeController> {
               SizedBox(height: ScreenConstant.sizeMedium),
               _accountsDangerZoneCard(context),
             ],
+          ),
           ),
         );
       },
@@ -373,7 +388,9 @@ class BrowseMembersScreen extends GetView<HomeController> {
   }
 
   // --- Section 1: Verified Banking Credentials (STATIC) ----------------------
-  Widget _accountsBankingCard() {
+  AccountBillingController get billing => Get.find<AccountBillingController>();
+
+  Widget _accountsBankingCard(BuildContext context) {
     return _accountCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,60 +406,242 @@ class BrowseMembersScreen extends GetView<HomeController> {
             ),
           ),
           SizedBox(height: ScreenConstant.sizeMedium),
-          // Two inner tiles. // STATIC
-          _innerTile(
-            child: _bankingTileContent(
-              "PAYMENT PROVIDER",
-              "BANCONTACT (SEPA / Bancontact)",
-            ),
-          ),
-          SizedBox(height: ScreenConstant.sizeSmall),
-          _innerTile(
-            child: _bankingTileContent(
-              "MASKED MANDATE IDENTIFIER",
-              "BE76 •••• •••• 7890",
-            ),
-          ),
-          SizedBox(height: ScreenConstant.sizeSmall),
-          // Rose guarantee strip. // STATIC
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(ScreenConstant.sizeSmallHighest),
-            decoration: BoxDecoration(
-              color: CustomColor.colorFFF1F2,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
+          Obx(() {
+            final BillingLoadState st = billing.paymentState.value;
+            final pm = billing.paymentMethod.value;
+            if (st == BillingLoadState.error) {
+              return _inlineError(
+                billing.paymentError.value,
+                billing.retryPaymentMethod,
+              );
+            }
+            if (st == BillingLoadState.empty ||
+                (st == BillingLoadState.loaded && pm == null)) {
+              return _paymentEmptyState(context);
+            }
+            if (st != BillingLoadState.loaded || pm == null) {
+              return _innerTile(
+                child: Semantics(
+                  label: "Loading payment method",
+                  child: Center(
+                    child: SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          CustomColor.colorBE185D,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+            final bool busy = billing.isDeleting.value;
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.lock_outline,
-                  size: ScreenConstant.smallIconSize,
-                  color: CustomColor.colorBE123C,
-                ),
-                SizedBox(width: ScreenConstant.sizeSmall),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
+                _innerTile(
+                  child: _bankingTileContent(
+                    "PAYMENT METHOD",
+                    "Credit / Debit Card",
+                    footer: Text(
+                      "SEPA / Bancontact / 3DS",
                       style: TextStyles.registerFieldNote.copyWith(
-                        color: CustomColor.color334155,
+                        color: CustomColor.color64748B,
                       ),
-                      children: const [
-                        TextSpan(
-                          text: "Bank Guarantee: ",
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                _innerTile(
+                  child: _bankingTileContent(
+                    "MASKED CARD / MANDATE",
+                    pm.maskedCardNumber,
+                    footer: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: ScreenConstant.minimumIconSize,
+                          color: CustomColor.color059669,
                         ),
-                        TextSpan(
-                          text:
-                              "Stored securely under CX-NETWORK BV in "
-                              "compliance with Belgian financial regulations. "
-                              "Zero unauthorized recurring debits.",
+                        SizedBox(width: ScreenConstant.sizeExtraSmall),
+                        Flexible(
+                          child: Text(
+                            "Active & Verified",
+                            style: TextStyles.registerFieldNote.copyWith(
+                              color: CustomColor.color059669,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                _innerTile(
+                  child: _bankingTileContent(
+                    "CARDHOLDER & EXPIRY",
+                    pm.cardholderName,
+                    footer: Text(
+                      "Expires: ${formatExpiry(pm.expiryMonth, pm.expiryYear)}",
+                      style: TextStyles.registerFieldNote.copyWith(
+                        color: CustomColor.color64748B,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                _bankGuaranteeStrip(),
+                SizedBox(height: ScreenConstant.sizeMedium),
+                Semantics(
+                  button: true,
+                  enabled: !busy,
+                  label: "Delete payment method",
+                  child: GestureDetector(
+                    onTap: busy ? null : () => _onDeletePaymentMethod(context),
+                    child: Container(
+                      height: ScreenConstant.defaultHeightFifty,
+                      decoration: BoxDecoration(
+                        color: CustomColor.colorE11D48,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      alignment: Alignment.center,
+                      child: busy
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  CustomColor.colorWhite,
+                                ),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.delete_outline,
+                                  size: ScreenConstant.smallIconSize,
+                                  color: CustomColor.colorWhite,
+                                ),
+                                SizedBox(width: ScreenConstant.sizeSmall),
+                                Flexible(
+                                  child: Text(
+                                    "Delete Payment Method",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyles.loginButtonText
+                                        .copyWith(fontSize: FontSize.s14),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
               ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Confirm → DELETE → mandatory save modal.
+  Future<void> _onDeletePaymentMethod(BuildContext context) async {
+    final bool? deleted = await showDeletePaymentMethodDialog(context, billing);
+    if (deleted == true && context.mounted) {
+      await showSavePaymentMethodDialog(context, billing, mandatory: true);
+    }
+  }
+
+  Widget _paymentEmptyState(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _innerTile(
+          child: Row(
+            children: [
+              Icon(
+                Icons.credit_card_off_outlined,
+                size: ScreenConstant.smallIconSize,
+                color: CustomColor.color64748B,
+              ),
+              SizedBox(width: ScreenConstant.sizeSmall),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "No payment method saved",
+                      style: TextStyles.browseToggleLabel.copyWith(
+                        color: CustomColor.color0F172A,
+                        fontSize: FontSize.s14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      "A verified payment method is required to use ChatX.",
+                      style: TextStyles.registerFieldNote.copyWith(
+                        color: CustomColor.color64748B,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: ScreenConstant.sizeSmall),
+        _bankGuaranteeStrip(),
+        SizedBox(height: ScreenConstant.sizeMedium),
+        Semantics(
+          button: true,
+          label: "Add payment method",
+          child: buildLoginButton(
+            "Add Payment Method",
+            false,
+            () => showSavePaymentMethodDialog(
+              context,
+              billing,
+              mandatory: false,
+            ),
+            null,
+            height: ScreenConstant.defaultHeightFifty,
+            fontSize: FontSize.s14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Inline load failure with a Retry button (no snackbar).
+  Widget _inlineError(String message, Future<void> Function() onRetry) {
+    return _innerTile(
+      fill: CustomColor.colorFFF1F2,
+      border: CustomColor.colorFECDD3,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              message.isEmpty ? "Could not load. Please try again." : message,
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.colorBE123C,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            child: Text(
+              "Retry",
+              style: TextStyles.registerFieldNote.copyWith(
+                color: CustomColor.colorBE185D,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -450,7 +649,130 @@ class BrowseMembersScreen extends GetView<HomeController> {
     );
   }
 
-  Widget _bankingTileContent(String label, String value) {
+  /// Rose "Bank Guarantee" lock note.
+  Widget _bankGuaranteeStrip() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(ScreenConstant.sizeSmallHighest),
+      decoration: BoxDecoration(
+        color: CustomColor.colorFFF1F2,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.lock_outline,
+            size: ScreenConstant.smallIconSize,
+            color: CustomColor.colorBE123C,
+          ),
+          SizedBox(width: ScreenConstant.sizeSmall),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: TextStyles.registerFieldNote.copyWith(
+                  color: CustomColor.color334155,
+                ),
+                children: const [
+                  TextSpan(
+                    text: "Bank Guarantee: ",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextSpan(
+                    text:
+                        "Stored securely under CX-NETWORK BV in "
+                        "compliance with Belgian financial regulations. "
+                        "Zero unauthorized recurring debits.",
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // [OLD – hardcoded BANCONTACT / BE76 mandate tiles, replaced by API-backed card]
+  //   Widget _accountsBankingCard() {
+  //     return _accountCard(
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           _accountSectionHeader(
+  //             Icons.credit_card_outlined,
+  //             "Verified Banking Credentials",
+  //             trailing: _pill(
+  //               "Verified 18+ Account",
+  //               bg: CustomColor.colorECFDF5,
+  //               fg: CustomColor.color059669,
+  //               icon: Icons.verified_user_outlined,
+  //             ),
+  //           ),
+  //           SizedBox(height: ScreenConstant.sizeMedium),
+  //           // Two inner tiles. // STATIC
+  //           _innerTile(
+  //             child: _bankingTileContent(
+  //               "PAYMENT PROVIDER",
+  //               "BANCONTACT (SEPA / Bancontact)",
+  //             ),
+  //           ),
+  //           SizedBox(height: ScreenConstant.sizeSmall),
+  //           _innerTile(
+  //             child: _bankingTileContent(
+  //               "MASKED MANDATE IDENTIFIER",
+  //               "BE76 •••• •••• 7890",
+  //             ),
+  //           ),
+  //           SizedBox(height: ScreenConstant.sizeSmall),
+  //           // Rose guarantee strip. // STATIC
+  //           Container(
+  //             width: double.infinity,
+  //             padding: EdgeInsets.all(ScreenConstant.sizeSmallHighest),
+  //             decoration: BoxDecoration(
+  //               color: CustomColor.colorFFF1F2,
+  //               borderRadius: BorderRadius.circular(14),
+  //             ),
+  //             child: Row(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: [
+  //                 Icon(
+  //                   Icons.lock_outline,
+  //                   size: ScreenConstant.smallIconSize,
+  //                   color: CustomColor.colorBE123C,
+  //                 ),
+  //                 SizedBox(width: ScreenConstant.sizeSmall),
+  //                 Expanded(
+  //                   child: RichText(
+  //                     text: TextSpan(
+  //                       style: TextStyles.registerFieldNote.copyWith(
+  //                         color: CustomColor.color334155,
+  //                       ),
+  //                       children: const [
+  //                         TextSpan(
+  //                           text: "Bank Guarantee: ",
+  //                           style: TextStyle(fontWeight: FontWeight.bold),
+  //                         ),
+  //                         TextSpan(
+  //                           text:
+  //                               "Stored securely under CX-NETWORK BV in "
+  //                               "compliance with Belgian financial regulations. "
+  //                               "Zero unauthorized recurring debits.",
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   }
+  // [/OLD]
+
+  Widget _bankingTileContent(String label, String value, {Widget? footer}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -465,12 +787,18 @@ class BrowseMembersScreen extends GetView<HomeController> {
         SizedBox(height: ScreenConstant.sizeExtraSmall / 1.5),
         Text(
           value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: TextStyles.browseToggleLabel.copyWith(
             color: CustomColor.color0F172A,
             fontSize: FontSize.s14,
             fontWeight: FontWeight.bold,
           ),
         ),
+        if (footer != null) ...[
+          SizedBox(height: ScreenConstant.sizeExtraSmall),
+          footer,
+        ],
       ],
     );
   }
@@ -485,6 +813,56 @@ class BrowseMembersScreen extends GetView<HomeController> {
             Icons.auto_awesome,
             "Manage Subscription & Passes",
           ),
+          Obx(() {
+            final sub = billing.subscription.value;
+            if (sub == null || !sub.isTrial) return const SizedBox.shrink();
+            return Padding(
+              padding: EdgeInsets.only(top: ScreenConstant.sizeSmall),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Semantics(
+                  label: sub.trialPillText,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ScreenConstant.sizeSmallHighest,
+                      vertical: ScreenConstant.sizeExtraSmall,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(100),
+                      gradient: const LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          CustomColor.colorBE185D,
+                          CustomColor.color9333EA,
+                        ],
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: ScreenConstant.minimumIconSize - 1,
+                          color: CustomColor.colorWhite,
+                        ),
+                        SizedBox(width: ScreenConstant.sizeExtraSmall),
+                        Flexible(
+                          child: Text(
+                            sub.trialPillText,
+                            style: TextStyles.registerFieldNote.copyWith(
+                              color: CustomColor.colorWhite,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
           SizedBox(height: ScreenConstant.sizeMedium),
           // DEMO copy.
           Text(
@@ -497,39 +875,42 @@ class BrowseMembersScreen extends GetView<HomeController> {
             ),
           ),
           SizedBox(height: ScreenConstant.sizeMedium),
-          // Active pass strip. // DEMO
-          _innerTile(
-            child: Row(
-              children: [
-                Icon(
-                  Icons.workspace_premium_outlined,
-                  size: ScreenConstant.smallIconSize,
-                  color: CustomColor.colorBE185D,
-                ),
-                SizedBox(width: ScreenConstant.sizeSmall),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: TextStyles.browseToggleLabel.copyWith(
-                        color: CustomColor.color334155,
-                        fontSize: FontSize.s13,
-                      ),
-                      children: [
-                        const TextSpan(text: "Active Pass: "),
-                        TextSpan(
-                          text: "1-Month Single Pass (€9.99)",
-                          style: TextStyle(
-                            color: CustomColor.colorBE185D,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // [OLD – hardcoded "Active Pass: 1-Month Single Pass (€9.99)"]
+          // // Active pass strip. // DEMO
+          // _innerTile(
+          // child: Row(
+          // children: [
+          // Icon(
+          // Icons.workspace_premium_outlined,
+          // size: ScreenConstant.smallIconSize,
+          // color: CustomColor.colorBE185D,
+          // ),
+          // SizedBox(width: ScreenConstant.sizeSmall),
+          // Expanded(
+          // child: RichText(
+          // text: TextSpan(
+          // style: TextStyles.browseToggleLabel.copyWith(
+          // color: CustomColor.color334155,
+          // fontSize: FontSize.s13,
+          // ),
+          // children: [
+          // const TextSpan(text: "Active Pass: "),
+          // TextSpan(
+          // text: "1-Month Single Pass (€9.99)",
+          // style: TextStyle(
+          // color: CustomColor.colorBE185D,
+          // fontWeight: FontWeight.bold,
+          // ),
+          // ),
+          // ],
+          // ),
+          // ),
+          // ),
+          // ],
+          // ),
+          // ),
+          // [/OLD]
+          _activePassTile(),
           SizedBox(height: ScreenConstant.sizeMedium),
           // Four plan cards in a horizontal scroll row. // DEMO
           SingleChildScrollView(
@@ -593,6 +974,139 @@ class BrowseMembersScreen extends GetView<HomeController> {
         ],
       ),
     );
+  }
+
+  /// Active Pass box driven by GET subscriptions/me.
+  Widget _activePassTile() {
+    return Obx(() {
+      final BillingLoadState st = billing.subscriptionState.value;
+      final SubscriptionInfo? sub = billing.subscription.value;
+      if (st == BillingLoadState.error && sub == null) {
+        return _inlineError(
+          billing.subscriptionError.value,
+          billing.retrySubscription,
+        );
+      }
+      if (sub == null) {
+        return _innerTile(
+          child: Semantics(
+            label: "Loading subscription",
+            child: Center(
+              child: SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    CustomColor.colorBE185D,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      final bool live = sub.isActiveLike;
+      final Widget chip = sub.isTrial
+          ? _planBadge(
+              "TRIAL",
+              bg: CustomColor.color9333EA.withValues(alpha: 0.12),
+              fg: CustomColor.color9333EA,
+            )
+          : (live
+              ? const SizedBox.shrink()
+              : _planBadge(
+                  sub.statusLabel,
+                  bg: CustomColor.colorFFF1F2,
+                  fg: CustomColor.colorE11D48,
+                ));
+      final TextStyle detail = TextStyles.registerFieldNote.copyWith(
+        color: CustomColor.color334155,
+      );
+      return Semantics(
+        container: true,
+        label: "Active pass ${sub.planName}. ${sub.daysRemainingText}. "
+            "${live ? 'Access ends on' : 'Access ended on'} ${sub.endsOnText}",
+        child: ExcludeSemantics(
+          child: _innerTile(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.workspace_premium_outlined,
+                      size: ScreenConstant.smallIconSize,
+                      color: CustomColor.colorBE185D,
+                    ),
+                    SizedBox(width: ScreenConstant.sizeSmall),
+                    Expanded(
+                      child: Wrap(
+                        spacing: ScreenConstant.sizeSmall,
+                        runSpacing: ScreenConstant.sizeExtraSmall,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          RichText(
+                            text: TextSpan(
+                              style: TextStyles.browseToggleLabel.copyWith(
+                                color: CustomColor.color334155,
+                                fontSize: FontSize.s13,
+                              ),
+                              children: [
+                                const TextSpan(text: "Active Pass: "),
+                                TextSpan(
+                                  text: sub.planName,
+                                  style: const TextStyle(
+                                    color: CustomColor.colorBE185D,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          chip,
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: ScreenConstant.sizeSmall),
+                if (live) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.timer_outlined,
+                        size: ScreenConstant.minimumIconSize,
+                        color: CustomColor.color64748B,
+                      ),
+                      SizedBox(width: ScreenConstant.sizeExtraSmall),
+                      Expanded(child: Text(sub.daysRemainingText, style: detail)),
+                    ],
+                  ),
+                  SizedBox(height: ScreenConstant.sizeExtraSmall),
+                ],
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_outlined,
+                      size: ScreenConstant.minimumIconSize,
+                      color: CustomColor.color64748B,
+                    ),
+                    SizedBox(width: ScreenConstant.sizeExtraSmall),
+                    Expanded(
+                      child: Text(
+                        "${live ? 'Access ends on' : 'Access ended on'}: ${sub.endsOnText}",
+                        style: detail,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _planBadge(String text, {required Color bg, required Color fg}) {

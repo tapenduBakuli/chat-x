@@ -127,42 +127,50 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
                                   // [/OLD FLOW]
                                   // [SUPERSEDED DRAFT – saved-card-details]
                                   // Obx(() {
-                                    // final bool isSaved =
-                                        // member.friendshipStatus == 'saved' ||
-                                            // controller.detailSavedProfile.value != null ||
-                                            // controller.isSaved(member);
+                                  // final bool isSaved =
+                                  // member.friendshipStatus == 'saved' ||
+                                  // controller.detailSavedProfile.value != null ||
+                                  // controller.isSaved(member);
 
-                                    // if (isSaved) {
-                                      // return Column(
-                                        // children: [
-                                          // SizedBox(
-                                            // height: ScreenConstant
-                                                // .defaultHeightTwentyThree,
-                                          // ),
-                                          // _savedActionBar(member),
-                                        // ],
-                                      // );
-                                    // }
-                                    // if (member.isFriendshipNone &&
-                                        // !controller.isBlocked(member)) {
-                                      // return Column(
-                                        // children: [
-                                          // SizedBox(
-                                            // height: ScreenConstant
-                                                // .defaultHeightTwentyThree,
-                                          // ),
-                                          // _defaultBrowseActionBar(member),
-                                        // ],
-                                      // );
-                                    // }
-                                    // return const SizedBox.shrink();
+                                  // if (isSaved) {
+                                  // return Column(
+                                  // children: [
+                                  // SizedBox(
+                                  // height: ScreenConstant
+                                  // .defaultHeightTwentyThree,
+                                  // ),
+                                  // _savedActionBar(member),
+                                  // ],
+                                  // );
+                                  // }
+                                  // if (member.isFriendshipNone &&
+                                  // !controller.isBlocked(member)) {
+                                  // return Column(
+                                  // children: [
+                                  // SizedBox(
+                                  // height: ScreenConstant
+                                  // .defaultHeightTwentyThree,
+                                  // ),
+                                  // _defaultBrowseActionBar(member),
+                                  // ],
+                                  // );
+                                  // }
+                                  // return const SizedBox.shrink();
                                   // }),
                                   // [/SUPERSEDED DRAFT]
                                   // Single action bar: saved -> Remove | Saved |
                                   // Message, otherwise Pass | Save. Blocked: none.
                                   Obx(() {
                                     if (controller.isBlocked(member)) {
-                                      return const SizedBox.shrink();
+                                      return Column(
+                                        children: [
+                                          SizedBox(
+                                            height: ScreenConstant
+                                                .defaultHeightTwentyThree,
+                                          ),
+                                          _blockedActionBar(member),
+                                        ],
+                                      );
                                     }
                                     return Column(
                                       children: [
@@ -334,136 +342,334 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
   // ---------------------------------------------------------------------------
   // Bottom action bar
   // ---------------------------------------------------------------------------
+  Widget _blockedActionBar(Member member) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+        ScreenConstant.defaultWidthTen,
+        ScreenConstant.sizeSmall,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: CustomColor.colorWhite,
+        boxShadow: [
+          BoxShadow(
+            color: CustomColor.color717B96.withValues(alpha: 0.12),
+            blurRadius: 16,
+            spreadRadius: -4,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Obx(() {
+        final bool busy = controller.isBlockBusy(member.id);
+        return Builder(
+          builder: (context) => Semantics(
+            button: true,
+            enabled: !busy,
+            label: busy
+                ? "Unblocking ${member.displayName}"
+                : "Unblock ${member.displayName}",
+            excludeSemantics: true,
+            child: GestureDetector(
+              onTap: busy
+                  ? null
+                  : () => _confirmUnblockFromBar(context, member),
+              child: Container(
+                height: ScreenConstant.defaultHeightFifty,
+                width: double.infinity,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(100),
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [CustomColor.colorBE185D, CustomColor.color581C87],
+                  ),
+                ),
+                child: busy
+                    ? SizedBox(
+                        height: ScreenConstant.minimumIconSize + 4,
+                        width: ScreenConstant.minimumIconSize + 4,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            CustomColor.colorWhite,
+                          ),
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_open_outlined,
+                            color: CustomColor.colorWhite,
+                            size: ScreenConstant.minimumIconSize,
+                          ),
+                          SizedBox(width: ScreenConstant.sizeSmall),
+                          Text(
+                            "Unblock",
+                            style: TextStyles.loginButtonText.copyWith(
+                              fontSize: FontSize.s14,
+                              color: CustomColor.colorWhite,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  /// Confirm dialog for the details bar (same look as the pill's dialog).
+  void _confirmUnblockFromBar(BuildContext context, Member member) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: CustomColor.colorWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "Unblock ${member.displayName}?",
+          style: TextStyles.loginWelcome.copyWith(fontSize: FontSize.s18),
+        ),
+        content: Text(
+          "Are you sure you want to unblock ${member.displayName}?",
+          style: TextStyles.loginWelcomeSubtitle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              "Cancel",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.color64748B,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              controller.unblockMemberFromDetail(member);
+            },
+            child: Text(
+              "Unblock",
+              style: TextStyles.loginWelcome.copyWith(
+                fontSize: FontSize.s14,
+                color: CustomColor.colorBE123C,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // [SUPERSEDED DRAFT – blocked-detail]
+  // Widget _blockedActionBar(Member member) {
+  //   return Container(
+  //     padding: EdgeInsets.fromLTRB(
+  //       ScreenConstant.defaultWidthTen,
+  //       ScreenConstant.sizeSmall,
+  //       ScreenConstant.defaultWidthTen,
+  //       ScreenConstant.sizeSmall,
+  //     ),
+  //     decoration: BoxDecoration(
+  //       borderRadius: BorderRadius.circular(20),
+  //       color: CustomColor.colorWhite,
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: CustomColor.color717B96.withValues(alpha: 0.12),
+  //           blurRadius: 16,
+  //           spreadRadius: -4,
+  //           offset: const Offset(0, -4),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Expanded(
+  //           child: Obx(() {
+  //             final bool busy = controller.isBlockBusy(member.id);
+  //             if (busy) {
+  //               return Container(
+  //                 height: ScreenConstant.defaultHeightFifty,
+  //                 decoration: BoxDecoration(
+  //                   borderRadius: BorderRadius.circular(100),
+  //                   gradient: const LinearGradient(
+  //                     begin: Alignment.centerLeft,
+  //                     end: Alignment.centerRight,
+  //                     colors: [
+  //                       CustomColor.colorBE185D,
+  //                       CustomColor.color581C87,
+  //                     ],
+  //                   ),
+  //                 ),
+  //                 alignment: Alignment.center,
+  //                 child: const SizedBox(
+  //                   height: 24,
+  //                   width: 24,
+  //                   child: CircularProgressIndicator(
+  //                     strokeWidth: 2.5,
+  //                     valueColor: AlwaysStoppedAnimation<Color>(
+  //                       CustomColor.colorWhite,
+  //                     ),
+  //                   ),
+  //                 ),
+  //               );
+  //             }
+  //             return buildLoginButton(
+  //               "Unblock Member",
+  //               true,
+  //               () => controller.unblockMemberFromDetail(member),
+  //               Icons.lock_open,
+  //               height: ScreenConstant.defaultHeightFifty,
+  //               fontSize: FontSize.s14,
+  //               iconSize: ScreenConstant.minimumIconSize,
+  //             );
+  //           }),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+  // [/SUPERSEDED DRAFT]
+
   // [SUPERSEDED DRAFT – saved-card-details]
   // Widget _savedActionBar(Member member) {
-    // return Container(
-      // padding: EdgeInsets.fromLTRB(
-        // ScreenConstant.defaultWidthTen,
-        // ScreenConstant.sizeSmall,
-        // ScreenConstant.defaultWidthTen,
-        // ScreenConstant.sizeSmall,
-      // ),
-      // decoration: BoxDecoration(
-        // borderRadius: BorderRadius.circular(20),
-        // color: CustomColor.colorWhite,
-        // boxShadow: [
-          // BoxShadow(
-            // color: CustomColor.color717B96.withOpacity(0.12),
-            // blurRadius: 16,
-            // spreadRadius: -4,
-            // offset: const Offset(0, -4),
-          // ),
-        // ],
-      // ),
-      // child: Row(
-        // children: [
-          // // 1. Remove
-          // Expanded(
-            // child: GestureDetector(
-              // behavior: HitTestBehavior.opaque,
-              // onTap: () => controller.removeSavedProfile(member.id,
-                  // displayName: member.displayName),
-              // child: Container(
-                // height: ScreenConstant.defaultHeightFifty,
-                // decoration: BoxDecoration(
-                  // borderRadius: BorderRadius.circular(100),
-                  // border: Border.all(color: CustomColor.colorE2E8F0),
-                  // color: CustomColor.colorWhite,
-                // ),
-                // child: Row(
-                  // mainAxisAlignment: MainAxisAlignment.center,
-                  // children: [
-                    // Icon(
-                      // Icons.delete_outline,
-                      // size: ScreenConstant.smallIconSize,
-                      // color: CustomColor.colorE11D48,
-                    // ),
-                    // SizedBox(width: ScreenConstant.sizeExtraSmall),
-                    // Text(
-                      // "Remove",
-                      // style: TextStyles.browseToggleLabel.copyWith(
-                        // color: CustomColor.colorE11D48,
-                        // fontWeight: FontWeight.w600,
-                      // ),
-                    // ),
-                  // ],
-                // ),
-              // ),
-            // ),
-          // ),
-          // SizedBox(width: ScreenConstant.sizeSmall),
-          // // 2. Saved (Indicator)
-          // Expanded(
-            // child: Container(
-              // height: ScreenConstant.defaultHeightFifty,
-              // decoration: BoxDecoration(
-                // borderRadius: BorderRadius.circular(100),
-                // color: CustomColor.colorF1F5F9,
-                // border: Border.all(color: CustomColor.colorCBD5E1),
-              // ),
-              // child: Row(
-                // mainAxisAlignment: MainAxisAlignment.center,
-                // children: [
-                  // Icon(
-                    // Icons.bookmark_added,
-                    // size: ScreenConstant.smallIconSize,
-                    // color: CustomColor.colorBE185D,
-                  // ),
-                  // SizedBox(width: ScreenConstant.sizeExtraSmall),
-                  // Text(
-                    // "Saved",
-                    // style: TextStyles.browseToggleLabel.copyWith(
-                      // color: CustomColor.colorBE185D,
-                      // fontWeight: FontWeight.bold,
-                    // ),
-                  // ),
-                // ],
-              // ),
-            // ),
-          // ),
-          // SizedBox(width: ScreenConstant.sizeSmall),
-          // // 3. Message
-          // Expanded(
-            // child: GestureDetector(
-              // behavior: HitTestBehavior.opaque,
-              // onTap: () => controller.openChatFromDetail(member.id),
-              // child: Container(
-                // height: ScreenConstant.defaultHeightFifty,
-                // decoration: BoxDecoration(
-                  // borderRadius: BorderRadius.circular(100),
-                  // gradient: const LinearGradient(
-                    // begin: Alignment.centerLeft,
-                    // end: Alignment.centerRight,
-                    // colors: [
-                      // CustomColor.colorBE185D,
-                      // CustomColor.color581C87,
-                    // ],
-                  // ),
-                // ),
-                // child: Row(
-                  // mainAxisAlignment: MainAxisAlignment.center,
-                  // children: [
-                    // Icon(
-                      // Icons.chat_bubble_outline,
-                      // size: ScreenConstant.smallIconSize,
-                      // color: CustomColor.colorWhite,
-                    // ),
-                    // SizedBox(width: ScreenConstant.sizeExtraSmall),
-                    // Text(
-                      // "Message",
-                      // style: TextStyles.loginButtonText.copyWith(
-                        // color: CustomColor.colorWhite,
-                        // fontSize: FontSize.s13,
-                      // ),
-                    // ),
-                  // ],
-                // ),
-              // ),
-            // ),
-          // ),
-        // ],
-      // ),
-    // );
+  // return Container(
+  // padding: EdgeInsets.fromLTRB(
+  // ScreenConstant.defaultWidthTen,
+  // ScreenConstant.sizeSmall,
+  // ScreenConstant.defaultWidthTen,
+  // ScreenConstant.sizeSmall,
+  // ),
+  // decoration: BoxDecoration(
+  // borderRadius: BorderRadius.circular(20),
+  // color: CustomColor.colorWhite,
+  // boxShadow: [
+  // BoxShadow(
+  // color: CustomColor.color717B96.withOpacity(0.12),
+  // blurRadius: 16,
+  // spreadRadius: -4,
+  // offset: const Offset(0, -4),
+  // ),
+  // ],
+  // ),
+  // child: Row(
+  // children: [
+  // // 1. Remove
+  // Expanded(
+  // child: GestureDetector(
+  // behavior: HitTestBehavior.opaque,
+  // onTap: () => controller.removeSavedProfile(member.id,
+  // displayName: member.displayName),
+  // child: Container(
+  // height: ScreenConstant.defaultHeightFifty,
+  // decoration: BoxDecoration(
+  // borderRadius: BorderRadius.circular(100),
+  // border: Border.all(color: CustomColor.colorE2E8F0),
+  // color: CustomColor.colorWhite,
+  // ),
+  // child: Row(
+  // mainAxisAlignment: MainAxisAlignment.center,
+  // children: [
+  // Icon(
+  // Icons.delete_outline,
+  // size: ScreenConstant.smallIconSize,
+  // color: CustomColor.colorE11D48,
+  // ),
+  // SizedBox(width: ScreenConstant.sizeExtraSmall),
+  // Text(
+  // "Remove",
+  // style: TextStyles.browseToggleLabel.copyWith(
+  // color: CustomColor.colorE11D48,
+  // fontWeight: FontWeight.w600,
+  // ),
+  // ),
+  // ],
+  // ),
+  // ),
+  // ),
+  // ),
+  // SizedBox(width: ScreenConstant.sizeSmall),
+  // // 2. Saved (Indicator)
+  // Expanded(
+  // child: Container(
+  // height: ScreenConstant.defaultHeightFifty,
+  // decoration: BoxDecoration(
+  // borderRadius: BorderRadius.circular(100),
+  // color: CustomColor.colorF1F5F9,
+  // border: Border.all(color: CustomColor.colorCBD5E1),
+  // ),
+  // child: Row(
+  // mainAxisAlignment: MainAxisAlignment.center,
+  // children: [
+  // Icon(
+  // Icons.bookmark_added,
+  // size: ScreenConstant.smallIconSize,
+  // color: CustomColor.colorBE185D,
+  // ),
+  // SizedBox(width: ScreenConstant.sizeExtraSmall),
+  // Text(
+  // "Saved",
+  // style: TextStyles.browseToggleLabel.copyWith(
+  // color: CustomColor.colorBE185D,
+  // fontWeight: FontWeight.bold,
+  // ),
+  // ),
+  // ],
+  // ),
+  // ),
+  // ),
+  // SizedBox(width: ScreenConstant.sizeSmall),
+  // // 3. Message
+  // Expanded(
+  // child: GestureDetector(
+  // behavior: HitTestBehavior.opaque,
+  // onTap: () => controller.openChatFromDetail(member.id),
+  // child: Container(
+  // height: ScreenConstant.defaultHeightFifty,
+  // decoration: BoxDecoration(
+  // borderRadius: BorderRadius.circular(100),
+  // gradient: const LinearGradient(
+  // begin: Alignment.centerLeft,
+  // end: Alignment.centerRight,
+  // colors: [
+  // CustomColor.colorBE185D,
+  // CustomColor.color581C87,
+  // ],
+  // ),
+  // ),
+  // child: Row(
+  // mainAxisAlignment: MainAxisAlignment.center,
+  // children: [
+  // Icon(
+  // Icons.chat_bubble_outline,
+  // size: ScreenConstant.smallIconSize,
+  // color: CustomColor.colorWhite,
+  // ),
+  // SizedBox(width: ScreenConstant.sizeExtraSmall),
+  // Text(
+  // "Message",
+  // style: TextStyles.loginButtonText.copyWith(
+  // color: CustomColor.colorWhite,
+  // fontSize: FontSize.s13,
+  // ),
+  // ),
+  // ],
+  // ),
+  // ),
+  // ),
+  // ),
+  // ],
+  // ),
+  // );
   // }
   // [/SUPERSEDED DRAFT]
 
@@ -603,7 +809,11 @@ class MemberDetailScreen extends GetView<MemberDetailController> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(icon, size: ScreenConstant.smallIconSize, color: color),
+                      Icon(
+                        icon,
+                        size: ScreenConstant.smallIconSize,
+                        color: color,
+                      ),
                       SizedBox(width: ScreenConstant.sizeExtraSmall),
                       Text(
                         label,
@@ -1073,72 +1283,93 @@ class _HeroCarouselState extends State<_HeroCarousel> {
             left: ScreenConstant.sizeMedium,
             right: ScreenConstant.sizeMedium,
             bottom: ScreenConstant.sizeMedium,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  member.age > 0
-                      ? "${member.displayName}, ${member.age}"
-                      : member.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CustomColor.colorWhite,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: "Liberation",
-                  ),
-                ),
-                SizedBox(height: ScreenConstant.sizeExtraSmall),
-                Wrap(
-                  spacing: ScreenConstant.sizeSmall,
-                  runSpacing: ScreenConstant.sizeExtraSmall,
+            // Blocked: only the name and the Blocked pill, on ONE row, so the
+            // overlay stays short and never runs into the centered
+            // "Blocked / Tap to unblock" indicator.
+            child: Obx(() {
+              if (_home.isBlocked(member)) {
+                return Row(
                   children: [
-                    if (member.genderLabel.isNotEmpty)
-                      _overlayPill(Icons.person_outline, member.genderLabel),
-                    // Availability (GET users/{id}/availability). Always shown
-                    // on this screen: "Checking…" while loading, then
-                    // "Active now" / "Last seen …" / "Offline" (also the
-                    // fallback if the call failed).
-                    Obx(() {
-                      final UserAvailability? a = _detail.availability.value;
-                      final bool loading =
-                          _detail.isAvailabilityLoading.value;
-                      final PresenceLabel? p = presenceLabel(a);
-                      final String text = p?.text ??
-                          (loading ? 'Checking…' : 'Offline');
-                      final bool online = p?.kind == PresenceKind.online;
-                      return Semantics(
-                        label: 'Status: $text',
-                        child: _overlayPill(
-                          Icons.circle,
-                          text,
-                          iconColor: online
-                              ? CustomColor.color10B981
-                              : CustomColor.color64748B,
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-                SizedBox(height: ScreenConstant.sizeExtraSmall),
-                Row(
-                  children: [
-                    _overlayPill(
-                      Icons.location_off_outlined,
-                      "Location: Remains Hidden",
-                      iconColor: CustomColor.colorFBCFE8,
-                    ),
-                    Spacer(),
+                    Expanded(child: _heroName(member)),
+                    SizedBox(width: ScreenConstant.sizeSmall),
                     _blockPill(member),
                   ],
-                ),
-              ],
-            ),
+                );
+              }
+              return _identityDetails(member);
+            }),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _heroName(Member member) => Text(
+    member.age > 0
+        ? "${member.displayName}, ${member.age}"
+        : member.displayName,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: const TextStyle(
+      color: CustomColor.colorWhite,
+      fontSize: 28,
+      fontWeight: FontWeight.bold,
+      fontFamily: "Liberation",
+    ),
+  );
+
+  /// Full identity overlay for members who are not blocked: name, gender,
+  /// availability, location and the Block pill (unchanged).
+  Widget _identityDetails(Member member) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _heroName(member),
+        SizedBox(height: ScreenConstant.sizeExtraSmall),
+        Wrap(
+          spacing: ScreenConstant.sizeSmall,
+          runSpacing: ScreenConstant.sizeExtraSmall,
+          children: [
+            if (member.genderLabel.isNotEmpty)
+              _overlayPill(Icons.person_outline, member.genderLabel),
+            // Availability (GET users/{id}/availability). Always shown
+            // on this screen: "Checking…" while loading, then
+            // "Active now" / "Last seen …" / "Offline" (also the
+            // fallback if the call failed).
+            Obx(() {
+              final UserAvailability? a = _detail.availability.value;
+              final bool loading = _detail.isAvailabilityLoading.value;
+              final PresenceLabel? p = presenceLabel(a);
+              final String text =
+                  p?.text ?? (loading ? 'Checking…' : 'Offline');
+              final bool online = p?.kind == PresenceKind.online;
+              return Semantics(
+                label: 'Status: $text',
+                child: _overlayPill(
+                  Icons.circle,
+                  text,
+                  iconColor: online
+                      ? CustomColor.color10B981
+                      : CustomColor.color64748B,
+                ),
+              );
+            }),
+          ],
+        ),
+        SizedBox(height: ScreenConstant.sizeExtraSmall),
+        Row(
+          children: [
+            _overlayPill(
+              Icons.location_off_outlined,
+              "Location: Remains Hidden",
+              iconColor: CustomColor.colorFBCFE8,
+            ),
+            Spacer(),
+            _blockPill(member),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1281,7 +1512,9 @@ class _HeroCarouselState extends State<_HeroCarousel> {
     title: "Unblock ${member.displayName}?",
     body: "Are you sure you want to unblock ${member.displayName}?",
     actionLabel: "Unblock",
-    onConfirm: () => _home.unblockMember(member),
+    onConfirm: () =>
+        Get.find<MemberDetailController>().unblockMemberFromDetail(member),
+    // [OLD – blocked-detail] onConfirm: () => _home.unblockMember(member),
   );
 
   /// Same dialog look as the Friends "Remove friend?" confirm.

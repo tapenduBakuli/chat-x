@@ -300,29 +300,72 @@ class BlockedTab extends StatelessWidget {
   // ---------------------------------------------------------------------------
   Widget _blockedCard(BuildContext context, BlockedUser b) {
     final FriendUser user = b.user;
-    return _card(
-      child: Row(
-        children: [
-          _avatar(user),
-          SizedBox(width: ScreenConstant.sizeSmallHighest),
-          Expanded(
-            child: _nameBlock(
-              user,
-              trailingNote: user.since == null ? null : _timeAgo(user.since!),
+    return Semantics(
+      container: true,
+      label: "View ${user.displayName}'s profile",
+      onTap: () => controller.openBlockedMemberDetail(b),
+      child: _card(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => controller.openBlockedMemberDetail(b),
+            child: Row(
+              children: [
+                _avatar(user),
+                SizedBox(width: ScreenConstant.sizeSmallHighest),
+                Expanded(
+                  child: _nameBlock(
+                    user,
+                    trailingNote:
+                        user.since == null ? null : _timeAgo(user.since!),
+                  ),
+                ),
+                SizedBox(width: ScreenConstant.sizeSmall),
+                Obx(() {
+                  final bool busy = controller.busyUserIds.contains(user.id);
+                  return SizedBox(
+                    width: ScreenConstant.defaultWidthEighty,
+                    child: _unblockButton(context, b, busy),
+                  );
+                }),
+              ],
             ),
           ),
-          SizedBox(width: ScreenConstant.sizeSmall),
-          Obx(() {
-            final bool busy = controller.busyUserIds.contains(user.id);
-            return SizedBox(
-              width: ScreenConstant.defaultWidthEighty,
-              child: _unblockButton(context, b, busy),
-            );
-          }),
-        ],
+        ),
       ),
     );
   }
+
+    // [SUPERSEDED DRAFT – blocked-detail] [OLD – blocked-detail GestureDetector]
+    // return GestureDetector(
+    //   behavior: HitTestBehavior.opaque,
+    //   onTap: () => controller.openBlockedMemberDetail(b),
+    //   child: _card(
+    //     child: Row(
+    //       children: [
+    //         _avatar(user),
+    //         SizedBox(width: ScreenConstant.sizeSmallHighest),
+    //         Expanded(
+    //           child: _nameBlock(
+    //             user,
+    //             trailingNote: user.since == null ? null : _timeAgo(user.since!),
+    //           ),
+    //         ),
+    //         SizedBox(width: ScreenConstant.sizeSmall),
+    //         Obx(() {
+    //           final bool busy = controller.busyUserIds.contains(user.id);
+    //           return SizedBox(
+    //             width: ScreenConstant.defaultWidthEighty,
+    //             child: _unblockButton(context, b, busy),
+    //           );
+    //         }),
+    //       ],
+    //     ),
+    //   ),
+    // );
+    // 
+    // [/SUPERSEDED DRAFT]
 
   /// Outlined pill matching the Sent "Cancel"; grey spinner while
   /// unblocking.

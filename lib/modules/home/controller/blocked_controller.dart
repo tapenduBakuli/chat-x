@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:get/get.dart';
 
+import '../../../routes/routes.dart';
 import '../model/friend.dart';
+import '../model/member.dart';
 import '../services/block_services.dart';
 import 'home_controller.dart';
 
@@ -136,5 +138,59 @@ class BlockedController extends GetxController {
     } finally {
       busyUserIds.remove(userId);
     }
+  }
+
+  // [SUPERSEDED DRAFT – blocked-detail]
+  // /// Opens [BlockedUser] details in MemberDetailScreen.
+  // void openBlockedMemberDetail(BlockedUser b) {
+  //   final member = Member(
+  //     id: b.user.id,
+  //     displayName: b.user.displayName,
+  //     age: b.user.age,
+  //     role: 'user',
+  //     friendshipStatus: 'blocked',
+  //     avatarUrl: b.user.avatarUrl,
+  //     profile: MemberProfile(
+  //       gender: '',
+  //       orientations: const <String>[],
+  //       bio: b.user.subtitle,
+  //       location: '',
+  //       city: '',
+  //       region: '',
+  //       interests: const <String>[],
+  //       lookingFor: const <String>[],
+  //       relationshipIntents: const <String>[],
+  //       photos: const <MemberPhoto>[],
+  //       avatarUrl: b.user.avatarUrl,
+  //     ),
+  //   );
+
+  //   if (Get.isRegistered<HomeController>()) {
+  //     Get.find<HomeController>().openMemberDetail(member);
+  //   } else {
+  //     Get.toNamed(Routes.MEMBER_DETAIL, arguments: member);
+  //   }
+  // }
+  // [/SUPERSEDED DRAFT]
+
+  /// Opens the blocked user's details (Unblock bar). Marks them blocked for
+  /// the session so the GET users/{id} merge can't flip it back.
+  void openBlockedMemberDetail(BlockedUser b) {
+    final member = Member(
+      id: b.user.id,
+      displayName: b.user.displayName,
+      age: b.user.age,
+      role: '',
+      friendshipStatus: 'blocked',
+      avatarUrl: b.user.avatarUrl,
+      profile: MemberProfile.empty,
+    );
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().blockStates[b.user.id] = true;
+    }
+    Get.toNamed(
+      Routes.MEMBER_DETAIL,
+      arguments: {'member': member, 'fromBlockedTab': true},
+    );
   }
 }

@@ -24,6 +24,7 @@ import '../../register/services/profile_services.dart';
 // [SUPERSEDED DRAFT – saved-card-details] import '../model/friend.dart'; // [/SUPERSEDED DRAFT]
 import '../model/member.dart';
 import '../services/block_services.dart';
+import 'account_billing_controller.dart';
 import 'blocked_controller.dart';
 import 'conversations_controller.dart';
 import '../services/friend_services.dart';
@@ -1650,15 +1651,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// DELETE users/{id}/block. On success: marks [m] unblocked, snackbar, and
   /// refetches page 1 (fire-and-forget) so [m] may reappear in Browse. On
   /// failure: error snackbar, stays blocked.
-  Future<void> unblockMember(Member m) async {
-    if (m.id.isEmpty || blockingUserIds.contains(m.id)) return;
+  // [OLD – unblockMember void] was Future<void> unblockMember(Member m)
+  Future<bool> unblockMember(Member m) async {
+    if (m.id.isEmpty || blockingUserIds.contains(m.id)) return false;
     blockingUserIds.add(m.id);
     try {
       final res = await BlockService.instance.unblockUser(m.id);
       if (!res.success) {
         Get.snackbar('Could not unblock', res.message,
             snackPosition: SnackPosition.BOTTOM);
-        return;
+        return false;
       }
       blockStates[m.id] = false;
       Get.snackbar(
@@ -1667,10 +1669,41 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         snackPosition: SnackPosition.BOTTOM,
       );
       onRefresh();
+      return true;
     } finally {
       blockingUserIds.remove(m.id);
     }
   }
+
+  // [SUPERSEDED DRAFT – blocked-detail]
+  // /// Unblock from MemberDetailScreen: unblocks via API, updates state, refreshes
+  // /// the BlockedController list and pops back to the Blocked list screen.
+  // Future<void> unblockMemberFromDetail(Member m) async {
+  //   if (m.id.isEmpty || blockingUserIds.contains(m.id)) return;
+  //   blockingUserIds.add(m.id);
+  //   try {
+  //     final res = await BlockService.instance.unblockUser(m.id);
+  //     if (!res.success) {
+  //       Get.snackbar('Could not unblock', res.message,
+  //           snackPosition: SnackPosition.BOTTOM);
+  //       return;
+  //     }
+  //     blockStates[m.id] = false;
+  //     Get.snackbar(
+  //       'Unblocked',
+  //       res.message.isNotEmpty ? res.message : '${m.displayName} unblocked',
+  //       snackPosition: SnackPosition.BOTTOM,
+  //     );
+  //     if (Get.isRegistered<BlockedController>() &&
+  //         !Get.isPrepared<BlockedController>()) {
+  //       Get.find<BlockedController>().refreshBlocked(showError: false);
+  //     }
+  //     Get.until((route) => route.settings.name != Routes.MEMBER_DETAIL);
+  //   } finally {
+  //     blockingUserIds.remove(m.id);
+  //   }
+  // }
+  // [/SUPERSEDED DRAFT]
 
   /// Called by BlockedController after an unblock from the Blocked tab: mark
   /// the user unblocked for this session (overrides any stale server
@@ -1695,6 +1728,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     refreshUnreadNotifications();
     // Accounts tab: sync the invisible toggle (forced the first time only).
     if (index == 3) loadInvisibleStatus(force: !_hasLoadedInvisible);
+    // Accounts tab: subscription + saved payment method (own 10s throttle).
+    if (index == 3 && Get.isRegistered<AccountBillingController>()) {
+      Get.find<AccountBillingController>().onTabOpened();
+    }
     // Chat tab: load/refresh the conversation list (10s throttle; the
     // first open always loads).
     if (index == 1 && Get.isRegistered<ConversationsController>()) {

@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../controller/account_billing_controller.dart';
 import '../controller/blocked_controller.dart';
 import '../controller/conversations_controller.dart';
 import '../controller/friends_controller.dart';
@@ -30,6 +31,11 @@ class HomeBinding extends Bindings {
     // Chat tab (GET conversations).
     Get.lazyPut<ConversationsController>(
       () => ConversationsController(),
+      fenix: true,
+    );
+    // Accounts tab billing (GET subscriptions/me + users/me/payment-method).
+    Get.lazyPut<AccountBillingController>(
+      () => AccountBillingController(),
       fenix: true,
     );
   }

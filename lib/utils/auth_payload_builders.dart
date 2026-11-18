@@ -94,6 +94,9 @@ dynamic maskSecretsForLog(dynamic payload) {
     'confirm_new_password',
     'refresh_token',
     'reset_token',
+    // Card data must never reach logs (see BaseClient.post).
+    'card_number',
+    'cvv',
   };
   if (payload is Map) {
     return payload.map<dynamic, dynamic>((k, v) =>

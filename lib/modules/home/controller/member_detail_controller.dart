@@ -2,11 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../routes/routes.dart';
 import '../../../utils/TextStyles.dart';
 import '../../../utils/colors/app_colors.dart';
 import '../model/friend.dart';
 import '../model/member.dart';
 import '../services/member_services.dart';
+import 'blocked_controller.dart';
 import 'friends_controller.dart';
 import 'home_controller.dart';
 
@@ -48,6 +50,28 @@ class MemberDetailController extends GetxController {
 
   bool isBlocked(Member m) => _home.isBlocked(m);
 
+  /// True while block/unblock for [id] is in flight (reactive in Obx).
+  bool isBlockBusy(String id) => _home.isBlockBusy(id);
+
+  /// True when opened from the Blocked tab (pop back to it after unblock).
+  bool fromBlockedTab = false;
+
+  /// Unblock from details. On success refetches the Blocked list (awaited)
+  /// and, when opened from the Blocked tab, pops back to it. Otherwise stays
+  /// on details (bar switches via blockStates). Failure: stays blocked.
+  Future<void> unblockMemberFromDetail(Member m) async {
+    if (m.id.isEmpty || _home.isBlockBusy(m.id)) return;
+    final bool ok = await _home.unblockMember(m);
+    if (!ok) return;
+    if (Get.isRegistered<BlockedController>()) {
+      await Get.find<BlockedController>().refreshBlocked(showError: false);
+    }
+    if (fromBlockedTab) {
+      _home.selectedNavIndex.value = 4; // Blocked tab
+      Get.until((r) => r.settings.name != Routes.MEMBER_DETAIL);
+    }
+  }
+
   /// DELETE friends/{id}. On success HomeController.savedStates flips to
   /// false, so the bar returns to Pass + Save without leaving the screen.
   Future<void> removeSaved() async {
@@ -83,7 +107,10 @@ class MemberDetailController extends GetxController {
     super.onInit();
     final dynamic arg = Get.arguments;
     Member? initial;
-    if (arg is Member) {
+    if (arg is Map && arg['member'] is Member) {
+      initial = arg['member'] as Member;
+      fromBlockedTab = arg['fromBlockedTab'] == true;
+    } else if (arg is Member) {
       initial = arg;
     } else if (arg is String && arg.trim().isNotEmpty) {
       initial = Member(
@@ -114,6 +141,11 @@ class MemberDetailController extends GetxController {
       if (!home.savedStates.containsKey(member.value.id)) {
         home.savedStates[member.value.id] = true;
       }
+    }
+    // Blocked-tab entry: session override keeps the Unblock bar after the
+    // GET users/{id} merge (isBlocked reads blockStates first).
+    if (isValid && fromBlockedTab) {
+      Get.find<HomeController>().blockStates[member.value.id] = true;
     }
     if (isValid) load();
   }

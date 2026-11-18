@@ -21,6 +21,10 @@ class Urls {
 
   // --- Users ---------------------------------------------------------------
   static const String savePaymentMethod = "${apiBase}users/me/payment-method";
+  /// GET / DELETE the saved payment method (same path as [savePaymentMethod]).
+  static const String myPaymentMethod = "${apiBase}users/me/payment-method";
+  /// GET current subscription / trial status.
+  static const String mySubscription = "${apiBase}subscriptions/me";
   static const String uploadAvatar = "${apiBase}users/me/avatar";
 
   /// GET — lists my gallery photos; POST (multipart, field `file`) — uploads
